@@ -1,0 +1,6 @@
+{
+  "name": "SACHIO Toilets",
+  "description": "SACHIO Mobile Toilets Management system with Role-Based Access Control, client bookings, staff tasks, and administrative reports.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
