@@ -777,9 +777,18 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         _activePaystackTransaction.value = null
     }
 
+    // Renamed in spirit from "simWebpayComplete": this no longer marks a
+    // payment successful on tap. It closes the checkout sheet and asks
+    // Supabase for the real status, which only becomes "success" once
+    // Paystack's own webhook has actually confirmed the charge.
+    private val _lastPaymentStatus = MutableStateFlow<String?>(null)
+    val lastPaymentStatus: StateFlow<String?> = _lastPaymentStatus.asStateFlow()
+
     fun simWebpayComplete(ref: String) {
-        repository.completePaymentSimulation(ref)
         _activePaystackTransaction.value = null
+        viewModelScope.launch {
+            _lastPaymentStatus.value = repository.checkPaymentStatus(ref)
+        }
     }
 
     // --- Places Autocomplete Simulator ---
@@ -1594,4 +1603,3 @@ data class SupportTicket(
     val status: String,
     val date: String
 )
-
