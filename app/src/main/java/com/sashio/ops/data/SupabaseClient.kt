@@ -13,6 +13,16 @@ data class SupabasePaymentStatus(
 )
 
 @Serializable
+data class AdminProfileRow(
+    val id: String,
+    val email: String,
+    val full_name: String? = null,
+    val role: String = "client",
+    val phone_number: String? = null,
+    val company_name: String? = null
+)
+
+@Serializable
 data class SupabaseProfile(
     val id: String,
     val email: String,
