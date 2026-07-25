@@ -37,6 +37,18 @@ jobs:
           MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}
           EOF
 
+      # Generates the standard Android debug keystore. This is NOT a secret -
+      # every Android Studio install auto-generates this exact same file with
+      # these exact same well-known credentials (android/android/androiddebugkey).
+      # It's git-ignored on purpose (all keystores are, as good practice), so
+      # CI needs to recreate it fresh on every run.
+      - name: Generate debug keystore
+        run: |
+          keytool -genkey -v -keystore debug.keystore \
+            -storepass android -alias androiddebugkey -keypass android \
+            -dname "CN=Android Debug,O=Android,C=US" \
+            -validity 10950 -keyalg RSA -keysize 2048
+
       - name: Build debug APK
         run: ./gradlew assembleDebug --stacktrace
 
