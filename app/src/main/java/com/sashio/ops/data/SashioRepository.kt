@@ -1,6 +1,7 @@
 package com.sashio.ops.data
 
 import android.content.Context
+import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 
@@ -9,7 +10,7 @@ class SashioRepository(
     private val database: SashioDatabase
 ) {
     private val dao = database.sashioDao()
-    val networkProvider = NetworkProvider(context, database)
+    val networkProvider = NetworkProvider(database)
 
     // --- Users ---
     val allProfiles: Flow<List<UserProfile>> = dao.getAllProfilesFlow()
@@ -47,17 +48,36 @@ class SashioRepository(
     // --- Payments ---
     val allPayments: Flow<List<Payment>> = dao.getAllPaymentsFlow()
 
+    // NOTE: bookingId here is the local Room Long id, stringified. The Edge
+    // Function looks this up against the real public.bookings UUID in
+    // Supabase - until bookings themselves are migrated to Supabase (a
+    // separate, larger step), this call will succeed in reaching Paystack
+    // but fail the booking lookup for bookings that only exist locally.
     suspend fun createPayment(bookingId: Long, email: String, amount: Double): CreatePaymentResponse? {
         return try {
-            val req = CreatePaymentRequest(bookingId, email, amount)
+            val req = CreatePaymentRequest(bookingId.toString(), email, amount)
             networkProvider.apiService.createPayment(req)
         } catch (e: Exception) {
             null
         }
     }
 
-    fun completePaymentSimulation(reference: String) {
-        networkProvider.simulateWebhookBroadcast(reference)
+    // Real status check against Supabase Postgrest - reflects whatever the
+    // paystack-webhook Edge Function actually recorded after a genuine
+    // Paystack payment. There is no client-side "mark as paid" anymore:
+    // the only way a payment becomes "success" is Paystack calling the
+    // real webhook. Returns null if the row can't be found/read.
+    suspend fun checkPaymentStatus(reference: String): String? {
+        return try {
+            SupabaseProvider.client.postgrest.from("payments")
+                .select {
+                    filter { eq("reference", reference) }
+                }
+                .decodeSingleOrNull<SupabasePaymentStatus>()
+                ?.status
+        } catch (e: Exception) {
+            null
+        }
     }
 
     // --- Consultations ---
