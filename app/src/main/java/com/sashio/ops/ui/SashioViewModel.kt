@@ -5,7 +5,9 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.sashio.ops.data.*
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.auth.providers.builtin.OTP
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.filter.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -541,13 +543,25 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun signUpUser(name: String, email: String, role: String, phone: String, company: String = "", password: String = "") {
-        if (name.isBlank() || email.isBlank() || phone.isBlank() || password.isBlank()) {
+    // --- OTP-based sign up ---
+    // Holds the form data collected on the register screen while the user
+    // goes to check their email for the code - nothing is created in
+    // Supabase or locally until the code is verified.
+    private data class PendingSignup(
+        val name: String,
+        val email: String,
+        val role: String,
+        val phone: String,
+        val company: String
+    )
+    private var pendingSignup: PendingSignup? = null
+
+    private val _pendingSignupEmail = MutableStateFlow<String?>(null)
+    val pendingSignupEmail: StateFlow<String?> = _pendingSignupEmail.asStateFlow()
+
+    fun sendSignupOtp(name: String, email: String, role: String, phone: String, company: String = "") {
+        if (name.isBlank() || email.isBlank() || phone.isBlank()) {
             _signUpError.value = "All fields except company are mandatory"
-            return
-        }
-        if (password.length < 6) {
-            _signUpError.value = "Password must be at least 6 characters"
             return
         }
         viewModelScope.launch {
@@ -557,46 +571,88 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 return@launch
             }
 
-            // Creates the real Supabase account - this is what makes the user
-            // actually show up in Supabase Authentication / the profiles table,
-            // instead of only existing in the local on-device database.
             try {
-                SupabaseProvider.client.auth.signUpWith(Email) {
+                // Passwordless: sends a 6-digit code to the email. Requires
+                // "Confirm email" enabled and the email template configured
+                // to include {{ .Token }} in Supabase's Auth settings -
+                // otherwise Supabase sends a magic LINK instead of a CODE.
+                SupabaseProvider.client.auth.signInWith(OTP) {
                     this.email = email.trim().lowercase()
-                    this.password = password
                 }
+                pendingSignup = PendingSignup(name.trim(), email.trim().lowercase(), role, phone.trim(), company.trim())
+                _pendingSignupEmail.value = email.trim().lowercase()
+                _signUpError.value = null
+                _currentScreen.value = "verify_otp"
+            } catch (e: Exception) {
+                _signUpError.value = "Could not send code: ${e.message}"
+            }
+        }
+    }
+
+    fun resendSignupOtp() {
+        val pending = pendingSignup ?: return
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.auth.signInWith(OTP) {
+                    this.email = pending.email
+                }
+                _signUpError.value = null
+            } catch (e: Exception) {
+                _signUpError.value = "Could not resend code: ${e.message}"
+            }
+        }
+    }
+
+    fun verifySignupOtp(code: String) {
+        val pending = pendingSignup
+        if (pending == null) {
+            _signUpError.value = "Session expired - please start sign up again"
+            return
+        }
+        if (code.isBlank()) {
+            _signUpError.value = "Enter the code sent to your email"
+            return
+        }
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.auth.verifyEmailOtp(
+                    type = OtpType.Email.EMAIL,
+                    email = pending.email,
+                    token = code.trim()
+                )
                 val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
                 if (supaUser != null) {
-                    // The handle_new_user() trigger already created a default
-                    // profiles row on signup - fill in the real details here.
+                    // handle_new_user() trigger already made a default
+                    // profiles row on account creation - fill in real details.
                     SupabaseProvider.client.postgrest.from("profiles").update(
                         mapOf(
-                            "full_name" to name.trim(),
-                            "role" to role,
-                            "phone_number" to phone.trim(),
-                            "company_name" to company.trim()
+                            "full_name" to pending.name,
+                            "role" to pending.role,
+                            "phone_number" to pending.phone,
+                            "company_name" to pending.company
                         )
                     ) {
                         filter { eq("id", supaUser.id) }
                     }
                 }
             } catch (e: Exception) {
-                _signUpError.value = "Could not create account: ${e.message}"
+                _signUpError.value = "Invalid or expired code: ${e.message}"
                 return@launch
             }
 
-            // Also mirrors the account into the local Room database, since
-            // the rest of the app still runs on local Long ids, not Supabase
-            // uuids yet - this keeps existing screens working unchanged.
+            // Mirror into the local Room database, since the rest of the app
+            // still runs on local Long ids, not Supabase uuids yet.
             val userId = repository.registerProfile(
-                name = name.trim(),
-                email = email.trim().lowercase(),
-                role = role,
-                phone = phone.trim(),
-                company = company.trim()
+                name = pending.name,
+                email = pending.email,
+                role = pending.role,
+                phone = pending.phone,
+                company = pending.company
             )
 
             _signUpError.value = null
+            pendingSignup = null
+            _pendingSignupEmail.value = null
             val newUser = repository.getProfileById(userId)
             _currentUser.value = newUser
 
@@ -610,7 +666,45 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun resetPassword(email: String): Boolean {
+    // --- Admin: real Supabase role management ---
+    // Independent of the local Room-based staff list above - this talks
+    // directly to the live profiles table, since that's what actually
+    // controls access (the DB trigger blocks non-admins from changing role;
+    // this lets an actual admin do it from within the app).
+    private val _supabaseProfiles = MutableStateFlow<List<AdminProfileRow>>(emptyList())
+    val supabaseProfiles: StateFlow<List<AdminProfileRow>> = _supabaseProfiles.asStateFlow()
+
+    private val _roleManagementError = MutableStateFlow<String?>(null)
+    val roleManagementError: StateFlow<String?> = _roleManagementError.asStateFlow()
+
+    fun loadSupabaseProfiles() {
+        viewModelScope.launch {
+            try {
+                val rows = SupabaseProvider.client.postgrest.from("profiles")
+                    .select()
+                    .decodeList<AdminProfileRow>()
+                _supabaseProfiles.value = rows
+                _roleManagementError.value = null
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not load users: ${e.message}"
+            }
+        }
+    }
+
+    fun adminSetUserRole(userId: String, newRole: String) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("profiles").update(
+                    mapOf("role" to newRole)
+                ) {
+                    filter { eq("id", userId) }
+                }
+                loadSupabaseProfiles()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not update role: ${e.message}"
+            }
+        }
+    }
         return email.isNotBlank() && email.contains("@")
     }
 
@@ -1638,4 +1732,3 @@ data class SupportTicket(
     val status: String,
     val date: String
 )
-
