@@ -27,14 +27,23 @@ jobs:
       # Recreates .env from repo secrets, since .env is git-ignored and never
       # committed. Add these under: Settings -> Secrets and variables ->
       # Actions -> New repository secret, using the exact names below.
+      # Falls back to a placeholder for any secret left empty/unset (e.g.
+      # MAPS_API_KEY before you have a real one) - an empty value here would
+      # otherwise generate invalid Java in BuildConfig and break the build.
       - name: Write .env from GitHub Secrets
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          PAYSTACK_PUBLIC_KEY: ${{ secrets.PAYSTACK_PUBLIC_KEY }}
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: |
           cat > .env <<EOF
-          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
-          SUPABASE_URL=${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY=${{ secrets.SUPABASE_ANON_KEY }}
-          PAYSTACK_PUBLIC_KEY=${{ secrets.PAYSTACK_PUBLIC_KEY }}
-          MAPS_API_KEY=${{ secrets.MAPS_API_KEY }}
+          GEMINI_API_KEY=${GEMINI_API_KEY:-unused}
+          SUPABASE_URL=${SUPABASE_URL:-MISSING_SUPABASE_URL}
+          SUPABASE_ANON_KEY=${SUPABASE_ANON_KEY:-MISSING_SUPABASE_ANON_KEY}
+          PAYSTACK_PUBLIC_KEY=${PAYSTACK_PUBLIC_KEY:-MISSING_PAYSTACK_PUBLIC_KEY}
+          MAPS_API_KEY=${MAPS_API_KEY:-placeholder_maps_key}
           EOF
 
       # Generates the standard Android debug keystore. This is NOT a secret -
