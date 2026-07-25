@@ -1,9 +1,16 @@
 package com.sashio.ops.data
 
+import com.sashio.ops.BuildConfig
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.auth.Auth
 import kotlinx.serialization.Serializable
+
+@Serializable
+data class SupabasePaymentStatus(
+    val reference: String,
+    val status: String
+)
 
 @Serializable
 data class SupabaseProfile(
@@ -15,9 +22,11 @@ data class SupabaseProfile(
 )
 
 object SupabaseProvider {
-    // PLACEHOLDERS FOR CREDENTIALS - TO BE REPLACED LIVE BY THE USER
-    const val SUPABASE_URL = "YOUR_SUPABASE_URL"
-    const val SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY"
+    // Populated at build time from SUPABASE_URL / SUPABASE_ANON_KEY in .env
+    // via the Secrets Gradle Plugin. Set real values in a local .env file
+    // (git-ignored) - never commit real credentials to .env.example.
+    private val SUPABASE_URL = BuildConfig.SUPABASE_URL
+    private val SUPABASE_ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
 
     val client by lazy {
         createSupabaseClient(
