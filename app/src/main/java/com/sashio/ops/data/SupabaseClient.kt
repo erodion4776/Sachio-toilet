@@ -25,8 +25,12 @@ object SupabaseProvider {
     // Populated at build time from SUPABASE_URL / SUPABASE_ANON_KEY in .env
     // via the Secrets Gradle Plugin. Set real values in a local .env file
     // (git-ignored) - never commit real credentials to .env.example.
-    private val SUPABASE_URL = BuildConfig.SUPABASE_URL
-    private val SUPABASE_ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
+    // Not private: SashioViewModel.loginWithEmail() checks SUPABASE_URL
+    // directly to decide whether to fall back to offline demo login when
+    // Supabase isn't configured yet. Safe to expose - anon key/URL are
+    // public-by-design credentials, not secrets.
+    val SUPABASE_URL = BuildConfig.SUPABASE_URL
+    val SUPABASE_ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
 
     val client by lazy {
         createSupabaseClient(
