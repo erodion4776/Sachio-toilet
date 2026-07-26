@@ -1,4 +1,3 @@
-
 package com.sashio.ops.ui
 
 import androidx.compose.animation.*
@@ -69,6 +68,7 @@ fun SashioAppContent(viewModel: SashioViewModel) {
                     "splash" -> SplashScreen(viewModel)
                     "login" -> LoginScreen(viewModel)
                     "register" -> RegisterScreen(viewModel)
+                    "verify_otp" -> OtpVerificationScreen(viewModel)
                     "forgot_password" -> ForgotPasswordScreen(viewModel)
                     "client_dashboard" -> ClientDashboard(viewModel, currentUser)
                     "staff_dashboard" -> StaffDashboard(viewModel, currentUser)
@@ -561,9 +561,6 @@ fun RegisterScreen(viewModel: SashioViewModel) {
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var company by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var selectedRole by remember { mutableStateOf("client") }
-    var expansionExpanded by remember { mutableStateOf(false) }
     val signUpError by viewModel.signUpError.collectAsStateWithLifecycle()
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
@@ -644,50 +641,11 @@ fun RegisterScreen(viewModel: SashioViewModel) {
                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                         )
 
-                        OutlinedTextField(
-                            value = password,
-                            onValueChange = { password = it },
-                            label = { Text("Password", color = Color.White.copy(alpha = 0.8f)) },
-                            colors = fieldColors,
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation(),
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).testTag("reg_password_input")
+                        Text(
+                            "All new sign-ups start as a Client account. Staff and admin access is granted separately by an administrator.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.5f)
                         )
-
-                        Text("Select Enterprise Role", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SashioGold)
-                        Spacer(modifier = Modifier.height(6.dp))
-
-                        Box {
-                            OutlinedButton(
-                                onClick = { expansionExpanded = true },
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = Color.White),
-                                modifier = Modifier.fillMaxWidth().testTag("role_dropdown_trigger")
-                            ) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(selectedRole.uppercase(), fontWeight = FontWeight.Bold, color = Color.White)
-                                    Icon(Icons.Default.ArrowDropDown, contentDescription = null, tint = Color.White)
-                                }
-                            }
-                            DropdownMenu(
-                                expanded = expansionExpanded,
-                                onDismissRequest = { expansionExpanded = false }
-                            ) {
-                                listOf("client", "staff", "admin").forEach { role ->
-                                    DropdownMenuItem(
-                                        text = { Text(role.uppercase()) },
-                                        onClick = {
-                                            selectedRole = role
-                                            expansionExpanded = false
-                                        },
-                                        modifier = Modifier.testTag("role_item_$role")
-                                    )
-                                }
-                            }
-                        }
 
                         signUpError?.let { err ->
                             Spacer(modifier = Modifier.height(12.dp))
@@ -697,11 +655,104 @@ fun RegisterScreen(viewModel: SashioViewModel) {
                         Spacer(modifier = Modifier.height(20.dp))
 
                         Button(
-                            onClick = { viewModel.signUpUser(name, email, selectedRole, phone, company, password) },
+                            onClick = {
+                                viewModel.sendSignupOtp(name, email, "client", phone, company)
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("reg_submit_button")
                         ) {
-                            Text("Create Account Plan".uppercase(), fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Send Verification Code".uppercase(), fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun OtpVerificationScreen(viewModel: SashioViewModel) {
+    var code by remember { mutableStateOf("") }
+    val signUpError by viewModel.signUpError.collectAsStateWithLifecycle()
+    val pendingEmail by viewModel.pendingSignupEmail.collectAsStateWithLifecycle()
+
+    val fieldColors = OutlinedTextFieldDefaults.colors(
+        focusedTextColor = Color.White,
+        unfocusedTextColor = Color.White,
+        focusedBorderColor = SashioGold,
+        unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+    )
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LuxuryVideoBackgroundEffect()
+
+        Scaffold(
+            containerColor = Color.Transparent,
+            topBar = {
+                CenterAlignedTopAppBar(
+                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent),
+                    title = { Text("Verify Email", fontWeight = FontWeight.Bold, color = Color.White) },
+                    navigationIcon = {
+                        IconButton(onClick = { viewModel.setScreen("register") }, modifier = Modifier.testTag("back_button")) {
+                            Icon(Icons.Default.ArrowBack, contentDescription = "Go back", tint = Color.White)
+                        }
+                    }
+                )
+            }
+        ) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(24.dp)
+            ) {
+                ElevatedCard(
+                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.75f)),
+                    shape = RoundedCornerShape(20.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(20.dp)) {
+                        Text("Enter Verification Code", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(
+                            "We sent a 6-digit code to ${pendingEmail ?: "your email"}. Enter it below to finish creating your account.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.6f)
+                        )
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        OutlinedTextField(
+                            value = code,
+                            onValueChange = { code = it },
+                            label = { Text("6-Digit Code", color = Color.White.copy(alpha = 0.8f)) },
+                            colors = fieldColors,
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).testTag("otp_code_input")
+                        )
+
+                        signUpError?.let { err ->
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(err, color = Color.Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        Button(
+                            onClick = { viewModel.verifySignupOtp(code) },
+                            colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
+                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("otp_verify_button")
+                        ) {
+                            Text("Verify & Create Account".uppercase(), fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        TextButton(
+                            onClick = { viewModel.resendSignupOtp() },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Resend Code", color = Color.White.copy(alpha = 0.8f))
                         }
                     }
                 }
@@ -4068,6 +4119,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                         Triple("payments", "💳 Paystack Payments", "Successful, failed transactions logs verify"),
                                         Triple("revenue", "📈 Business Revenue Charts", "Simulated graphics with expense reports"),
                                         Triple("reports", "📊 Reports Export Hub", "PDF, CSV, Excel document dispatcher"),
+                                        Triple("manage_roles", "🔑 User Roles (Live)", "Promote or demote real Supabase accounts to staff/admin"),
                                         Triple("settings", "⚙ Operational Settings", "System configurations, activity audits logs")
                                     )
 
@@ -4267,6 +4319,10 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                     }
                                 }
                             }
+                        }
+
+                        "manage_roles" -> {
+                            ManageUserRolesPanel(viewModel)
                         }
 
                         "quotations" -> {
@@ -5365,6 +5421,101 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
 // Helper drawing utilities to ensure seamless compilation
 fun strokeWidthLimit(width: Float): Stroke {
     return Stroke(width = width)
+}
+
+@Composable
+fun ManageUserRolesPanel(viewModel: SashioViewModel) {
+    val profiles by viewModel.supabaseProfiles.collectAsStateWithLifecycle()
+    val error by viewModel.roleManagementError.collectAsStateWithLifecycle()
+    var searchQuery by remember { mutableStateOf("") }
+
+    LaunchedEffect(Unit) {
+        viewModel.loadSupabaseProfiles()
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
+        Text("LIVE USER ROLES (SUPABASE)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            "These are real Supabase accounts. Changing a role here takes effect immediately for that person's next login.",
+            style = MaterialTheme.typography.bodySmall,
+            color = SashioTextMuted
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            label = { Text("Search by name or email...") },
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp).testTag("manage_roles_search")
+        )
+
+        error?.let { err ->
+            Text(err, color = SashioRed, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
+        }
+
+        val filtered = profiles.filter {
+            (it.full_name ?: "").contains(searchQuery, ignoreCase = true) ||
+                it.email.contains(searchQuery, ignoreCase = true)
+        }
+
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(filtered) { p ->
+                var roleMenuOpen by remember(p.id) { mutableStateOf(false) }
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column {
+                                Text(p.full_name?.takeIf { it.isNotBlank() } ?: p.email, fontWeight = FontWeight.Bold)
+                                Text(p.email, fontSize = 10.sp, color = SashioTextMuted)
+                            }
+                            Text(
+                                p.role.uppercase(),
+                                color = when (p.role) {
+                                    "admin" -> SashioRed
+                                    "staff" -> SashioGold
+                                    else -> SashioGreen
+                                },
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(6.dp))
+
+                        Box {
+                            OutlinedButton(
+                                onClick = { roleMenuOpen = true },
+                                modifier = Modifier.fillMaxWidth().testTag("manage_role_trigger_${p.id}")
+                            ) {
+                                Text("Change Role")
+                            }
+                            DropdownMenu(
+                                expanded = roleMenuOpen,
+                                onDismissRequest = { roleMenuOpen = false }
+                            ) {
+                                listOf("client", "staff", "admin").forEach { roleOption ->
+                                    DropdownMenuItem(
+                                        text = { Text(roleOption.uppercase()) },
+                                        onClick = {
+                                            roleMenuOpen = false
+                                            if (roleOption != p.role) {
+                                                viewModel.adminSetUserRole(p.id, roleOption)
+                                            }
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 @Composable
