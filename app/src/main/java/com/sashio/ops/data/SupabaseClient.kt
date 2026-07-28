@@ -13,6 +13,38 @@ data class SupabasePaymentStatus(
 )
 
 @Serializable
+data class NewSupabaseCatalogItem(
+    val title: String,
+    val description: String,
+    val model_number: String,
+    val variant_name: String,
+    val base_price: Double,
+    val image_url: String,
+    val video_url: String,
+    val features: String,
+    val specifications: String,
+    val benefits: String,
+    val use_cases: String
+)
+
+@Serializable
+data class SupabaseCatalogItem(
+    val id: String = "",
+    val title: String = "",
+    val description: String = "",
+    val model_number: String = "",
+    val variant_name: String = "",
+    val base_price: Double = 0.0,
+    val image_url: String = "",
+    val video_url: String = "",
+    val features: String = "",
+    val specifications: String = "",
+    val benefits: String = "",
+    val use_cases: String = "",
+    val is_active: Boolean = true
+)
+
+@Serializable
 data class SupabaseBooking(
     val id: String,
     val client_id: String,
