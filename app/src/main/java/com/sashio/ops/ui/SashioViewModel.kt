@@ -655,6 +655,21 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun adminSetProfileSuspended(userId: String, suspended: Boolean) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("profiles").update(
+                    mapOf("suspended" to suspended)
+                ) {
+                    filter { eq("id", userId) }
+                }
+                loadSupabaseProfiles()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not update status: ${e.message}"
+            }
+        }
+    }
+
     fun resetPassword(email: String): Boolean {
         return email.isNotBlank() && email.contains("@")
     }
