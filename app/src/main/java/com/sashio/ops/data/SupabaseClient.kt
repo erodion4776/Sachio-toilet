@@ -19,7 +19,8 @@ data class AdminProfileRow(
     val full_name: String? = null,
     val role: String = "client",
     val phone_number: String? = null,
-    val company_name: String? = null
+    val company_name: String? = null,
+    val suspended: Boolean = false
 )
 
 @Serializable
