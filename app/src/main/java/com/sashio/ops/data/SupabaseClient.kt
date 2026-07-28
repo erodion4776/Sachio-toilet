@@ -45,6 +45,32 @@ data class SupabaseCatalogItem(
 )
 
 @Serializable
+data class NewSupabaseBooking(
+    val client_id: String,
+    val client_name: String,
+    val client_phone: String,
+    val client_email: String,
+    val company_name: String,
+    val service_mode: String,
+    val service_type: String,
+    val variant_name: String,
+    val model_number: String,
+    val quantity: Int,
+    val duration: String,
+    val address: String,
+    val latitude: Double,
+    val longitude: Double,
+    val venue_name: String,
+    val event_type: String,
+    val guest_count: Int,
+    val cleaning_support: Boolean,
+    val on_site_attendant: Boolean,
+    val waste_evacuation: Boolean,
+    val maintenance_support: Boolean,
+    val special_instructions: String
+)
+
+@Serializable
 data class SupabaseBooking(
     val id: String,
     val client_id: String,
