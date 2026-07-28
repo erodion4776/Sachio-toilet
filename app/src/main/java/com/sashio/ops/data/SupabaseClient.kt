@@ -13,6 +13,44 @@ data class SupabasePaymentStatus(
 )
 
 @Serializable
+data class SupabaseBooking(
+    val id: String,
+    val client_id: String,
+    val client_name: String = "",
+    val client_phone: String = "",
+    val client_email: String = "",
+    val company_name: String = "",
+    val service_mode: String = "Rental",
+    val service_type: String = "",
+    val catalog_item_id: String? = null,
+    val variant_name: String = "",
+    val model_number: String = "",
+    val quantity: Int = 1,
+    val duration: String = "",
+    val address: String = "",
+    val latitude: Double = 0.0,
+    val longitude: Double = 0.0,
+    val place_id: String? = null,
+    val venue_name: String = "",
+    val event_type: String = "",
+    val guest_count: Int = 0,
+    val event_date: String? = null,
+    val cleaning_support: Boolean = false,
+    val on_site_attendant: Boolean = false,
+    val waste_evacuation: Boolean = false,
+    val maintenance_support: Boolean = false,
+    val special_instructions: String = "",
+    val quoted_price: Double = 0.0,
+    val logistics_cost: Double = 0.0,
+    val vat_amount: Double = 0.0,
+    val admin_notes: String = "",
+    val status: String = "Quotation Requested",
+    val assigned_staff_id: String? = null,
+    val assigned_staff_name: String? = null,
+    val payment_status: String = "pending"
+)
+
+@Serializable
 data class AdminProfileRow(
     val id: String,
     val email: String,
