@@ -514,7 +514,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                         }
                     }.decodeSingle<SupabaseProfile>()
 
-                val mappedRole = dbProfile.selected_role // 'client' | 'staff' | 'admin'
+                val mappedRole = dbProfile.role // 'client' | 'staff' | 'admin'
                 if (requiredRole != null && mappedRole != requiredRole) {
                     _loginError.value = "Access Denied: Highly secured portal. Privileges unmatched for role '$requiredRole'."
                     return@launch
@@ -525,8 +525,8 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                     name = dbProfile.full_name ?: email,
                     email = dbProfile.email,
                     role = mappedRole,
-                    phoneNumber = "+234-SUPABASE",
-                    companyName = dbProfile.job_title ?: ""
+                    phoneNumber = dbProfile.phone_number ?: "",
+                    companyName = dbProfile.company_name ?: ""
                 )
 
                 _loginError.value = null
