@@ -543,27 +543,21 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- OTP-based sign up ---
-    // Holds the form data collected on the register screen while the user
-    // goes to check their email for the code - nothing is created in
-    // Supabase or locally until the code is verified.
-    private data class PendingSignup(
-        val name: String,
-        val email: String,
-        val role: String,
-        val phone: String,
-        val company: String
-    )
-    private var pendingSignup: PendingSignup? = null
 
-    private val _pendingSignupEmail = MutableStateFlow<String?>(null)
-    val pendingSignupEmail: StateFlow<String?> = _pendingSignupEmail.asStateFlow()
-
-    fun sendSignupOtp(name: String, email: String, role: String, phone: String, company: String = "") {
-        if (name.isBlank() || email.isBlank() || phone.isBlank()) {
+    fun signUpUser(name: String, email: String, role: String, phone: String, company: String = "", password: String = "") {
+        if (name.isBlank() || email.isBlank() || phone.isBlank() || password.isBlank()) {
             _signUpError.value = "All fields except company are mandatory"
             return
         }
+        if (password.length < 6) {
+            _signUpError.value = "Password must be at least 6 characters"
+            return
+        }
+        // Public sign-up always creates a client account - role is not
+        // caller-controlled. Staff/admin are granted later via the
+        // ManageUserRolesPanel by an existing admin (or the DB trigger
+        // blocks it anyway).
+        val safeRole = "client"
         viewModelScope.launch {
             val existing = repository.getProfileByEmail(email.trim().lowercase())
             if (existing != null) {
@@ -571,88 +565,43 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 return@launch
             }
 
+            // Creates the real Supabase account - this is what makes the user
+            // actually show up in Supabase Authentication / the profiles table.
+            // "Confirm email" should be OFF in Supabase for this to log the
+            // user in immediately without needing an email verification step.
             try {
-                // Passwordless: sends a 6-digit code to the email. Requires
-                // "Confirm email" enabled and the email template configured
-                // to include {{ .Token }} in Supabase's Auth settings -
-                // otherwise Supabase sends a magic LINK instead of a CODE.
-                SupabaseProvider.client.auth.signInWith(OTP) {
+                SupabaseProvider.client.auth.signUpWith(Email) {
                     this.email = email.trim().lowercase()
+                    this.password = password
                 }
-                pendingSignup = PendingSignup(name.trim(), email.trim().lowercase(), role, phone.trim(), company.trim())
-                _pendingSignupEmail.value = email.trim().lowercase()
-                _signUpError.value = null
-                _currentScreen.value = "verify_otp"
-            } catch (e: Exception) {
-                _signUpError.value = "Could not send code: ${e.message}"
-            }
-        }
-    }
-
-    fun resendSignupOtp() {
-        val pending = pendingSignup ?: return
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.auth.signInWith(OTP) {
-                    this.email = pending.email
-                }
-                _signUpError.value = null
-            } catch (e: Exception) {
-                _signUpError.value = "Could not resend code: ${e.message}"
-            }
-        }
-    }
-
-    fun verifySignupOtp(code: String) {
-        val pending = pendingSignup
-        if (pending == null) {
-            _signUpError.value = "Session expired - please start sign up again"
-            return
-        }
-        if (code.isBlank()) {
-            _signUpError.value = "Enter the code sent to your email"
-            return
-        }
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.auth.verifyEmailOtp(
-                    type = OtpType.Email.EMAIL,
-                    email = pending.email,
-                    token = code.trim()
-                )
                 val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
                 if (supaUser != null) {
-                    // handle_new_user() trigger already made a default
-                    // profiles row on account creation - fill in real details.
                     SupabaseProvider.client.postgrest.from("profiles").update(
                         mapOf(
-                            "full_name" to pending.name,
-                            "role" to pending.role,
-                            "phone_number" to pending.phone,
-                            "company_name" to pending.company
+                            "full_name" to name.trim(),
+                            "phone_number" to phone.trim(),
+                            "company_name" to company.trim()
                         )
                     ) {
                         filter { eq("id", supaUser.id) }
                     }
                 }
             } catch (e: Exception) {
-                _signUpError.value = "Invalid or expired code: ${e.message}"
+                _signUpError.value = "Could not create account: ${e.message}"
                 return@launch
             }
 
-            // Mirror into the local Room database, since the rest of the app
+            // Mirrors into the local Room database, since the rest of the app
             // still runs on local Long ids, not Supabase uuids yet.
             val userId = repository.registerProfile(
-                name = pending.name,
-                email = pending.email,
-                role = pending.role,
-                phone = pending.phone,
-                company = pending.company
+                name = name.trim(),
+                email = email.trim().lowercase(),
+                role = safeRole,
+                phone = phone.trim(),
+                company = company.trim()
             )
 
             _signUpError.value = null
-            pendingSignup = null
-            _pendingSignupEmail.value = null
             val newUser = repository.getProfileById(userId)
             _currentUser.value = newUser
 
@@ -1734,4 +1683,3 @@ data class SupportTicket(
     val status: String,
     val date: String
 )
-
