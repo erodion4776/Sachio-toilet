@@ -4075,8 +4075,11 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                         }
 
                         "clients" -> {
+                            val supabaseProfiles by viewModel.supabaseProfiles.collectAsStateWithLifecycle()
+                            LaunchedEffect(Unit) { viewModel.loadSupabaseProfiles() }
+
                             Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-                                Text("CUSTOMER RELATIONSHIP MANAGEMENT (CRM)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SashioSlate)
+                                Text("CUSTOMER RELATIONSHIP MANAGEMENT (CRM) - LIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SashioSlate)
                                 Spacer(modifier = Modifier.height(8.dp))
                                 
                                 OutlinedTextField(
@@ -4100,12 +4103,12 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
 
                                 Spacer(modifier = Modifier.height(10.dp))
 
-                                val filteredClients = profiles.filter {
+                                val filteredClients = supabaseProfiles.filter {
                                     it.role == "client" &&
-                                    (it.name.contains(clientSearchQuery, ignoreCase = true) || it.companyName.contains(clientSearchQuery, ignoreCase = true)) &&
+                                    ((it.full_name ?: "").contains(clientSearchQuery, ignoreCase = true) || (it.company_name ?: "").contains(clientSearchQuery, ignoreCase = true)) &&
                                     (clientCategoryFilter == "All" || 
-                                     (clientCategoryFilter == "Corporate" && it.companyName.isNotBlank()) ||
-                                     (clientCategoryFilter == "Individual" && it.companyName.isBlank()))
+                                     (clientCategoryFilter == "Corporate" && !it.company_name.isNullOrBlank()) ||
+                                     (clientCategoryFilter == "Individual" && it.company_name.isNullOrBlank()))
                                 }
 
                                 if (filteredClients.isEmpty()) {
@@ -4118,26 +4121,26 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                 } else {
                                     LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                         items(filteredClients) { c ->
-                                            val isSuspended = suspendedProfileIds.contains(c.id)
+                                            val isSuspended = c.suspended
                                             Card(
                                                 colors = CardDefaults.cardColors(containerColor = if (isSuspended) Color(0xFFFEE2E2) else Color.White),
                                                 shape = RoundedCornerShape(10.dp),
-                                                modifier = Modifier.fillMaxWidth().clickable { selectedClientForView = c }
+                                                modifier = Modifier.fillMaxWidth()
                                             ) {
                                                 Column(modifier = Modifier.padding(12.dp)) {
                                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                                         Column {
-                                                            Text(c.name, fontWeight = FontWeight.Bold)
-                                                            Text(if (c.companyName.isNotBlank()) "Corporate: ${c.companyName}" else "Individual Account", fontSize = 10.sp, color = SashioGold, fontWeight = FontWeight.Bold)
+                                                            Text(c.full_name?.takeIf { it.isNotBlank() } ?: c.email, fontWeight = FontWeight.Bold)
+                                                            Text(if (!c.company_name.isNullOrBlank()) "Corporate: ${c.company_name}" else "Individual Account", fontSize = 10.sp, color = SashioGold, fontWeight = FontWeight.Bold)
                                                         }
                                                         Text(if (isSuspended) "SUSPENDED" else "ACTIVE", color = if (isSuspended) SashioRed else SashioGreen, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                                                     }
-                                                    Text("Email: ${c.email} | Phone: ${c.phoneNumber}", fontSize = 10.sp, color = SashioTextMuted)
+                                                    Text("Email: ${c.email} | Phone: ${c.phone_number ?: ""}", fontSize = 10.sp, color = SashioTextMuted)
                                                     
                                                     Spacer(modifier = Modifier.height(8.dp))
                                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                                         Button(
-                                                            onClick = { viewModel.toggleProfileSuspension(c.id) },
+                                                            onClick = { viewModel.adminSetProfileSuspended(c.id, !isSuspended) },
                                                             colors = ButtonDefaults.buttonColors(containerColor = if (isSuspended) SashioGreen else SashioRed),
                                                             modifier = Modifier.weight(1f).height(30.dp),
                                                             contentPadding = PaddingValues(0.dp)
@@ -4146,10 +4149,9 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                                         }
                                                         Button(
                                                             onClick = {
-                                                                // Prepopulate WhatsApp text
-                                                                val whatsappText = "Hello ${c.name}, this is SACHIO Customer Service. We are reviewing your event sanitation account logistics coordinates."
+                                                                val whatsappText = "Hello ${c.full_name ?: "there"}, this is SACHIO Customer Service. We are reviewing your event sanitation account logistics coordinates."
                                                                 val encodedText = java.net.URLEncoder.encode(whatsappText, "UTF-8")
-                                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com/send?phone=${c.phoneNumber}&text=$encodedText"))
+                                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com/send?phone=${c.phone_number ?: ""}&text=$encodedText"))
                                                                 localContext.startActivity(intent)
                                                             },
                                                             colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
