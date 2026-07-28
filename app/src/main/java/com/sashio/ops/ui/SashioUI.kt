@@ -68,7 +68,6 @@ fun SashioAppContent(viewModel: SashioViewModel) {
                     "splash" -> SplashScreen(viewModel)
                     "login" -> LoginScreen(viewModel)
                     "register" -> RegisterScreen(viewModel)
-                    "verify_otp" -> OtpVerificationScreen(viewModel)
                     "forgot_password" -> ForgotPasswordScreen(viewModel)
                     "client_dashboard" -> ClientDashboard(viewModel, currentUser)
                     "staff_dashboard" -> StaffDashboard(viewModel, currentUser)
@@ -561,6 +560,7 @@ fun RegisterScreen(viewModel: SashioViewModel) {
     var email by remember { mutableStateOf("") }
     var phone by remember { mutableStateOf("") }
     var company by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     val signUpError by viewModel.signUpError.collectAsStateWithLifecycle()
 
     val fieldColors = OutlinedTextFieldDefaults.colors(
@@ -641,6 +641,16 @@ fun RegisterScreen(viewModel: SashioViewModel) {
                             modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp)
                         )
 
+                        OutlinedTextField(
+                            value = password,
+                            onValueChange = { password = it },
+                            label = { Text("Password", color = Color.White.copy(alpha = 0.8f)) },
+                            colors = fieldColors,
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation(),
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).testTag("reg_password_input")
+                        )
+
                         Text(
                             "All new sign-ups start as a Client account. Staff and admin access is granted separately by an administrator.",
                             style = MaterialTheme.typography.bodySmall,
@@ -656,103 +666,12 @@ fun RegisterScreen(viewModel: SashioViewModel) {
 
                         Button(
                             onClick = {
-                                viewModel.sendSignupOtp(name, email, "client", phone, company)
+                                viewModel.signUpUser(name, email, "client", phone, company, password)
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("reg_submit_button")
                         ) {
-                            Text("Send Verification Code".uppercase(), fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-fun OtpVerificationScreen(viewModel: SashioViewModel) {
-    var code by remember { mutableStateOf("") }
-    val signUpError by viewModel.signUpError.collectAsStateWithLifecycle()
-    val pendingEmail by viewModel.pendingSignupEmail.collectAsStateWithLifecycle()
-
-    val fieldColors = OutlinedTextFieldDefaults.colors(
-        focusedTextColor = Color.White,
-        unfocusedTextColor = Color.White,
-        focusedBorderColor = SashioGold,
-        unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
-    )
-
-    Box(modifier = Modifier.fillMaxSize()) {
-        LuxuryVideoBackgroundEffect()
-
-        Scaffold(
-            containerColor = Color.Transparent,
-            topBar = {
-                CenterAlignedTopAppBar(
-                    colors = TopAppBarDefaults.centerAlignedTopAppBarColors(containerColor = Color.Transparent),
-                    title = { Text("Verify Email", fontWeight = FontWeight.Bold, color = Color.White) },
-                    navigationIcon = {
-                        IconButton(onClick = { viewModel.setScreen("register") }, modifier = Modifier.testTag("back_button")) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Go back", tint = Color.White)
-                        }
-                    }
-                )
-            }
-        ) { innerPadding ->
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(24.dp)
-            ) {
-                ElevatedCard(
-                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.75f)),
-                    shape = RoundedCornerShape(20.dp),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(modifier = Modifier.padding(20.dp)) {
-                        Text("Enter Verification Code", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
-                        Text(
-                            "We sent a 6-digit code to ${pendingEmail ?: "your email"}. Enter it below to finish creating your account.",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.6f)
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        OutlinedTextField(
-                            value = code,
-                            onValueChange = { code = it },
-                            label = { Text("6-Digit Code", color = Color.White.copy(alpha = 0.8f)) },
-                            colors = fieldColors,
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp).testTag("otp_code_input")
-                        )
-
-                        signUpError?.let { err ->
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(err, color = Color.Red, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        Button(
-                            onClick = { viewModel.verifySignupOtp(code) },
-                            colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
-                            modifier = Modifier.fillMaxWidth().height(48.dp).testTag("otp_verify_button")
-                        ) {
-                            Text("Verify & Create Account".uppercase(), fontWeight = FontWeight.Bold, color = Color.White)
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        TextButton(
-                            onClick = { viewModel.resendSignupOtp() },
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Text("Resend Code", color = Color.White.copy(alpha = 0.8f))
+                            Text("Create Account Plan".uppercase(), fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
                 }
