@@ -27,8 +27,9 @@ data class SupabaseProfile(
     val id: String,
     val email: String,
     val full_name: String? = null,
-    val selected_role: String = "client",
-    val job_title: String? = null
+    val role: String = "client",
+    val phone_number: String? = null,
+    val company_name: String? = null
 )
 
 object SupabaseProvider {
