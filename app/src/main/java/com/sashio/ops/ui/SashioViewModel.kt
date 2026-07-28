@@ -687,6 +687,63 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Admin: real Supabase catalog items ---
+    private val _supabaseCatalogItems = MutableStateFlow<List<SupabaseCatalogItem>>(emptyList())
+    val supabaseCatalogItems: StateFlow<List<SupabaseCatalogItem>> = _supabaseCatalogItems.asStateFlow()
+
+    fun loadSupabaseCatalogItems() {
+        viewModelScope.launch {
+            try {
+                val rows = SupabaseProvider.client.postgrest.from("catalog_items")
+                    .select()
+                    .decodeList<SupabaseCatalogItem>()
+                _supabaseCatalogItems.value = rows
+                _roleManagementError.value = null
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not load catalog: ${e.message}"
+            }
+        }
+    }
+
+    fun adminAddSupabaseCatalogItem(
+        title: String,
+        description: String,
+        modelNumber: String,
+        variantName: String,
+        basePrice: Double,
+        imageUrl: String,
+        videoUrl: String,
+        features: String,
+        specifications: String,
+        benefits: String,
+        useCases: String,
+        onComplete: () -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("catalog_items").insert(
+                    NewSupabaseCatalogItem(
+                        title = title,
+                        description = description,
+                        model_number = modelNumber,
+                        variant_name = variantName,
+                        base_price = basePrice,
+                        image_url = imageUrl,
+                        video_url = videoUrl,
+                        features = features,
+                        specifications = specifications,
+                        benefits = benefits,
+                        use_cases = useCases
+                    )
+                )
+                loadSupabaseCatalogItems()
+                onComplete()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not add catalog item: ${e.message}"
+            }
+        }
+    }
+
     fun adminSetUserRole(userId: String, newRole: String) {
         viewModelScope.launch {
             try {
