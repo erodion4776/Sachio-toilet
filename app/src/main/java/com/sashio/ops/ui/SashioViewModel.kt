@@ -640,6 +640,53 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Admin: real Supabase bookings (quotations console) ---
+    private val _supabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
+    val supabaseBookings: StateFlow<List<SupabaseBooking>> = _supabaseBookings.asStateFlow()
+
+    fun loadSupabaseBookings() {
+        viewModelScope.launch {
+            try {
+                val rows = SupabaseProvider.client.postgrest.from("bookings")
+                    .select()
+                    .decodeList<SupabaseBooking>()
+                _supabaseBookings.value = rows
+                _roleManagementError.value = null
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not load bookings: ${e.message}"
+            }
+        }
+    }
+
+    fun adminIssueQuotation(
+        bookingId: String,
+        quotedPrice: Double,
+        logisticsCost: Double,
+        vatAmount: Double,
+        adminNotes: String,
+        onComplete: () -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("bookings").update(
+                    mapOf(
+                        "quoted_price" to quotedPrice,
+                        "logistics_cost" to logisticsCost,
+                        "vat_amount" to vatAmount,
+                        "admin_notes" to adminNotes,
+                        "status" to "Quotation Generated"
+                    )
+                ) {
+                    filter { eq("id", bookingId) }
+                }
+                loadSupabaseBookings()
+                onComplete()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not issue quotation: ${e.message}"
+            }
+        }
+    }
+
     fun adminSetUserRole(userId: String, newRole: String) {
         viewModelScope.launch {
             try {
