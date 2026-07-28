@@ -4307,9 +4307,12 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                         }
 
                         "products" -> {
+                            val supabaseCatalogItems by viewModel.supabaseCatalogItems.collectAsStateWithLifecycle()
+                            LaunchedEffect(Unit) { viewModel.loadSupabaseCatalogItems() }
+
                             Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text("PRODUCT CATALOGS SETUPing", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text("PRODUCT CATALOGS - LIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                     Button(
                                         onClick = { isCatalogManagerOpen = true },
                                         colors = ButtonDefaults.buttonColors(containerColor = SashioGold)
@@ -4321,7 +4324,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                 Spacer(modifier = Modifier.height(8.dp))
 
                                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    items(catalogItems) { cat ->
+                                    items(supabaseCatalogItems) { cat ->
                                         Card(
                                             colors = CardDefaults.cardColors(containerColor = Color.White),
                                             shape = RoundedCornerShape(12.dp),
@@ -4329,16 +4332,16 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                         ) {
                                             Column(modifier = Modifier.padding(12.dp)) {
                                                 Text(cat.title, fontWeight = FontWeight.Bold)
-                                                Text("Variant: ${cat.variantName} | Model: ${cat.modelNumber}", fontSize = 10.sp, color = SashioGold, fontWeight = FontWeight.Bold)
+                                                Text("Variant: ${cat.variant_name} | Model: ${cat.model_number}", fontSize = 10.sp, color = SashioGold, fontWeight = FontWeight.Bold)
                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 Text(cat.description, fontSize = 10.sp, color = SashioTextMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                                 
-                                                if (cat.basePrice > 0.0) {
-                                                    Text("System Reference Price: ₦%,.0f".format(cat.basePrice), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = SashioSlate)
+                                                if (cat.base_price > 0.0) {
+                                                    Text("System Reference Price: ₦%,.0f".format(cat.base_price), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = SashioSlate)
                                                 }
-                                                if (cat.imageUrl.isNotEmpty()) {
+                                                if (cat.image_url.isNotEmpty()) {
                                                     AsyncImage(
-                                                        model = cat.imageUrl,
+                                                        model = cat.image_url,
                                                         contentDescription = null,
                                                         contentScale = ContentScale.Crop,
                                                         modifier = Modifier.fillMaxWidth().height(80.dp).padding(top = 6.dp).clip(RoundedCornerShape(8.dp))
@@ -5240,7 +5243,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                 confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.adminAddCatalogItem(
+                            viewModel.adminAddSupabaseCatalogItem(
                                 title = newTitle.ifBlank { "New Product" },
                                 description = newDesc.ifBlank { "N/A" },
                                 modelNumber = newModel.ifBlank { "N/A" },
