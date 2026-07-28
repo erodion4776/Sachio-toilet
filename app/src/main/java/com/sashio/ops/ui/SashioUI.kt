@@ -3848,7 +3848,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
     var staffSearchQuery by remember { mutableStateOf("") }
     var selectedClientForView by remember { mutableStateOf<UserProfile?>(null) }
     
-    var quotationDialogId by remember { mutableStateOf<Long?>(null) }
+    var quotationDialogId by remember { mutableStateOf<String?>(null) }
     var isCatalogManagerOpen by remember { mutableStateOf(false) }
     
     // Add Staff State
@@ -4247,29 +4247,32 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                         }
 
                         "quotations" -> {
+                            val supabaseBookings by viewModel.supabaseBookings.collectAsStateWithLifecycle()
+                            LaunchedEffect(Unit) { viewModel.loadSupabaseBookings() }
+
                             Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-                                Text("SMART PRICE QUOTATIONS CONTROL", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                Text("SMART PRICE QUOTATIONS CONTROL - LIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                                 Text("Review and process incoming requests. Generate and configure logistics surcharges, taxes, and specialized inclusions.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
                                 Spacer(modifier = Modifier.height(10.dp))
 
                                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                                    items(bookings) { b ->
+                                    items(supabaseBookings) { b ->
                                         Card(
                                             colors = CardDefaults.cardColors(containerColor = Color.White),
                                             shape = RoundedCornerShape(12.dp)
                                         ) {
                                             Column(modifier = Modifier.padding(12.dp)) {
                                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                                    Text(b.serviceType, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                    Text(b.service_type, fontWeight = FontWeight.Bold, fontSize = 13.sp)
                                                     BookingStatusBadge(status = b.status)
                                                 }
-                                                Text("Client: ${b.clientName} | ${b.companyName.ifBlank() { "Individual" }}", fontSize = 10.sp, color = SashioTextMuted)
-                                                Text("Specs: Event=${b.eventType} | Qty=${b.quantity} | Duration=${b.duration}", fontSize = 10.sp, color = SashioTextMuted)
+                                                Text("Client: ${b.client_name} | ${b.company_name.ifBlank { "Individual" }}", fontSize = 10.sp, color = SashioTextMuted)
+                                                Text("Specs: Event=${b.event_type} | Qty=${b.quantity} | Duration=${b.duration}", fontSize = 10.sp, color = SashioTextMuted)
                                                 Text("Location: ${b.address}", fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = SashioTextMuted)
 
-                                                if (b.quotedPrice > 0.0) {
+                                                if (b.quoted_price > 0.0) {
                                                     Spacer(modifier = Modifier.height(4.dp))
-                                                    Text("Quoted Subtotal: ₦%,.0f | Logistics: ₦%,.0f | VAT: ₦%,.0f".format(b.quotedPrice, b.logisticsCost, b.vatAmount), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioGreen)
+                                                    Text("Quoted Subtotal: ₦%,.0f | Logistics: ₦%,.0f | VAT: ₦%,.0f".format(b.quoted_price, b.logistics_cost, b.vat_amount), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioGreen)
                                                 }
 
                                                 Spacer(modifier = Modifier.height(8.dp))
@@ -5265,7 +5268,8 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
 
         // Generate pricing quote dialogue modal picker
         quotationDialogId?.let { bId ->
-            val matchingBooking = bookings.find { it.id == bId }
+            val supabaseBookingsForDialog by viewModel.supabaseBookings.collectAsStateWithLifecycle()
+            val matchingBooking = supabaseBookingsForDialog.find { it.id == bId }
             val logisticsMetrics = matchingBooking?.let { viewModel.calculateLogisticsMetrics(it.latitude, it.longitude) }
 
             var subTotal by remember { mutableStateOf("120000") }
@@ -5283,7 +5287,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                             val rawSub = subTotal.toDoubleOrNull() ?: 120000.0
                             val rawLog = logSurcharge.toDoubleOrNull() ?: logisticsMetrics?.recommendedLogisticsCost ?: 25000.0
                             val rawVat = (rawSub + rawLog) * 0.075 // 7.5% Standard luxury VAT Nigeria
-                            viewModel.adminGenerateQuotation(bId, rawSub, rawLog, rawVat, adminNotesVal) {
+                            viewModel.adminIssueQuotation(bId, rawSub, rawLog, rawVat, adminNotesVal) {
                                 quotationDialogId = null
                             }
                         },
