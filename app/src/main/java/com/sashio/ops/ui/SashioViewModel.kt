@@ -787,6 +787,46 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
         viewModelScope.launch {
             repository.insertBooking(booking)
+
+            // Also creates the real booking in Supabase, so it shows up for
+            // admin in the live Quotations Console. Requires the client to
+            // be signed in with a real Supabase account - if not (e.g. still
+            // using an old local-only demo account), this is skipped and
+            // only the local copy is saved.
+            try {
+                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
+                if (supaUser != null) {
+                    SupabaseProvider.client.postgrest.from("bookings").insert(
+                        NewSupabaseBooking(
+                            client_id = supaUser.id,
+                            client_name = booking.clientName,
+                            client_phone = booking.clientPhone,
+                            client_email = booking.clientEmail,
+                            company_name = booking.companyName,
+                            service_mode = booking.serviceMode,
+                            service_type = booking.serviceType,
+                            variant_name = booking.variantName,
+                            model_number = booking.modelNumber,
+                            quantity = booking.quantity,
+                            duration = booking.duration,
+                            address = booking.address,
+                            latitude = booking.latitude,
+                            longitude = booking.longitude,
+                            venue_name = booking.venueName,
+                            event_type = booking.eventType,
+                            guest_count = booking.guestCount,
+                            cleaning_support = booking.cleaningSupport,
+                            on_site_attendant = booking.onSiteAttendant,
+                            waste_evacuation = booking.wasteEvacuation,
+                            maintenance_support = booking.maintenanceSupport,
+                            special_instructions = booking.specialInstructions
+                        )
+                    )
+                }
+            } catch (e: Exception) {
+                _roleManagementError.value = "Booking saved locally, but Supabase sync failed: ${e.message}"
+            }
+
             onComplete()
         }
     }
