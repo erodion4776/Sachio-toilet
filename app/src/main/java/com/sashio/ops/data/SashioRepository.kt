@@ -65,13 +65,9 @@ class SashioRepository(
     // For bookings that actually exist in Supabase (real uuid), unlike the
     // Long-based overload above which stringifies a local Room id that
     // never matches a real Supabase booking.
-    suspend fun createPaymentForRealBooking(bookingId: String, email: String, amount: Double): CreatePaymentResponse? {
-        return try {
-            val req = CreatePaymentRequest(bookingId, email, amount)
-            networkProvider.apiService.createPayment(req)
-        } catch (e: Exception) {
-            null
-        }
+    suspend fun createPaymentForRealBooking(bookingId: String, email: String, amount: Double): CreatePaymentResponse {
+        val req = CreatePaymentRequest(bookingId, email, amount)
+        return networkProvider.apiService.createPayment(req)
     }
 
     // Real status check against Supabase Postgrest - reflects whatever the
