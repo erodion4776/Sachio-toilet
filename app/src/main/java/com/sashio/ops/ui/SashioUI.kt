@@ -57,6 +57,18 @@ fun SashioAppContent(viewModel: SashioViewModel) {
     val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val activeTransaction by viewModel.activePaystackTransaction.collectAsStateWithLifecycle()
+    val lastPaymentStatus by viewModel.lastPaymentStatus.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(lastPaymentStatus) {
+        when (lastPaymentStatus) {
+            "success" -> Toast.makeText(context, "Payment confirmed! Your booking is now paid.", Toast.LENGTH_LONG).show()
+            "pending" -> Toast.makeText(context, "Payment still pending - Paystack hasn't confirmed it yet. Try again shortly.", Toast.LENGTH_LONG).show()
+            "failed" -> Toast.makeText(context, "Payment failed. Please try again.", Toast.LENGTH_LONG).show()
+            null -> {}
+            else -> Toast.makeText(context, "Status: $lastPaymentStatus", Toast.LENGTH_LONG).show()
+        }
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -5538,7 +5550,8 @@ fun PaystackCheckoutGatewayModal(
     onSuccess: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
-    var modeStep by remember { mutableStateOf("choices") } // choices, computing, authorization
+    var modeStep by remember { mutableStateOf("choices") } // choices, waiting
+    val context = LocalContext.current
 
     AlertDialog(
         onDismissRequest = {},
@@ -5554,10 +5567,8 @@ fun PaystackCheckoutGatewayModal(
                     Spacer(modifier = Modifier.width(6.dp))
                     Text("Secure Paystack Gateway", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 }
-                if (modeStep != "computing") {
-                    IconButton(onClick = onDismiss, modifier = Modifier.testTag("paystack_close_btn")) {
-                        Icon(Icons.Default.Close, contentDescription = null)
-                    }
+                IconButton(onClick = onDismiss, modifier = Modifier.testTag("paystack_close_btn")) {
+                    Icon(Icons.Default.Close, contentDescription = null)
                 }
             }
         },
@@ -5581,36 +5592,26 @@ fun PaystackCheckoutGatewayModal(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Button(
-                            onClick = { modeStep = "computing" },
+                            onClick = {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(transaction.authorizationUrl))
+                                context.startActivity(intent)
+                                modeStep = "waiting"
+                            },
                             colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("paystack_submit_gateway")
                         ) {
                             Text("PAY SECURELY WITH CARD", fontWeight = FontWeight.Bold, color = Color.White)
                         }
                     }
-                    "computing" -> {
-                        Column(
-                            modifier = Modifier.fillMaxWidth().padding(12.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            CircularProgressIndicator(color = SashioTeal, modifier = Modifier.size(40.dp))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text("Computing secure local payload hashes...", fontWeight = FontWeight.Bold)
-                            LaunchedEffect(Unit) {
-                                kotlinx.coroutines.delay(2000)
-                                modeStep = "authorization"
-                            }
-                        }
-                    }
-                    "authorization" -> {
+                    "waiting" -> {
                         Column(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SashioGreen, modifier = Modifier.size(56.dp))
+                            Icon(Icons.Default.OpenInNew, contentDescription = null, tint = SashioTeal, modifier = Modifier.size(48.dp))
                             Spacer(modifier = Modifier.height(10.dp))
-                            Text("Secure Payment Authorized!", fontWeight = FontWeight.ExtraBold)
-                            Text("Simulating Paystack webhook broadcast...", fontSize = 11.sp, color = SashioTextMuted)
+                            Text("Complete your payment in the page that just opened.", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center)
+                            Text("Once you're done, tap below to check your real payment status.", fontSize = 11.sp, color = SashioTextMuted, textAlign = TextAlign.Center)
 
                             Spacer(modifier = Modifier.height(16.dp))
 
@@ -5619,7 +5620,19 @@ fun PaystackCheckoutGatewayModal(
                                 colors = ButtonDefaults.buttonColors(containerColor = SashioGreen),
                                 modifier = Modifier.fillMaxWidth().height(46.dp).testTag("paystack_finish")
                             ) {
-                                Text("Complete Checkout", fontWeight = FontWeight.Bold, color = Color.White)
+                                Text("I've Paid - Check Status", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
+
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            TextButton(
+                                onClick = {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(transaction.authorizationUrl))
+                                    context.startActivity(intent)
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("Reopen Payment Page")
                             }
                         }
                     }
