@@ -62,6 +62,18 @@ class SashioRepository(
         }
     }
 
+    // For bookings that actually exist in Supabase (real uuid), unlike the
+    // Long-based overload above which stringifies a local Room id that
+    // never matches a real Supabase booking.
+    suspend fun createPaymentForRealBooking(bookingId: String, email: String, amount: Double): CreatePaymentResponse? {
+        return try {
+            val req = CreatePaymentRequest(bookingId, email, amount)
+            networkProvider.apiService.createPayment(req)
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     // Real status check against Supabase Postgrest - reflects whatever the
     // paystack-webhook Edge Function actually recorded after a genuine
     // Paystack payment. There is no client-side "mark as paid" anymore:
@@ -455,4 +467,4 @@ class SashioRepository(
             }
         }
     }
-}
+}p
