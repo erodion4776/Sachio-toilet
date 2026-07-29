@@ -1393,6 +1393,10 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
 
         if (liveQuoted.isNotEmpty()) {
             Text("LIVE QUOTATIONS READY FOR PAYMENT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SashioGold)
+            val paymentError by viewModel.roleManagementError.collectAsStateWithLifecycle()
+            paymentError?.let { err ->
+                Text(err, color = SashioRed, fontSize = 10.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
+            }
             Spacer(modifier = Modifier.height(6.dp))
             liveQuoted.forEach { lb ->
                 val grandTotal = lb.quoted_price + lb.logistics_cost + lb.vat_amount
