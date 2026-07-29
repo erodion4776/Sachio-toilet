@@ -1384,6 +1384,45 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
         Text("Follow your quotations from Under Review to Delivery", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
         Spacer(modifier = Modifier.height(12.dp))
 
+        // Real quotations issued by admin via Supabase - separate from the
+        // local demo tracker list below, since bookings created before real
+        // Supabase sync won't exist here, and vice versa.
+        val liveBookings by viewModel.clientSupabaseBookings.collectAsStateWithLifecycle()
+        LaunchedEffect(Unit) { viewModel.loadClientSupabaseBookings() }
+        val liveQuoted = liveBookings.filter { it.quoted_price > 0.0 && it.payment_status != "success" }
+
+        if (liveQuoted.isNotEmpty()) {
+            Text("LIVE QUOTATIONS READY FOR PAYMENT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SashioGold)
+            Spacer(modifier = Modifier.height(6.dp))
+            liveQuoted.forEach { lb ->
+                val grandTotal = lb.quoted_price + lb.logistics_cost + lb.vat_amount
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp).testTag("live_quote_card_${lb.id}")
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Text(lb.service_type, fontWeight = FontWeight.Bold)
+                        Text("${lb.event_type} | Qty ${lb.quantity} | ${lb.duration}", fontSize = 10.sp, color = SashioTextMuted)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text("Subtotal: ₦%,.0f".format(lb.quoted_price), fontSize = 11.sp)
+                        Text("Logistics: ₦%,.0f".format(lb.logistics_cost), fontSize = 11.sp)
+                        Text("VAT: ₦%,.0f".format(lb.vat_amount), fontSize = 11.sp)
+                        Text("Total: ₦%,.0f".format(grandTotal), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SashioGreen)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Button(
+                            onClick = { viewModel.triggerPaystackPaymentForRealBooking(lb.id, grandTotal) },
+                            colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Pay Now", fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         if (bookings.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text("No active quotes. Request a quote to initiate the workflow.", color = SashioTextMuted)
