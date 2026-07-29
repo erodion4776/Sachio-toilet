@@ -1038,8 +1038,13 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     fun triggerPaystackPaymentForRealBooking(bookingId: String, totalAmount: Double) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
-            val response = repository.createPaymentForRealBooking(bookingId, user.email, totalAmount)
-            _activePaystackTransaction.value = response
+            try {
+                val response = repository.createPaymentForRealBooking(bookingId, user.email, totalAmount)
+                _activePaystackTransaction.value = response
+                _roleManagementError.value = null
+            } catch (e: Exception) {
+                _roleManagementError.value = "Payment could not start: ${e.message}"
+            }
         }
     }
 
