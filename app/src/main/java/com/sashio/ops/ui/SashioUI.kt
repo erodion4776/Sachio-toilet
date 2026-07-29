@@ -5312,7 +5312,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                     Text("Automatic Logistics Surcharge Recommendation:", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
                                     Spacer(modifier = Modifier.height(2.dp))
                                     Text("Zone: ${logisticsMetrics.logisticsZone}", fontSize = 9.sp, color = SashioTextMuted)
-                                    Text("Distance: %.2f km | Time: ${logisticsMetrics.travelTimeMinutes} mins", fontSize = 9.sp, color = SashioTextMuted)
+                                    Text("Distance: %.2f km | Time: ${logisticsMetrics.travelTimeMinutes} mins".format(logisticsMetrics.distanceKm), fontSize = 9.sp, color = SashioTextMuted)
                                     Text("Fuel: %.1f Liters Diesel".format(logisticsMetrics.estimatedFuelLitres), fontSize = 9.sp, color = SashioTextMuted)
                                     Text("Recommended Cost: ₦%,.2f".format(logisticsMetrics.recommendedLogisticsCost), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioGreen)
                                 }
@@ -5339,6 +5339,12 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                             label = { Text("Specific Terms & Signature") },
                             modifier = Modifier.fillMaxWidth()
                         )
+
+                        val quotationError by viewModel.roleManagementError.collectAsStateWithLifecycle()
+                        quotationError?.let { err ->
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(err, color = SashioRed, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
                     }
                 }
             )
