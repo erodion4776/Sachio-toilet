@@ -13,6 +13,8 @@ import io.github.jan.supabase.postgrest.query.filter.*
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
 import java.net.URLEncoder
 
 data class AdminIncident(
@@ -577,11 +579,11 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
                 if (supaUser != null) {
                     SupabaseProvider.client.postgrest.from("profiles").update(
-                        mapOf(
-                            "full_name" to name.trim(),
-                            "phone_number" to phone.trim(),
-                            "company_name" to company.trim()
-                        )
+                        buildJsonObject {
+                            put("full_name", name.trim())
+                            put("phone_number", phone.trim())
+                            put("company_name", company.trim())
+                        }
                     ) {
                         filter { eq("id", supaUser.id) }
                     }
@@ -669,13 +671,13 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 SupabaseProvider.client.postgrest.from("bookings").update(
-                    mapOf(
-                        "quoted_price" to quotedPrice,
-                        "logistics_cost" to logisticsCost,
-                        "vat_amount" to vatAmount,
-                        "admin_notes" to adminNotes,
-                        "status" to "Quotation Generated"
-                    )
+                    buildJsonObject {
+                        put("quoted_price", quotedPrice)
+                        put("logistics_cost", logisticsCost)
+                        put("vat_amount", vatAmount)
+                        put("admin_notes", adminNotes)
+                        put("status", "Quotation Generated")
+                    }
                 ) {
                     filter { eq("id", bookingId) }
                 }
@@ -748,7 +750,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 SupabaseProvider.client.postgrest.from("profiles").update(
-                    mapOf("role" to newRole)
+                    buildJsonObject { put("role", newRole) }
                 ) {
                     filter { eq("id", userId) }
                 }
@@ -763,7 +765,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 SupabaseProvider.client.postgrest.from("profiles").update(
-                    mapOf("suspended" to suspended)
+                    buildJsonObject { put("suspended", suspended) }
                 ) {
                     filter { eq("id", userId) }
                 }
