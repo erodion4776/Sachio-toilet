@@ -1014,6 +1014,35 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Client: real Supabase bookings, so real admin-issued quotations
+    // actually show up here for the client to review and pay ---
+    private val _clientSupabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
+    val clientSupabaseBookings: StateFlow<List<SupabaseBooking>> = _clientSupabaseBookings.asStateFlow()
+
+    fun loadClientSupabaseBookings() {
+        viewModelScope.launch {
+            try {
+                val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id ?: return@launch
+                val rows = SupabaseProvider.client.postgrest.from("bookings")
+                    .select {
+                        filter { eq("client_id", uid) }
+                    }
+                    .decodeList<SupabaseBooking>()
+                _clientSupabaseBookings.value = rows
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not load your bookings: ${e.message}"
+            }
+        }
+    }
+
+    fun triggerPaystackPaymentForRealBooking(bookingId: String, totalAmount: Double) {
+        val user = _currentUser.value ?: return
+        viewModelScope.launch {
+            val response = repository.createPaymentForRealBooking(bookingId, user.email, totalAmount)
+            _activePaystackTransaction.value = response
+        }
+    }
+
     fun clearActiveTransaction() {
         _activePaystackTransaction.value = null
     }
