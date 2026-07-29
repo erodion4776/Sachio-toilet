@@ -1,4 +1,4 @@
-package com.sashio.ops.ui
+      package com.sashio.ops.ui
 
 import androidx.compose.animation.*
 import kotlinx.coroutines.launch
@@ -4310,6 +4310,31 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                 Text("Review and process incoming requests. Generate and configure logistics surcharges, taxes, and specialized inclusions.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
                                 Spacer(modifier = Modifier.height(10.dp))
 
+                                var bookingPendingDelete by remember { mutableStateOf<SupabaseBooking?>(null) }
+
+                                bookingPendingDelete?.let { toDelete ->
+                                    AlertDialog(
+                                        onDismissRequest = { bookingPendingDelete = null },
+                                        title = { Text("Delete this quotation?", fontWeight = FontWeight.Bold) },
+                                        text = { Text("This permanently removes \"${toDelete.service_type}\" for ${toDelete.client_name}. This cannot be undone.") },
+                                        confirmButton = {
+                                            Button(
+                                                onClick = {
+                                                    viewModel.adminDeleteBooking(toDelete.id) {
+                                                        bookingPendingDelete = null
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = SashioRed)
+                                            ) {
+                                                Text("Delete", color = Color.White, fontWeight = FontWeight.Bold)
+                                            }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { bookingPendingDelete = null }) { Text("Cancel") }
+                                        }
+                                    )
+                                }
+
                                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                     items(supabaseBookings) { b ->
                                         Card(
@@ -4352,6 +4377,13 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                                         contentPadding = PaddingValues(0.dp)
                                                     ) {
                                                         Text("Compile PDF & Email", fontSize = 9.sp)
+                                                    }
+
+                                                    IconButton(
+                                                        onClick = { bookingPendingDelete = b },
+                                                        modifier = Modifier.testTag("delete_quotation_${b.id}")
+                                                    ) {
+                                                        Icon(Icons.Default.Delete, contentDescription = "Delete quotation", tint = SashioRed)
                                                     }
                                                 }
                                             }
@@ -8008,6 +8040,860 @@ fun SashioSettingsScreen(
                                                 )
                                                 Spacer(modifier = Modifier.height(14.dp))
                                                 Button(
+                                                    onClick = {
+                                                        if (newPass.length < 5) {
+                                                            Toast.makeText(context, "ERROR: Password credentials too brief.", Toast.LENGTH_SHORT).show()
+                                                        } else if (newPass != confirmPass) {
+                                                            Toast.makeText(context, "ERROR: Confirm mismatch.", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            viewModel.resetPassword(currentUser?.email ?: "guest")
+                                                            Toast.makeText(context, "SUCCESS: Password Key updated.", Toast.LENGTH_SHORT).show()
+                                                            currPass = ""
+                                                            newPass = ""
+                                                            confirmPass = ""
+                                                            editPasswordPanel = false
+                                                        }
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(42.dp)
+                                                ) {
+                                                    Text("CIPHER CODE UPDATE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Authorized devices linked elements
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Text("AUTHORIZED DISPATCH NODES / DEVICES", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = currentAccent)
+                                            
+                                            devicesList.forEach { dev ->
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(text = dev, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                                    IconButton(onClick = {
+                                                        devicesList = devicesList.filter { it != dev }
+                                                        Toast.makeText(context, "Authorization node successfully revoked.", Toast.LENGTH_SHORT).show()
+                                                    }) {
+                                                        Icon(Icons.Default.Delete, contentDescription = "Revoke device access", tint = SashioRed, modifier = Modifier.size(16.dp))
+                                                    }
+                                                }
+                                            }
+                                            
+                                            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.2f))
+                                            
+                                            TextButton(
+                                                onClick = {
+                                                    devicesList = listOf("Samsung Galaxy S24 Ultra - Lagos, NG (This Phone)")
+                                                    Toast.makeText(context, "All secondary credentials revoked.", Toast.LENGTH_SHORT).show()
+                                                },
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Text("LOGOUT FROM ALL OTHER NODES", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = SashioRed)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        "language" -> {
+                            // Section 5: Internationalization node changes with Country localized representations
+                            val flags = mapOf(
+                                "English" to "🇬🇧 English - International",
+                                "French" to "🇫🇷 Français - French Zone",
+                                "Spanish" to "🇪🇸 Español - Spain & Americas",
+                                "Swahili" to "🇰🇪 Kiswahili - East Africa Area",
+                                "Arabic" to "🇦🇪 العربية - Middle East Region"
+                            )
+                            
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(14.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                item {
+                                    Text(
+                                        text = "SELECT THE SYSTEM INTERACTIVE LANGUAGE NODE:",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = SashioTextMuted,
+                                        modifier = Modifier.padding(bottom = 6.dp)
+                                    )
+                                }
+                                
+                                items(flags.keys.toList()) { lang ->
+                                    val isSel = langVal == lang
+                                    Card(
+                                        onClick = {
+                                            viewModel.setLanguage(lang)
+                                            Toast.makeText(context, "System transformed to: ${flags[lang]}", Toast.LENGTH_SHORT).show()
+                                        },
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (isSel) currentAccent.copy(alpha = 0.12f) else if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White
+                                        ),
+                                        shape = RoundedCornerShape(12.dp),
+                                        border = BorderStroke(1.dp, if (isSel) currentAccent else Color.LightGray.copy(alpha = 0.2f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = flags[lang] ?: lang,
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isSel) currentAccent else if (themePref == "dark") Color.White else SashioSlate
+                                            )
+                                            if (isSel) {
+                                                Icon(Icons.Default.Check, contentDescription = "Active language selection icon check", tint = currentAccent, modifier = Modifier.size(18.dp))
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Localized preview variables
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text("LOCALIZATION COMPLIANCE PREVIEW STATUS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = currentAccent)
+                                            
+                                            val currencyLabel = when (langVal) {
+                                                "French" -> "€ - Euro Sovereign currency system"
+                                                "Spanish" -> "$ - Spanish/Latin Dollar standards"
+                                                "Arabic" -> "AED - United Arab Emirates Dirham"
+                                                "Swahili" -> "KSh - East African Shillings specs"
+                                                else -> "₦ - Nigerian Naira Core Standard"
+                                            }
+                                            
+                                            val dateLabel = when (langVal) {
+                                                "French" -> "12 Juin 2026 (DD/MM/YYYY)"
+                                                "Spanish" -> "12 de Junio de 2026"
+                                                "Arabic" -> "١٢ يونيو ٢٠٢٦"
+                                                else -> "12 June 2026 (Default Prestige layout)"
+                                            }
+                                            
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text("Mapped Currency Unit:", fontSize = 10.sp, color = SashioTextMuted)
+                                                Text(currencyLabel, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
+                                            }
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text("Mapped Date Structure:", fontSize = 10.sp, color = SashioTextMuted)
+                                                Text(dateLabel, fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        "appearance" -> {
+                            // Section 6: Dynamic styling parameters, card density and maps theme presets
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                // Theme Dark/Light Modes
+                                item {
+                                    Text("THEME DISPATCH ENVIRONMENT", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioTextMuted)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            listOf("light", "dark").forEach { themeName ->
+                                                val isSel = themePref == themeName
+                                                Button(
+                                                    onClick = { viewModel.updateAppearanceToggles(themeName, accentColorVal, fontSizeVal, cardDensityVal, mapThemeVal, accessibilityVal) },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = if (isSel) SashioSlate else Color.LightGray.copy(alpha = 0.2f),
+                                                        contentColor = if (isSel) Color.White else SashioSlate
+                                                    ),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    modifier = Modifier.weight(1f).height(40.dp)
+                                                ) {
+                                                    Text(text = themeName.uppercase(), fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Accent Colors Circle Selection
+                                item {
+                                    Text("DYNAMIC APLET BRAND ACCENT SELECTIONS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioTextMuted)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            val choices = mapOf(
+                                                "Gold" to SashioGold,
+                                                "Teal Breeze" to SashioBlue,
+                                                "Royal Indigo" to SashioSlate,
+                                                "Ruby Premium" to SashioRed
+                                            )
+                                            
+                                            choices.forEach { (name, colorValue) ->
+                                                val isSel = accentColorVal == name
+                                                Box(
+                                                    modifier = Modifier
+                                                        .size(46.dp)
+                                                        .clip(CircleShape)
+                                                        .background(colorValue)
+                                                        .border(
+                                                            width = if (isSel) 4.dp else 0.dp,
+                                                            color = if (isSel) Color.White else Color.Transparent,
+                                                            shape = CircleShape
+                                                        )
+                                                        .clickable {
+                                                            viewModel.updateAppearanceToggles(themePref, name, fontSizeVal, cardDensityVal, mapThemeVal, accessibilityVal)
+                                                            Toast.makeText(context, "Accent set to $name", Toast.LENGTH_SHORT).show()
+                                                        },
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    if (isSel) {
+                                                        Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Font details scales
+                                item {
+                                    Text("SELECT INFORMATION DENSITY FONT SIZE SCALE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioTextMuted)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                            listOf("Compact", "Standard", "Expanded").forEach { fs ->
+                                                val isSel = fontSizeVal == fs
+                                                Button(
+                                                    onClick = { viewModel.updateAppearanceToggles(themePref, accentColorVal, fs, cardDensityVal, mapThemeVal, accessibilityVal) },
+                                                    colors = ButtonDefaults.buttonColors(
+                                                        containerColor = if (isSel) currentAccent else Color.LightGray.copy(alpha = 0.2f),
+                                                        contentColor = if (isSel) Color.White else SashioSlate
+                                                    ),
+                                                    modifier = Modifier.weight(1f).height(38.dp)
+                                                ) {
+                                                    Text(fs, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Map Theme Configuration Selector
+                                item {
+                                    Text("SELECT CORE OPERATIONS GOOGLE MAP THEME", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioTextMuted)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            listOf("Standard Map", "Satellite Map Theme", "Terrain Operations Map", "Dark Map").forEach { mt ->
+                                                val isSel = mapThemeVal == mt
+                                                Row(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            viewModel.updateAppearanceToggles(themePref, accentColorVal, fontSizeVal, cardDensityVal, mt, accessibilityVal)
+                                                            Toast.makeText(context, "$mt layer activated.", Toast.LENGTH_SHORT).show()
+                                                        }
+                                                        .padding(vertical = 10.dp),
+                                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                                    verticalAlignment = Alignment.CenterVertically
+                                                ) {
+                                                    Text(mt, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
+                                                    if (isSel) {
+                                                        Icon(Icons.Default.Check, contentDescription = null, tint = currentAccent, modifier = Modifier.size(16.dp))
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // Accessibility check
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(16.dp),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text("High Contrast Accessible layout Mode", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text("Improves screen readability ratios.", fontSize = 9.sp, color = SashioTextMuted)
+                                            }
+                                            Switch(checked = accessibilityVal, onCheckedChange = { viewModel.updateAppearanceToggles(themePref, accentColorVal, fontSizeVal, cardDensityVal, mapThemeVal, it) })
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        "preferences" -> {
+                            // Section 7: Cache Wiping and client-side database optimization controls
+                            var isClearingCache by remember { mutableStateOf(false) }
+                            var isClearingDls by remember { mutableStateOf(false) }
+                            var isOptimizingDb by remember { mutableStateOf(false) }
+                            
+                            LaunchedEffect(isClearingCache) {
+                                if (isClearingCache) {
+                                    kotlinx.coroutines.delay(1200)
+                                    viewModel.clearCache()
+                                    isClearingCache = false
+                                    Toast.makeText(context, "Sashio system cache cleared successfully.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            
+                            LaunchedEffect(isClearingDls) {
+                                if (isClearingDls) {
+                                    kotlinx.coroutines.delay(1200)
+                                    viewModel.clearDownloads()
+                                    isClearingDls = false
+                                    Toast.makeText(context, "Sashio local PDF downloads flushed.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            
+                            LaunchedEffect(isOptimizingDb) {
+                                if (isOptimizingDb) {
+                                    kotlinx.coroutines.delay(1600)
+                                    viewModel.optimizeStorage()
+                                    isOptimizingDb = false
+                                    Toast.makeText(context, "Prestige Local DB defragmented and optimized.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                            
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                            Text("STORAGE PARAMETERS & METRICS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = currentAccent)
+                                            
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text("Active Storage Occupied:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text(storageUsedVal, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
+                                            }
+                                            
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                                Text("System Trash & Caches size:", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                Text(cacheSizeVal, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
+                                            }
+                                            
+                                            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.2f))
+                                            
+                                            if (isClearingCache) {
+                                                CircularProgressIndicator(color = currentAccent, modifier = Modifier.align(Alignment.CenterHorizontally).size(24.dp))
+                                            } else {
+                                                Button(
+                                                    onClick = { isClearingCache = true },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(38.dp)
+                                                ) {
+                                                    Text("FLUSH SYSTEM APP CACHES (ERASE)", fontSize = 10.sp, color = Color.White)
+                                                }
+                                            }
+                                            
+                                            if (isClearingDls) {
+                                                CircularProgressIndicator(color = currentAccent, modifier = Modifier.align(Alignment.CenterHorizontally).size(24.dp))
+                                            } else {
+                                                OutlinedButton(
+                                                    onClick = { isClearingDls = true },
+                                                    shape = RoundedCornerShape(8.dp),
+                                                    modifier = Modifier.fillMaxWidth().height(38.dp)
+                                                ) {
+                                                    Text("CLEAR OFF-LINE QUOTATION DOWNLOADS", fontSize = 10.sp, color = SashioSlate)
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                                            Text("DATA PREFERENCES CONFIGS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = currentAccent)
+                                            
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                Column(modifier = Modifier.weight(1.2f)) {
+                                                    Text("Auto-refresh active lists", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Text("Updates queues every 15 seconds.", fontSize = 9.sp, color = SashioTextMuted)
+                                                }
+                                                Switch(checked = autoRefreshVal, onCheckedChange = { viewModel.updateAppPreferencesToggles(it, locServicesVal, bgTrackingVal, offlineModeVal, autoDownloadsVal) })
+                                            }
+                                            
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                Column(modifier = Modifier.weight(1.2f)) {
+                                                    Text("Enable Background GPS coordinate tags", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Text("Tethers phone location sensors for optimal dispatch.", fontSize = 9.sp, color = SashioTextMuted)
+                                                }
+                                                Switch(checked = locServicesVal, onCheckedChange = { viewModel.updateAppPreferencesToggles(autoRefreshVal, it, bgTrackingVal, offlineModeVal, autoDownloadsVal) })
+                                            }
+                                            
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                Column(modifier = Modifier.weight(1.2f)) {
+                                                    Text("Preemptive Offline State Caching", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Text("Store local items offline for low networks.", fontSize = 9.sp, color = SashioTextMuted)
+                                                }
+                                                Switch(checked = offlineModeVal, onCheckedChange = { viewModel.updateAppPreferencesToggles(autoRefreshVal, locServicesVal, bgTrackingVal, it, autoDownloadsVal) })
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                item {
+                                    if (isOptimizingDb) {
+                                        LinearProgressIndicator(color = currentAccent, modifier = Modifier.fillMaxWidth())
+                                    } else {
+                                        Button(
+                                            onClick = { isOptimizingDb = true },
+                                            colors = ButtonDefaults.buttonColors(containerColor = currentAccent),
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier.fillMaxWidth().height(44.dp)
+                                        ) {
+                                            Text("DEFRAGMENT & OPTIMIZE ROOM LOCAL DB", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.White)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        "support" -> {
+                            // Section 8: Help and support Ticket center and FAQs Search filtration
+                            var faqQuery by remember { mutableStateOf("") }
+                            var expandedFaqIndex by remember { mutableStateOf<Int?>(null) }
+                            
+                            var ticketSubject by remember { mutableStateOf("") }
+                            var ticketCategory by remember { mutableStateOf("Enquiry") }
+                            var ticketDesc by remember { mutableStateOf("") }
+                            
+                            val availableFaqs = listOf(
+                                Triple("Why is there no fixed pricing listed on products?", "To guarantee correct rates due to varying transport Logistics Surcharges, VAT constraints, and local coordinate fuel variables, SACHIO operates exclusively through bespoke real-time generated quotation agreements.", "pricing"),
+                                Triple("How is cleaning and sanitizing handled?", "Prestige attendants perform comprehensive quad sewage evacuations using active biological digests that completely sanitize and eliminate microbial compounds.", "sanitize"),
+                                Triple("Can I request on-site standby crew support?", "Yes! Tick our Standby Attendant element during your quote compilation and our crew will deploy on-site.", "standby"),
+                                Triple("What are the VIP event toilet guidelines?", "Select 'VIP event Toilet variant packages' to access top-grade models with luxury mirrors and dynamic washbays.", "vip")
+                            )
+                            
+                            val filteredFaqs = availableFaqs.filter {
+                                faqQuery.isBlank() || it.first.contains(faqQuery, ignoreCase = true) || it.second.contains(faqQuery, ignoreCase = true)
+                            }
+                            
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                // HELP HOTLINES
+                                item {
+                                    Text("DIRECT PRESTIGE HOTLINES", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioTextMuted)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            Button(
+                                                onClick = {
+                                                    val intent = Intent(Intent.ACTION_DIAL, Uri.parse("tel:+234800SACHIO"))
+                                                    context.startActivity(intent)
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.weight(1f).height(38.dp)
+                                            ) {
+                                                Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Phone Support", fontSize = 10.sp, color = Color.White)
+                                            }
+                                            
+                                            Button(
+                                                onClick = {
+                                                    val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:support@sachioltd.com"))
+                                                    context.startActivity(Intent.createChooser(intent, "Send email to Sachio support"))
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.weight(1f).height(38.dp)
+                                            ) {
+                                                Icon(Icons.Default.Email, contentDescription = null, modifier = Modifier.size(12.dp))
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text("Email Support", fontSize = 10.sp, color = Color.White)
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // FAQ SEARCH
+                                item {
+                                    Text("SEARCH SACHIO KNOWLEDGE CENTER FAQS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioTextMuted)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    OutlinedTextField(
+                                        value = faqQuery,
+                                        onValueChange = { faqQuery = it },
+                                        label = { Text("Filter FAQs (e.g. price, sanitize)") },
+                                        singleLine = true,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    Spacer(modifier = Modifier.height(10.dp))
+                                    
+                                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        filteredFaqs.forEachIndexed { idx, (q, ans, _) ->
+                                            val isExpanded = expandedFaqIndex == idx
+                                            Card(
+                                                onClick = { expandedFaqIndex = if (isExpanded) null else idx },
+                                                colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.02f) else Color.White),
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(modifier = Modifier.padding(12.dp)) {
+                                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                        Text(q, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                                                        Icon(
+                                                            imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                                            contentDescription = null,
+                                                            tint = currentAccent,
+                                                            modifier = Modifier.size(16.dp)
+                                                        )
+                                                    }
+                                                    if (isExpanded) {
+                                                        Spacer(modifier = Modifier.height(8.dp))
+                                                        Text(ans, fontSize = 10.sp, color = SashioTextMuted)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // SUBMIT SUPPORT TICKET FORM
+                                item {
+                                    Text("SUBMIT NEW CONSULTATION TICKET", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioTextMuted)
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            OutlinedTextField(
+                                                value = ticketSubject,
+                                                onValueChange = { ticketSubject = it },
+                                                label = { Text("Ticket Subject Title") },
+                                                singleLine = true,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            
+                                            // Category Picker Options Row
+                                            Text("Select Consultation category:", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                listOf("Enquiry", "Billing", "Logistics").forEach { ct ->
+                                                    val isC = ticketCategory == ct
+                                                    Button(
+                                                        onClick = { ticketCategory = ct },
+                                                        colors = ButtonDefaults.buttonColors(
+                                                            containerColor = if (isC) currentAccent else Color.LightGray.copy(alpha = 0.2f),
+                                                            contentColor = if (isC) Color.White else SashioSlate
+                                                        ),
+                                                        shape = RoundedCornerShape(6.dp),
+                                                        contentPadding = PaddingValues(horizontal = 8.dp),
+                                                        modifier = Modifier.weight(1f).height(32.dp)
+                                                    ) {
+                                                        Text(ct, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                                    }
+                                                }
+                                            }
+                                            
+                                            OutlinedTextField(
+                                                value = ticketDesc,
+                                                onValueChange = { ticketDesc = it },
+                                                label = { Text("Elaborate Description of Issue") },
+                                                maxLines = 4,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                            
+                                            Spacer(modifier = Modifier.height(6.dp))
+                                            
+                                            Button(
+                                                onClick = {
+                                                    if (ticketSubject.isBlank() || ticketDesc.isBlank()) {
+                                                        Toast.makeText(context, "ERROR: Subject and detailed information are mandatory.", Toast.LENGTH_SHORT).show()
+                                                    } else {
+                                                        viewModel.submitSupportTicket(ticketSubject, ticketCategory, ticketDesc)
+                                                        Toast.makeText(context, "SUCCESS: Ticket logs captured.", Toast.LENGTH_SHORT).show()
+                                                        ticketSubject = ""
+                                                        ticketDesc = ""
+                                                    }
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.fillMaxWidth().height(40.dp)
+                                            ) {
+                                                Text("TRANSMIT SUPPORT TICKET", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                // TICKET LIST FEED
+                                if (ticketHistory.isNotEmpty()) {
+                                    item {
+                                        Text("YOUR ACTIVE SUBMITTED TICKETS FEED", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioTextMuted)
+                                        Spacer(modifier = Modifier.height(6.dp))
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            ticketHistory.forEach { t ->
+                                                Card(
+                                                    colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.05f) else Color.White),
+                                                    shape = RoundedCornerShape(10.dp),
+                                                    modifier = Modifier.fillMaxWidth()
+                                                ) {
+                                                    Row(
+                                                        modifier = Modifier.padding(12.dp).fillMaxWidth(),
+                                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Column {
+                                                            Text(text = "Ref Code: ${t.id}", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = currentAccent)
+                                                            Text(text = t.subject, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                            Text(text = "Priority Level: High", fontSize = 9.sp, color = SashioTextMuted)
+                                                        }
+                                                        
+                                                        Box(
+                                                            modifier = Modifier
+                                                                .clip(RoundedCornerShape(6.dp))
+                                                                .background(SashioGreen.copy(alpha = 0.15f))
+                                                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                                                        ) {
+                                                            Text("ACTIVE OPEN", fontSize = 8.sp, fontWeight = FontWeight.Bold, color = SashioGreen)
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        "terms" -> {
+                            // Section 9: Highly polished Terms and Legal scrolled box with references
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                                            Text("SACHIO STATUTORY POLICY AGREEMENT", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = currentAccent)
+                                            
+                                            Text(
+                                                text = "1. LICENSE AND SCOPE OF TERMS\nThis platform serves purely as a secure business liaison client connecting qualified event planners to the specialized toilet hire network of SACHIO Ltd. The pricing calculations and fuel indices remain proprietary estimates until formal agreement execution.\n\n2. PRIVACY STATUTES\nWe strictly respect Lagos State Environmental Protection protocols and federal digital privacy boundaries. Your location coordinates are accessed only for routing and delivery tracking.\n\n3. LOGISTICS DISRUPTIONS CLAUSE\nOperational delays originating from heavy congestion, civil road maintenance, and fuel price volatility are managed with priority attendant dispatch. Formal communications will be delivered.",
+                                                fontSize = 11.sp,
+                                                color = SashioTextMuted,
+                                                lineHeight = 16.sp
+                                            )
+                                        }
+                                    }
+                                }
+                                
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(12.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                            Text("APPLICATION CODE ARCHITECTURE LOGS:", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = currentAccent)
+                                            Text("App Platform: SACHIO PRESTIGE MOBILE SEAMLESS", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                            Text("Version Specs: Build 1.10.42-PRESTIGE-NATIVE", fontSize = 9.sp, color = SashioTextMuted)
+                                            Text("Engine framework: Kotlin JVM Android SDK 34 Compose", fontSize = 9.sp, color = SashioTextMuted)
+                                            Text("SQLite Persistence: Room ORM active integration", fontSize = 9.sp, color = SashioTextMuted)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        
+                        "account" -> {
+                            // Section 10: Critical Account Options (Deactivate & irreversible Delete account warning countdown holding text trigger)
+                            var showDeactivateModal by remember { mutableStateOf(false) }
+                            var showDeleteModal by remember { mutableStateOf(false) }
+                            
+                            LazyColumn(
+                                verticalArrangement = Arrangement.spacedBy(16.dp),
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White),
+                                        shape = RoundedCornerShape(16.dp),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Text("TEMPORARY ACCOUNT SUSPENSION", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = currentAccent)
+                                            Text("Pause your corporate notifications, pending review schedules and billing emails temporarily. You can restore access instantly at any subsequent date simply by logging back in.", fontSize = 11.sp, color = SashioTextMuted)
+                                            
+                                            Button(
+                                                onClick = { showDeactivateModal = true },
+                                                colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.fillMaxWidth().height(38.dp)
+                                            ) {
+                                                Text("DEACTIVATE SACHIO PRESTIGE ACCOUNT", fontSize = 11.sp, color = Color.White)
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                item {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = SashioRed.copy(alpha = 0.03f)),
+                                        shape = RoundedCornerShape(16.dp),
+                                        border = BorderStroke(1.dp, SashioRed.copy(alpha = 0.2f)),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                                            Text("IRREVERSIBLE DATABASE DELETION", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioRed)
+                                            Text("Purge your profile record, transaction invoices, billing records, active favorite coordinates, and ticket histories permanently from the SACHIO SQLite servers. This transaction is absolute and cannot be recalled.", fontSize = 11.sp, color = SashioTextMuted)
+                                            
+                                            Button(
+                                                onClick = { showDeleteModal = true },
+                                                colors = ButtonDefaults.buttonColors(containerColor = SashioRed),
+                                                shape = RoundedCornerShape(8.dp),
+                                                modifier = Modifier.fillMaxWidth().height(38.dp)
+                                            ) {
+                                                Text("PERMANENTLY EXPUNGE PROFILE FOREVER", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            
+                            // Deactivate dialog
+                            if (showDeactivateModal) {
+                                AlertDialog(
+                                    onDismissRequest = { showDeactivateModal = false },
+                                    title = { Text("Confirm Deactivation?", fontWeight = FontWeight.Bold) },
+                                    text = { Text("Your active dispatches and standby schedules will be safely archived offline.", fontSize = 11.sp) },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = {
+                                                showDeactivateModal = false
+                                                viewModel.deactivateAccount()
+                                                onDismiss()
+                                                Toast.makeText(context, "Sashio Prestige Profile Deactivated safely.", Toast.LENGTH_LONG).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = SashioSlate)
+                                        ) { Text("Confirm", color = Color.White) }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showDeactivateModal = false }) { Text("Cancel") }
+                                    }
+                                )
+                            }
+                            
+                            // Delete alert dialog
+                            if (showDeleteModal) {
+                                var deleteVerificationInput by remember { mutableStateOf("") }
+                                
+                                AlertDialog(
+                                    onDismissRequest = { showDeleteModal = false },
+                                    title = { Text("CRITICAL WARNING: Purge Record?", fontWeight = FontWeight.Bold, color = SashioRed) },
+                                    text = {
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            Text("To confirm absolute deletion, type the keyword \"DELETE\" in the field below:", fontSize = 11.sp)
+                                            OutlinedTextField(
+                                                value = deleteVerificationInput,
+                                                onValueChange = { deleteVerificationInput = it },
+                                                label = { Text("Verification Phrase") },
+                                                singleLine = true,
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        }
+                                    },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = {
+                                                if (deleteVerificationInput.trim() == "DELETE") {
+                                                    showDeleteModal = false
+                                                    viewModel.deleteAccount()
+                                                    onDismiss()
+                                                    Toast.makeText(context, "Sashio profile completely and permanently expunged.", Toast.LENGTH_LONG).show()
+                                                } else {
+                                                    Toast.makeText(context, "ERROR: Incorrect authorization phrase specified.", Toast.LENGTH_SHORT).show()
+                                                }
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = SashioRed),
+                                            enabled = deleteVerificationInput.trim() == "DELETE"
+                                        ) { Text("Expunge Permanently", color = Color.White) }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showDeleteModal = false }) { Text("Abort Action") }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}                                          Button(
                                                     onClick = {
                                                         if (newPass.length < 5) {
                                                             Toast.makeText(context, "ERROR: Password credentials too brief.", Toast.LENGTH_SHORT).show()
