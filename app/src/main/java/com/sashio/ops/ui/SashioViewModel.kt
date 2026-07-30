@@ -660,20 +660,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun adminDeleteBooking(bookingId: String, onComplete: () -> Unit) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("bookings").delete {
-                    filter { eq("id", bookingId) }
-                }
-                loadSupabaseBookings()
-                onComplete()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not delete quotation: ${e.message}"
-            }
-        }
-    }
-
     fun adminDeleteBooking(bookingId: String, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             try {
@@ -1906,4 +1892,3 @@ data class SupportTicket(
     val status: String,
     val date: String
 )
-
