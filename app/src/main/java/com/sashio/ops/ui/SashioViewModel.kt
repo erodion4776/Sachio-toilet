@@ -842,6 +842,9 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // --- Bookings & Quotation Request Management ---
+    private val _bookingSyncMessage = MutableStateFlow<String?>(null)
+    val bookingSyncMessage: StateFlow<String?> = _bookingSyncMessage.asStateFlow()
+
     fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
         viewModelScope.launch {
             repository.insertBooking(booking)
@@ -849,8 +852,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             // Also creates the real booking in Supabase, so it shows up for
             // admin in the live Quotations Console. Requires the client to
             // be signed in with a real Supabase account - if not (e.g. still
-            // using an old local-only demo account), this is skipped and
-            // only the local copy is saved.
+            // using an old local-only demo account), this is skipped.
             try {
                 val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
                 if (supaUser != null) {
@@ -880,9 +882,12 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                             special_instructions = booking.specialInstructions
                         )
                     )
+                    _bookingSyncMessage.value = "synced"
+                } else {
+                    _bookingSyncMessage.value = "no_supabase_session"
                 }
             } catch (e: Exception) {
-                _roleManagementError.value = "Booking saved locally, but Supabase sync failed: ${e.message}"
+                _bookingSyncMessage.value = "sync_failed: ${e.message}"
             }
 
             onComplete()
