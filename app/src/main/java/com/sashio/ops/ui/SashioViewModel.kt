@@ -721,6 +721,90 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    fun adminUpdateSupabaseCatalogItem(
+        id: String,
+        title: String,
+        description: String,
+        modelNumber: String,
+        variantName: String,
+        basePrice: Double,
+        imageUrl: String,
+        videoUrl: String,
+        features: String,
+        specifications: String,
+        benefits: String,
+        useCases: String,
+        onComplete: () -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("catalog_items").update(
+                    buildJsonObject {
+                        put("title", title)
+                        put("description", description)
+                        put("model_number", modelNumber)
+                        put("variant_name", variantName)
+                        put("base_price", basePrice)
+                        put("image_url", imageUrl)
+                        put("video_url", videoUrl)
+                        put("features", features)
+                        put("specifications", specifications)
+                        put("benefits", benefits)
+                        put("use_cases", useCases)
+                    }
+                ) {
+                    filter { eq("id", id) }
+                }
+                loadSupabaseCatalogItems()
+                onComplete()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not update catalog item: ${e.message}"
+            }
+        }
+    }
+
+    fun adminUpdateSupabaseCatalogItem(
+        id: String,
+        title: String,
+        description: String,
+        modelNumber: String,
+        variantName: String,
+        basePrice: Double,
+        imageUrl: String,
+        videoUrl: String,
+        features: String,
+        specifications: String,
+        benefits: String,
+        useCases: String,
+        onComplete: () -> Unit
+    ) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("catalog_items").update(
+                    buildJsonObject {
+                        put("title", title)
+                        put("description", description)
+                        put("model_number", modelNumber)
+                        put("variant_name", variantName)
+                        put("base_price", basePrice)
+                        put("image_url", imageUrl)
+                        put("video_url", videoUrl)
+                        put("features", features)
+                        put("specifications", specifications)
+                        put("benefits", benefits)
+                        put("use_cases", useCases)
+                    }
+                ) {
+                    filter { eq("id", id) }
+                }
+                loadSupabaseCatalogItems()
+                onComplete()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not update catalog item: ${e.message}"
+            }
+        }
+    }
+
     fun adminAddSupabaseCatalogItem(
         title: String,
         description: String,
