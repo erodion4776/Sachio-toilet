@@ -58,16 +58,54 @@ fun SashioAppContent(viewModel: SashioViewModel) {
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val activeTransaction by viewModel.activePaystackTransaction.collectAsStateWithLifecycle()
     val lastPaymentStatus by viewModel.lastPaymentStatus.collectAsStateWithLifecycle()
+    val bookingSyncMessage by viewModel.bookingSyncMessage.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    var showPaymentConfirmedDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(lastPaymentStatus) {
         when (lastPaymentStatus) {
-            "success" -> Toast.makeText(context, "Payment confirmed! Your booking is now paid.", Toast.LENGTH_LONG).show()
+            "success" -> showPaymentConfirmedDialog = true
             "pending" -> Toast.makeText(context, "Payment still pending - Paystack hasn't confirmed it yet. Try again shortly.", Toast.LENGTH_LONG).show()
             "failed" -> Toast.makeText(context, "Payment failed. Please try again.", Toast.LENGTH_LONG).show()
             null -> {}
             else -> Toast.makeText(context, "Status: $lastPaymentStatus", Toast.LENGTH_LONG).show()
         }
+    }
+
+    LaunchedEffect(bookingSyncMessage) {
+        when {
+            bookingSyncMessage == "synced" -> Toast.makeText(context, "Booking request sent successfully.", Toast.LENGTH_LONG).show()
+            bookingSyncMessage == "no_supabase_session" -> Toast.makeText(context, "Booking saved on this device only - please sign out and sign back in to sync it to your account.", Toast.LENGTH_LONG).show()
+            bookingSyncMessage?.startsWith("sync_failed") == true -> Toast.makeText(context, "Booking saved on this device, but couldn't reach the server: ${bookingSyncMessage?.removePrefix("sync_failed: ")}", Toast.LENGTH_LONG).show()
+            else -> {}
+        }
+    }
+
+    if (showPaymentConfirmedDialog) {
+        AlertDialog(
+            onDismissRequest = { showPaymentConfirmedDialog = false },
+            icon = { Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SashioGreen, modifier = Modifier.size(48.dp)) },
+            title = { Text("Payment Confirmed", fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth()) },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        "Your payment was received and confirmed by Paystack. Your booking is now paid and confirmed.",
+                        textAlign = TextAlign.Center,
+                        color = SashioTextMuted
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = { showPaymentConfirmedDialog = false },
+                    colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Done", fontWeight = FontWeight.Bold)
+                }
+            },
+            shape = RoundedCornerShape(20.dp)
+        )
     }
 
     Surface(
