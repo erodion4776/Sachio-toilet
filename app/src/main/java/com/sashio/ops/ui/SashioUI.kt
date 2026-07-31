@@ -4396,6 +4396,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                         "products" -> {
                             val supabaseCatalogItems by viewModel.supabaseCatalogItems.collectAsStateWithLifecycle()
                             LaunchedEffect(Unit) { viewModel.loadSupabaseCatalogItems() }
+                            var editingCatalogItem by remember { mutableStateOf<SupabaseCatalogItem?>(null) }
 
                             Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -4418,8 +4419,15 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
                                             Column(modifier = Modifier.padding(12.dp)) {
-                                                Text(cat.title, fontWeight = FontWeight.Bold)
-                                                Text("Variant: ${cat.variant_name} | Model: ${cat.model_number}", fontSize = 10.sp, color = SashioGold, fontWeight = FontWeight.Bold)
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                                                    Column(modifier = Modifier.weight(1f)) {
+                                                        Text(cat.title, fontWeight = FontWeight.Bold)
+                                                        Text("Variant: ${cat.variant_name} | Model: ${cat.model_number}", fontSize = 10.sp, color = SashioGold, fontWeight = FontWeight.Bold)
+                                                    }
+                                                    IconButton(onClick = { editingCatalogItem = cat }, modifier = Modifier.testTag("edit_catalog_${cat.id}")) {
+                                                        Icon(Icons.Default.Edit, contentDescription = "Edit product", tint = SashioSlate)
+                                                    }
+                                                }
                                                 Spacer(modifier = Modifier.height(4.dp))
                                                 Text(cat.description, fontSize = 10.sp, color = SashioTextMuted, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                                 
@@ -4437,6 +4445,92 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                             }
                                         }
                                     }
+                                }
+
+                                editingCatalogItem?.let { catItem ->
+                                    var editTitle by remember(catItem.id) { mutableStateOf(catItem.title) }
+                                    var editDesc by remember(catItem.id) { mutableStateOf(catItem.description) }
+                                    var editModel by remember(catItem.id) { mutableStateOf(catItem.model_number) }
+                                    var editVariant by remember(catItem.id) { mutableStateOf(catItem.variant_name) }
+                                    var editPriceStr by remember(catItem.id) { mutableStateOf(if (catItem.base_price > 0.0) catItem.base_price.toInt().toString() else "") }
+                                    var editImageUrl by remember(catItem.id) { mutableStateOf(catItem.image_url) }
+                                    var editVideoUrl by remember(catItem.id) { mutableStateOf(catItem.video_url) }
+                                    var editFeatures by remember(catItem.id) { mutableStateOf(catItem.features) }
+                                    var editSpecs by remember(catItem.id) { mutableStateOf(catItem.specifications) }
+                                    var editBenefits by remember(catItem.id) { mutableStateOf(catItem.benefits) }
+                                    var editUseCases by remember(catItem.id) { mutableStateOf(catItem.use_cases) }
+                                    val editPhotoPickerLauncher = rememberLauncherForActivityResult(
+                                        contract = ActivityResultContracts.PickVisualMedia()
+                                    ) { uri -> if (uri != null) { editImageUrl = uri.toString() } }
+
+                                    AlertDialog(
+                                        onDismissRequest = { editingCatalogItem = null },
+                                        title = { Text("Edit Catalog Item", fontWeight = FontWeight.Bold) },
+                                        text = {
+                                            LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                                                item { OutlinedTextField(value = editTitle, onValueChange = { editTitle = it }, label = { Text("Product Title") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+                                                item { OutlinedTextField(value = editVariant, onValueChange = { editVariant = it }, label = { Text("Variant Name") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+                                                item { OutlinedTextField(value = editModel, onValueChange = { editModel = it }, label = { Text("Model Number") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+                                                item { OutlinedTextField(value = editDesc, onValueChange = { editDesc = it }, label = { Text("Description") }, maxLines = 3, modifier = Modifier.fillMaxWidth()) }
+                                                item { OutlinedTextField(value = editPriceStr, onValueChange = { editPriceStr = it }, label = { Text("Guide Price (Optional, \u20a6)") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+
+                                                item {
+                                                    Button(
+                                                        onClick = { editPhotoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                                        colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) {
+                                                        Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                        Spacer(modifier = Modifier.width(8.dp))
+                                                        Text(if (editImageUrl.isBlank()) "Upload Image" else "Change Image")
+                                                    }
+                                                }
+                                                if (editImageUrl.isNotBlank()) {
+                                                    item {
+                                                        AsyncImage(
+                                                            model = editImageUrl,
+                                                            contentDescription = "Selected Image preview",
+                                                            contentScale = ContentScale.Crop,
+                                                            modifier = Modifier.fillMaxWidth().height(80.dp).clip(RoundedCornerShape(8.dp))
+                                                        )
+                                                    }
+                                                }
+
+                                                item { OutlinedTextField(value = editVideoUrl, onValueChange = { editVideoUrl = it }, label = { Text("Video URL / Link") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+                                                item { OutlinedTextField(value = editFeatures, onValueChange = { editFeatures = it }, label = { Text("Features") }, maxLines = 3, modifier = Modifier.fillMaxWidth()) }
+                                                item { OutlinedTextField(value = editSpecs, onValueChange = { editSpecs = it }, label = { Text("Specifications") }, maxLines = 3, modifier = Modifier.fillMaxWidth()) }
+                                                item { OutlinedTextField(value = editBenefits, onValueChange = { editBenefits = it }, label = { Text("Benefits") }, maxLines = 3, modifier = Modifier.fillMaxWidth()) }
+                                                item { OutlinedTextField(value = editUseCases, onValueChange = { editUseCases = it }, label = { Text("Use Cases") }, maxLines = 3, modifier = Modifier.fillMaxWidth()) }
+                                            }
+                                        },
+                                        confirmButton = {
+                                            Button(
+                                                onClick = {
+                                                    viewModel.adminUpdateSupabaseCatalogItem(
+                                                        id = catItem.id,
+                                                        title = editTitle.ifBlank { "New Product" },
+                                                        description = editDesc.ifBlank { "N/A" },
+                                                        modelNumber = editModel.ifBlank { "N/A" },
+                                                        variantName = editVariant.ifBlank { "N/A" },
+                                                        basePrice = editPriceStr.toDoubleOrNull() ?: 0.0,
+                                                        imageUrl = editImageUrl,
+                                                        videoUrl = editVideoUrl,
+                                                        features = editFeatures,
+                                                        specifications = editSpecs,
+                                                        benefits = editBenefits,
+                                                        useCases = editUseCases,
+                                                        onComplete = { editingCatalogItem = null }
+                                                    )
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = SashioGold)
+                                            ) {
+                                                Text("Save Changes", fontWeight = FontWeight.Bold)
+                                            }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { editingCatalogItem = null }) { Text("Cancel") }
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -5738,13 +5832,17 @@ fun BookingStatusBadge(status: String) {
     val (lbl, bg, fore) = when (status) {
         "Quotation Requested" -> Triple("PENDING REVIEW", SashioGold.copy(alpha = 0.12f), SashioGold)
         "Under Review" -> Triple("UNDER REVIEW", SashioGold.copy(alpha = 0.12f), SashioGold)
+        "Quotation Generated" -> Triple("QUOTE READY", SashioTeal.copy(alpha = 0.12f), SashioTeal)
         "Quotation Sent" -> Triple("QUOTE ISSUED", SashioTeal.copy(alpha = 0.12f), SashioTeal)
         "Client Accepted" -> Triple("ACCEPTED / UNPAID", SashioBlue.copy(alpha = 0.12f), SashioBlue)
+        "Awaiting Payment" -> Triple("AWAITING PAYMENT", SashioBlue.copy(alpha = 0.12f), SashioBlue)
+        "Payment Confirmed" -> Triple("PAID", SashioGreen.copy(alpha = 0.12f), SashioGreen)
         "Booking Confirmed" -> Triple("BOOKED & CLEARED", SashioGreen.copy(alpha = 0.12f), SashioGreen)
-        "SERVICE DELIVERED" -> Triple("ON-ROUTE", SashioTeal.copy(alpha = 0.12f), SashioTeal)
+        "Service Delivered" -> Triple("ON-ROUTE", SashioTeal.copy(alpha = 0.12f), SashioTeal)
+        "Completed" -> Triple("COMPLETED", SashioGreen.copy(alpha = 0.12f), SashioGreen)
         "in_progress" -> Triple("SERVICING", SashioTeal.copy(alpha = 0.12f), SashioTeal)
-        "completed" -> Triple("COMPLETED", SashioGreen.copy(alpha = 0.12f), SashioGreen)
-        else -> Triple("CANCELLED", SashioRed.copy(alpha = 0.12f), SashioRed)
+        "Cancelled" -> Triple("CANCELLED", SashioRed.copy(alpha = 0.12f), SashioRed)
+        else -> Triple(status.uppercase(), SashioTextMuted.copy(alpha = 0.12f), SashioTextMuted)
     }
 
     Card(
