@@ -331,42 +331,6 @@ fun LoginScreen(viewModel: SashioViewModel) {
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Interactive Header Design Selector for Real-Time Previews
-                Card(
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.08f)),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Header Style:", fontSize = 11.sp, color = Color.White, fontWeight = FontWeight.Bold)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            listOf("inline" to "Inline", "centered" to "Centered").forEach { (style, label) ->
-                                val isSelected = headerLayoutType == style
-                                Box(
-                                    modifier = Modifier
-                                        .background(
-                                            if (isSelected) SashioGold else Color.White.copy(alpha = 0.08f),
-                                            shape = RoundedCornerShape(6.dp)
-                                        )
-                                        .clickable { headerLayoutType = style }
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = label,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (isSelected) Color.Black else Color.White
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(24.dp))
 
                 ElevatedCard(
