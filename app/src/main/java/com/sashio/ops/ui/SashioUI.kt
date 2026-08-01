@@ -258,7 +258,6 @@ fun LoginScreen(viewModel: SashioViewModel) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     val loginError by viewModel.loginError.collectAsStateWithLifecycle()
-    var selectedPortalTab by remember { mutableStateOf("client") }
 
     var showBioDialog by remember { mutableStateOf(false) }
     var bioType by remember { mutableStateOf("Fingerprint") }
@@ -368,43 +367,6 @@ fun LoginScreen(viewModel: SashioViewModel) {
                     }
                 }
 
-                // Demo accounts helper cards
-                Card(
-                    shape = RoundedCornerShape(16.dp),
-                    colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.12f)),
-                    modifier = Modifier.fillMaxWidth().testTag("login_portal_selector")
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(
-                            "ENTERPRISE PORTAL SWITCHER",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = SashioGold,
-                            letterSpacing = 1.sp
-                        )
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            mapOf("client" to "Client", "staff" to "Staff", "admin" to "Admin").forEach { (role, label) ->
-                                Button(
-                                    onClick = {
-                                        selectedPortalTab = role
-                                        email = "${role}@sashio.com"
-                                        password = "password123"
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = if (selectedPortalTab == role) SashioGold else Color.White.copy(alpha = 0.08f),
-                                        contentColor = Color.White
-                                    ),
-                                    contentPadding = PaddingValues(horizontal = 10.dp),
-                                    modifier = Modifier.weight(1f).height(38.dp).testTag("tab_$role")
-                                ) {
-                                    Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                        }
-                    }
-                }
-
                 Spacer(modifier = Modifier.height(24.dp))
 
                 ElevatedCard(
@@ -466,7 +428,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Button(
-                            onClick = { viewModel.loginWithEmail(email, selectedPortalTab, password) },
+                            onClick = { viewModel.loginWithEmail(email, null, password) },
                             colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("submit_login_button")
                         ) {
@@ -576,7 +538,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                     bioScanState = "Match Verified: Obinna Okafor!"
                                     kotlinx.coroutines.delay(650)
                                     showBioDialog = false
-                                    viewModel.loginWithEmail(if (selectedPortalTab == "staff") "staff@sashio.com" else if (selectedPortalTab == "admin") "admin@sashio.com" else "client@sashio.com", selectedPortalTab, "password123")
+                                    viewModel.loginWithEmail("client@sashio.com", null, "password123")
                                     Toast.makeText(context, "Welcome back, Obinna!", Toast.LENGTH_LONG).show()
                                 }
                                 
