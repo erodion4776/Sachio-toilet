@@ -3,6 +3,8 @@ package com.sashio.ops.ui
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 import com.sashio.ops.data.*
 import io.github.jan.supabase.auth.auth
 import io.github.jan.supabase.auth.OtpType
@@ -533,6 +535,10 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
 
                 _loginError.value = null
                 _currentUser.value = user
+
+                if (password.isNotBlank()) {
+                    BiometricAuthHelper.saveCredentials(getApplication(), email.trim().lowercase(), password)
+                }
 
                 when (mappedRole) {
                     "client" -> _currentScreen.value = "client_dashboard"
