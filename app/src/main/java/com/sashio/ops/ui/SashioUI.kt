@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.window.Dialog
 import com.sashio.ops.data.*
+import androidx.fragment.app.FragmentActivity
 import com.sashio.ops.ui.theme.*
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
@@ -259,9 +260,6 @@ fun LoginScreen(viewModel: SashioViewModel) {
     var password by remember { mutableStateOf("") }
     val loginError by viewModel.loginError.collectAsStateWithLifecycle()
 
-    var showBioDialog by remember { mutableStateOf(false) }
-    var bioType by remember { mutableStateOf("Fingerprint") }
-    var bioScanState by remember { mutableStateOf("Position finger on reader...") }
     var headerLayoutType by remember { mutableStateOf("centered") }
 
     Box(modifier = Modifier.fillMaxSize()) {
@@ -399,118 +397,82 @@ fun LoginScreen(viewModel: SashioViewModel) {
                             Text("Enter System".uppercase(), fontWeight = FontWeight.Bold, color = Color.White, letterSpacing = 1.sp)
                         }
 
-                        // Progressive Biometric Login Trigger HUD (Optimized for Field Staff)
-                        Spacer(modifier = Modifier.height(14.dp))
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedButton(
-                                onClick = {
-                                    bioType = "Fingerprint"
-                                    bioScanState = "Establish secure touch contact with fingerprint sensor..."
-                                    showBioDialog = true
-                                },
-                                border = BorderStroke(1.dp, SashioGold.copy(alpha = 0.3f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = SashioGold),
-                                modifier = Modifier.weight(1f).height(40.dp).testTag("touch_id_login")
-                            ) {
-                                Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Touch ID", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-
-                            OutlinedButton(
-                                onClick = {
-                                    bioType = "Face ID"
-                                    bioScanState = "Hold device steady. Centering face within lens vector..."
-                                    showBioDialog = true
-                                },
-                                border = BorderStroke(1.dp, SashioGold.copy(alpha = 0.3f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = SashioGold),
-                                modifier = Modifier.weight(1f).height(40.dp).testTag("face_id_login")
-                            ) {
-                                Icon(Icons.Default.Face, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("Face ID Scan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
+                        // Real biometric login - only shown if this device actually
+                        // has usable fingerprint/face hardware with something enrolled,
+                        // and only enabled after the user has opted in post-login.
+                        val bioContext = LocalContext.current
+                        val bioActivity = bioContext as? androidx.fragment.app.FragmentActivity
+                        var biometricAvailable by remember { mutableStateOf(false) }
+                        var hasSavedBioLogin by remember { mutableStateOf(false) }
+                        LaunchedEffect(Unit) {
+                            biometricAvailable = BiometricAuthHelper.isBiometricAvailable(bioContext)
+                            hasSavedBioLogin = BiometricAuthHelper.hasSavedCredentials(bioContext)
                         }
-                    }
-                }
 
-                // Biometrics Simulator Dialog Box
-                if (showBioDialog) {
-                    Dialog(onDismissRequest = { showBioDialog = false }) {
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = Color(0xFB111827)),
-                            shape = RoundedCornerShape(24.dp),
-                            modifier = Modifier
-                                .padding(16.dp)
-                                .border(1.dp, SashioGold.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
+                        if (biometricAvailable) {
+                            Spacer(modifier = Modifier.height(14.dp))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .size(72.dp)
-                                        .clip(CircleShape)
-                                        .background(SashioGold.copy(alpha = 0.1f)),
-                                    contentAlignment = Alignment.Center
+                                OutlinedButton(
+                                    onClick = {
+                                        if (bioActivity == null) return@OutlinedButton
+                                        BiometricAuthHelper.authenticateAndGetCredentials(
+                                            activity = bioActivity,
+                                            title = "Touch ID Sign-In",
+                                            onSuccess = { savedEmail, savedPassword ->
+                                                viewModel.loginWithEmail(savedEmail, null, savedPassword)
+                                            },
+                                            onError = { message ->
+                                                Toast.makeText(bioContext, message, Toast.LENGTH_LONG).show()
+                                            }
+                                        )
+                                    },
+                                    border = BorderStroke(1.dp, SashioGold.copy(alpha = 0.3f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SashioGold),
+                                    modifier = Modifier.weight(1f).height(40.dp).testTag("touch_id_login")
                                 ) {
-                                    Icon(
-                                        imageVector = if (bioType == "Fingerprint") Icons.Default.Fingerprint else Icons.Default.Face,
-                                        contentDescription = null,
-                                        tint = SashioGold,
-                                        modifier = Modifier.size(44.dp)
-                                    )
+                                    Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Touch ID", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
-                                
-                                Spacer(modifier = Modifier.height(20.dp))
-                                
+
+                                OutlinedButton(
+                                    onClick = {
+                                        if (bioActivity == null) return@OutlinedButton
+                                        BiometricAuthHelper.authenticateAndGetCredentials(
+                                            activity = bioActivity,
+                                            title = "Face ID Sign-In",
+                                            onSuccess = { savedEmail, savedPassword ->
+                                                viewModel.loginWithEmail(savedEmail, null, savedPassword)
+                                            },
+                                            onError = { message ->
+                                                Toast.makeText(bioContext, message, Toast.LENGTH_LONG).show()
+                                            }
+                                        )
+                                    },
+                                    border = BorderStroke(1.dp, SashioGold.copy(alpha = 0.3f)),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = SashioGold),
+                                    modifier = Modifier.weight(1f).height(40.dp).testTag("face_id_login")
+                                ) {
+                                    Icon(Icons.Default.Face, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("Face ID Scan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+
+                            if (!hasSavedBioLogin) {
+                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = "SACHIO Secure Portal".uppercase(),
+                                    "Sign in with your password once to enable biometric sign-in.",
                                     fontSize = 10.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = SashioGold,
-                                    letterSpacing = 2.sp
-                                )
-                                
-                                Spacer(modifier = Modifier.height(8.dp))
-                                
-                                Text(
-                                    text = bioScanState,
-                                    fontSize = 13.sp,
-                                    color = Color.White,
+                                    color = Color.White.copy(alpha = 0.5f),
                                     textAlign = TextAlign.Center,
-                                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                                    modifier = Modifier.fillMaxWidth()
                                 )
-                                
-                                Spacer(modifier = Modifier.height(16.dp))
-                                
-                                val context = LocalContext.current
-                                LaunchedEffect(key1 = showBioDialog) {
-                                    kotlinx.coroutines.delay(1200)
-                                    bioScanState = "Securing link & scanning telemetry..."
-                                    kotlinx.coroutines.delay(1400)
-                                    bioScanState = "Matching biometric hash against active crew registry..."
-                                    kotlinx.coroutines.delay(1000)
-                                    bioScanState = "Match Verified: Obinna Okafor!"
-                                    kotlinx.coroutines.delay(650)
-                                    showBioDialog = false
-                                    viewModel.loginWithEmail("client@sashio.com", null, "password123")
-                                    Toast.makeText(context, "Welcome back, Obinna!", Toast.LENGTH_LONG).show()
-                                }
-                                
-                                TextButton(
-                                    onClick = { showBioDialog = false }
-                                ) {
-                                    Text("CANCEL SCAN", color = Color.White.copy(alpha = 0.5f), fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
                             }
                         }
                     }
