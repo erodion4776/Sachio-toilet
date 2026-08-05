@@ -71,6 +71,9 @@ secrets {
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
+  implementation(libs.androidx.biometric)
+  implementation(libs.androidx.security.crypto)
+  implementation(libs.androidx.fragment.ktx)
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)
   // implementation(libs.androidx.camera.camera2)
@@ -155,4 +158,3 @@ tasks.configureEach {
     finalizedBy("copyApk")
   }
 }
-
