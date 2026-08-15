@@ -79,6 +79,9 @@ interface SashioDao {
     @Query("SELECT * FROM catalog_items ORDER BY id ASC")
     fun getAllCatalogItemsFlow(): Flow<List<CatalogItem>>
 
+    @Query("SELECT COUNT(*) FROM catalog_items")
+    suspend fun getCatalogItemCount(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertCatalogItem(item: CatalogItem): Long
 
