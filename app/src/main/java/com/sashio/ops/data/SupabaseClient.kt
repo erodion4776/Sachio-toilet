@@ -4,6 +4,7 @@ import com.sashio.ops.BuildConfig
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.auth.Auth
+import io.github.jan.supabase.storage.Storage
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -42,6 +43,23 @@ data class SupabaseCatalogItem(
     val benefits: String = "",
     val use_cases: String = "",
     val is_active: Boolean = true
+)
+
+// The client-facing catalog UI (ProductDiscoveryTab) renders the local Room
+// CatalogItem shape. Admin-managed products (with images) live in Supabase,
+// so this maps a synced Supabase row into that same shape for display.
+fun SupabaseCatalogItem.toCatalogItem(): CatalogItem = CatalogItem(
+    title = title,
+    description = description,
+    modelNumber = model_number,
+    variantName = variant_name,
+    basePrice = base_price,
+    imageUrl = image_url,
+    videoUrl = video_url,
+    features = features,
+    specifications = specifications,
+    benefits = benefits,
+    useCases = use_cases
 )
 
 @Serializable
@@ -130,6 +148,11 @@ data class SupabaseProfile(
 )
 
 object SupabaseProvider {
+    // Storage bucket that holds catalog product photos. Must be created in
+    // Supabase (see the storage bucket + RLS policy SQL provided alongside
+    // this app) before uploads will succeed.
+    const val CATALOG_IMAGES_BUCKET = "catalog-images"
+
     // Populated at build time from SUPABASE_URL / SUPABASE_ANON_KEY in .env
     // via the Secrets Gradle Plugin. Set real values in a local .env file
     // (git-ignored) - never commit real credentials to .env.example.
@@ -147,6 +170,7 @@ object SupabaseProvider {
         ) {
             install(Auth)
             install(Postgrest)
+            install(Storage)
         }
     }
 }
