@@ -1900,7 +1900,8 @@ fun BookingFormSheet(
                     "Standard Portable Toilets", "Executive Portable Toilets", "VIP Portable Toilets",
                     "Presidential Luxury Mobile Restrooms", "Mobile Shower Units", "Accessible Toilets",
                     "Event Sanitation Packages", "Corporate Site Sanitation Solutions",
-                    "Waste Evacuation Services", "Cleaning & Maintenance Services"
+                    "Waste Evacuation Services", "Cleaning & Maintenance Services",
+                    "Sachio Clean and Detergents", "Sachio Clothing"
                 ).forEach { cat ->
                     DropdownMenuItem(text = { Text(cat) }, onClick = {
                         selectedCategory = cat
@@ -3867,10 +3868,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
     // Chat Simulator State
     var msgChannel by remember { mutableStateOf("Clients") } // Clients, Staff, Supervisors
     var msgFormText by remember { mutableStateOf("") }
-    var adminChatMessages by remember { mutableStateOf(listOf(
-        "SysAdmin: All dispatches are active.",
-        "System: Daily attendance compiled with 100% geolocations verified."
-    )) }
+    var adminChatMessages by remember { mutableStateOf(listOf<String>()) }
 
     // Settings Profile Toggles
     var enforceBiometricsAdmin by remember { mutableStateOf(true) }
@@ -4504,10 +4502,18 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                         Text("REVENUE GROWTH LOGISTICAL MATRIX", color = SashioGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                         Spacer(modifier = Modifier.height(10.dp))
                                         
+                                        val successfulPayments = payments.filter { it.status == "success" }
+                                            .sortedBy { it.paymentDate }
+
                                         Canvas(modifier = Modifier.fillMaxWidth().height(120.dp)) {
-                                            val maxVal = 2000000f
-                                            val points = listOf(300000f, 600000f, 450000f, 900000f, 1200000f, 1580000f)
-                                            val widthSpacing = size.width / (points.size - 1)
+                                            var running = 0f
+                                            val points = if (successfulPayments.isEmpty()) {
+                                                listOf(0f, 0f)
+                                            } else {
+                                                successfulPayments.map { p -> running += p.amount.toFloat(); running }
+                                            }
+                                            val maxVal = (points.maxOrNull() ?: 1f).coerceAtLeast(1f)
+                                            val widthSpacing = if (points.size > 1) size.width / (points.size - 1) else size.width
                                             val graphPath = androidx.compose.ui.graphics.Path()
                                             
                                             points.forEachIndexed { idx, value ->
@@ -4524,14 +4530,11 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                             }
                                         }
                                         
-                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                            Text("Wk 1", color = Color.White, fontSize = 8.sp)
-                                            Text("Wk 2", color = Color.White, fontSize = 8.sp)
-                                            Text("Wk 3", color = Color.White, fontSize = 8.sp)
-                                            Text("Wk 4", color = Color.White, fontSize = 8.sp)
-                                            Text("Wk 5", color = Color.White, fontSize = 8.sp)
-                                            Text("Wk 6", color = Color.White, fontSize = 8.sp)
-                                        }
+                                        Text(
+                                            if (successfulPayments.isNotEmpty()) "Cumulative revenue across ${successfulPayments.size} confirmed payment(s)" else "No confirmed payments yet",
+                                            color = Color.White,
+                                            fontSize = 8.sp
+                                        )
                                     }
                                 }
 
@@ -5116,14 +5119,13 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                             }
                         }
 
-                        Text(admin?.name ?: "Sachio Administrator", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text(admin?.name ?: "Administrator", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                         Text("ROLE: ENTERPRISE SYSTEM COMMANDER", fontSize = 10.sp, color = SashioTeal, fontWeight = FontWeight.Bold)
-                        Text("Email: ${admin?.email ?: "admin@sashio.com"}", fontSize = 10.sp, color = SashioTextMuted)
+                        Text("Email: ${admin?.email ?: "-"}", fontSize = 10.sp, color = SashioTextMuted)
 
                         Card(colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Text("REGISTRATION & NODE ACCESS TOKENS", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                Text("Registered Device IP: 192.168.1.135", fontSize = 10.sp, color = SashioTextMuted)
                                 Text("Master Cryptographic keys: SHA-256 Validated", fontSize = 10.sp, color = SashioTextMuted)
                                 Text("Session Created: ${SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())}", fontSize = 10.sp, color = SashioTextMuted)
                             }
