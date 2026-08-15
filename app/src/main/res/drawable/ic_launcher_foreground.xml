@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SACHIO adaptive icon foreground: the real brand mark, pre-composited
+     and sized to sit within the 66dp safe zone. -->
+<bitmap xmlns:android="http://schemas.android.com/apk/res/android"
+    android:src="@drawable/ic_launcher_foreground_art"
+    android:gravity="center" />
