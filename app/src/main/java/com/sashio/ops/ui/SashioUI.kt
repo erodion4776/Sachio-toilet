@@ -24,6 +24,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.result.PickVisualMediaRequest
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.painterResource
+import com.sashio.ops.R
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -175,8 +177,8 @@ fun SplashScreen(viewModel: SashioViewModel) {
                 .alpha(alphaAnim)
                 .scale(scaleAnim)
         ) {
-            AsyncImage(
-                model = "https://i.ibb.co/4ZM1G4WW/1000946646-removebg-preview.png",
+            Image(
+                painter = painterResource(id = R.drawable.sachio_logo),
                 contentDescription = "Sachio Logo",
                 modifier = Modifier.size(150.dp)
             )
@@ -277,7 +279,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 AsyncImage(
-                                    model = "https://i.ibb.co/4ZM1G4WW/1000946646-removebg-preview.png",
+                                    model = R.drawable.sachio_logo,
                                     contentDescription = "Sachio Logo",
                                     modifier = Modifier.size(46.dp)
                                 )
@@ -304,7 +306,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                         modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp)
                     ) {
                         AsyncImage(
-                            model = "https://i.ibb.co/4ZM1G4WW/1000946646-removebg-preview.png",
+                            model = R.drawable.sachio_logo,
                             contentDescription = "Sachio Logo",
                             modifier = Modifier.size(80.dp)
                         )
@@ -715,8 +717,10 @@ fun ClientDashboard(viewModel: SashioViewModel, client: UserProfile?) {
     var isBookingFormOpen by remember { mutableStateOf(false) }
     var selectedCategoryForQuote by remember { mutableStateOf<String?>(null) }
     var isSettingsOpen by remember { mutableStateOf(false) }
-    val catalogItems by viewModel.catalogItems.collectAsStateWithLifecycle()
+    val catalogItems by viewModel.clientCatalogItems.collectAsStateWithLifecycle()
     val bookings by viewModel.clientBookings.collectAsStateWithLifecycle()
+
+    LaunchedEffect(Unit) { viewModel.loadSupabaseCatalogItems() }
 
     Scaffold(
         topBar = {
@@ -4383,9 +4387,18 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                     var editSpecs by remember(catItem.id) { mutableStateOf(catItem.specifications) }
                                     var editBenefits by remember(catItem.id) { mutableStateOf(catItem.benefits) }
                                     var editUseCases by remember(catItem.id) { mutableStateOf(catItem.use_cases) }
+                                    var editIsUploading by remember { mutableStateOf(false) }
                                     val editPhotoPickerLauncher = rememberLauncherForActivityResult(
                                         contract = ActivityResultContracts.PickVisualMedia()
-                                    ) { uri -> if (uri != null) { editImageUrl = uri.toString() } }
+                                    ) { uri ->
+                                        if (uri != null) {
+                                            editIsUploading = true
+                                            viewModel.uploadCatalogImage(uri) { publicUrl ->
+                                                editIsUploading = false
+                                                if (publicUrl != null) editImageUrl = publicUrl
+                                            }
+                                        }
+                                    }
 
                                     AlertDialog(
                                         onDismissRequest = { editingCatalogItem = null },
@@ -4401,12 +4414,19 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                                 item {
                                                     Button(
                                                         onClick = { editPhotoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                                        enabled = !editIsUploading,
                                                         colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
                                                         modifier = Modifier.fillMaxWidth()
                                                     ) {
-                                                        Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
-                                                        Spacer(modifier = Modifier.width(8.dp))
-                                                        Text(if (editImageUrl.isBlank()) "Upload Image" else "Change Image")
+                                                        if (editIsUploading) {
+                                                            CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                            Text("Uploading...")
+                                                        } else {
+                                                            Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                            Text(if (editImageUrl.isBlank()) "Upload Image" else "Change Image")
+                                                        }
                                                     }
                                                 }
                                                 if (editImageUrl.isNotBlank()) {
@@ -4446,6 +4466,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                                         onComplete = { editingCatalogItem = null }
                                                     )
                                                 },
+                                                enabled = !editIsUploading,
                                                 colors = ButtonDefaults.buttonColors(containerColor = SashioGold)
                                             ) {
                                                 Text("Save Changes", fontWeight = FontWeight.Bold)
@@ -5302,11 +5323,16 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
             var newSpecs by remember { mutableStateOf("") }
             var newBenefits by remember { mutableStateOf("") }
             var newUseCases by remember { mutableStateOf("") }
+            var newIsUploading by remember { mutableStateOf(false) }
             val photoPickerLauncher = rememberLauncherForActivityResult(
                 contract = ActivityResultContracts.PickVisualMedia()
             ) { uri ->
                 if (uri != null) {
-                    newImageUrl = uri.toString()
+                    newIsUploading = true
+                    viewModel.uploadCatalogImage(uri) { publicUrl ->
+                        newIsUploading = false
+                        if (publicUrl != null) newImageUrl = publicUrl
+                    }
                 }
             }
 
@@ -5323,12 +5349,19 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                         item {
                             Button(
                                 onClick = { photoPickerLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                enabled = !newIsUploading,
                                 colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(if (newImageUrl.isBlank()) "Upload Image" else "Change Image")
+                                if (newIsUploading) {
+                                    CircularProgressIndicator(color = Color.White, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Uploading...")
+                                } else {
+                                    Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(if (newImageUrl.isBlank()) "Upload Image" else "Change Image")
+                                }
                             }
                         }
                         if (newImageUrl.isNotBlank()) {
@@ -5367,6 +5400,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                 onComplete = { isCatalogManagerOpen = false }
                             )
                         },
+                        enabled = !newIsUploading,
                         colors = ButtonDefaults.buttonColors(containerColor = SashioSlate)
                     ) {
                         Text("Save Product")
@@ -5723,7 +5757,7 @@ fun DashboardHeader(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 AsyncImage(
-                    model = "https://i.ibb.co/4ZM1G4WW/1000946646-removebg-preview.png",
+                    model = R.drawable.sachio_logo,
                     contentDescription = "Sachio Logo",
                     modifier = Modifier.size(40.dp).padding(end = 12.dp)
                 )
