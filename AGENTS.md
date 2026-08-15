@@ -46,6 +46,8 @@ The platform functions across the following key dimensions:
 8. Corporate Site Sanitation Solutions
 9. Waste Evacuation Services
 10. Cleaning & Maintenance Services
+11. Sachio Clean and Detergents
+12. Sachio Clothing
 
 *Each product page should contain a Hero Image, Product Description, Features, Technical Specifications, Recommended Use Cases, Photo/Video Gallery, Customer Reviews, and action buttons: "Request Quotation", "Schedule Consultation", "WhatsApp Contact", and "Call Sales".*
 
@@ -112,4 +114,3 @@ The administrator view must support:
   - `.build-outputs/app-debug.apk` (Must be a valid, real installable APK greater than 1 MB)
   - `APK_DOWNLOAD/app-debug.apk` (Must be a valid, real installable APK greater than 1 MB)
 - Always run the compilation and verify the generated file sizes to ensure they are real and complete.
-
