@@ -331,30 +331,13 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _suspendedProfileIds = MutableStateFlow<Set<Long>>(emptySet())
     val suspendedProfileIds: StateFlow<Set<Long>> = _suspendedProfileIds.asStateFlow()
 
-    private val _incidents = MutableStateFlow<List<AdminIncident>>(
-        listOf(
-            AdminIncident("INC-101", "Pressure Pump Leakage", "Blessing Okon", "High", "Open", "June 12, 2026", "Lekki event VIP Cabin water pressure drops."),
-            AdminIncident("INC-102", "Driver Cabin AC Issue", "David James", "Medium", "Investigating", "June 11, 2026", "Secondary rest ventilation failure."),
-            AdminIncident("INC-103", "Client clean dispute at Oniru", "Eko Glitz Events", "Low", "Resolved", "June 10, 2026", "Resolved by rapid team cleaning dispatch.")
-        )
-    )
+    private val _incidents = MutableStateFlow<List<AdminIncident>>(emptyList())
     val incidents: StateFlow<List<AdminIncident>> = _incidents.asStateFlow()
 
-    private val _attendanceLogs = MutableStateFlow<List<AdminStaffAttendance>>(
-        listOf(
-            AdminStaffAttendance(2, "David Staff James", "07:30 AM", "05:45 PM", 10.25, "Lekki Coordinates Verified (6.4381, 3.4823)", true),
-            AdminStaffAttendance(3, "Blessing Staff Okon", "08:00 AM", "Pending", 8.0, "VI Central Depot Verified (6.4253, 3.4243)", true)
-        )
-    )
+    private val _attendanceLogs = MutableStateFlow<List<AdminStaffAttendance>>(emptyList())
     val attendanceLogs: StateFlow<List<AdminStaffAttendance>> = _attendanceLogs.asStateFlow()
 
-    private val _expenseLogs = MutableStateFlow<List<AdminExpenseClaim>>(
-        listOf(
-            AdminExpenseClaim("EXP-900", "David James", "Fuel Costs", 24000.0, "Diesel for Lekki VIP Dispatch Caravan", "Pending Approval", "June 12, 2026"),
-            AdminExpenseClaim("EXP-901", "Blessing Okon", "Maintenance Costs", 15000.0, "Eco Blue deodorant liquid fluid refills", "Approved", "June 11, 2026"),
-            AdminExpenseClaim("EXP-902", "David James", "Staff Expenses", 8000.0, "On-site attendant meals allowance", "Approved", "June 11, 2026")
-        )
-    )
+    private val _expenseLogs = MutableStateFlow<List<AdminExpenseClaim>>(emptyList())
     val expenseLogs: StateFlow<List<AdminExpenseClaim>> = _expenseLogs.asStateFlow()
 
     fun toggleProfileSuspension(id: Long) {
@@ -472,7 +455,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 // FALLBACK LOGIN FOR PREVIEW / OFFLINE MODE
                 val user = repository.getProfileByEmail(email.trim().lowercase())
                 if (user == null) {
-                    _loginError.value = "Account not found. Try client@sashio.com, staff@sashio.com, or admin@sashio.com"
+                    _loginError.value = "Account not found. Please check your email or register a new account."
                     return@launch
                 }
 
@@ -1637,10 +1620,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     // ==========================================
 
     // Expense Management Models & Flows
-    private val _staffExpenses = MutableStateFlow<List<StaffExpense>>(listOf(
-        StaffExpense("EXP-9821", 15000.0, "2026-06-12", "Fuel", "Refuelled restroom utility hauler truck at TotalEnergies VI", "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500&auto=format&fit=crop", "Approved"),
-        StaffExpense("EXP-9833", 4500.0, "2026-06-12", "Toll", "Lekki Link Bridge toll & emergency bypass fee for the Sovereign Restroom Trailer", "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500&auto=format&fit=crop", "Pending Approval")
-    ))
+    private val _staffExpenses = MutableStateFlow<List<StaffExpense>>(emptyList())
     val staffExpenses: StateFlow<List<StaffExpense>> = _staffExpenses.asStateFlow()
 
     fun submitStaffExpense(amount: Double, category: String, notes: String, date: String) {
@@ -1666,10 +1646,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _isClockedIn = MutableStateFlow(false)
     val isClockedIn: StateFlow<Boolean> = _isClockedIn.asStateFlow()
 
-    private val _attendanceHistory = MutableStateFlow<List<AttendanceLog>>(listOf(
-        AttendanceLog("ATT-087", "08:15 AM", "05:30 PM", "2026-06-11", "SACHIO VI Depot", "Completed"),
-        AttendanceLog("ATT-068", "07:55 AM", "06:05 PM", "2026-06-10", "SACHIO VI Depot", "Completed")
-    ))
+    private val _attendanceHistory = MutableStateFlow<List<AttendanceLog>>(emptyList())
     val attendanceHistory: StateFlow<List<AttendanceLog>> = _attendanceHistory.asStateFlow()
 
     fun clockInStaff(location: String) {
@@ -1704,9 +1681,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // Digital Inspection Tooling & Reporting System
-    private val _inspections = MutableStateFlow<List<DigitalInspection>>(listOf(
-        DigitalInspection("INSP-8110", 6L, "Pristine", "100%", 5, "Good", "Excelsior", "Pre-event commissioning checklist successfully validated.", listOf("https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&auto=format&fit=crop"), listOf("https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&auto=format&fit=crop"), System.currentTimeMillis() - 3600_000)
-    ))
+    private val _inspections = MutableStateFlow<List<DigitalInspection>>(emptyList())
     val inspections: StateFlow<List<DigitalInspection>> = _inspections.asStateFlow()
 
     fun submitInspectionReport(
@@ -1740,11 +1715,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // General Chat / Multi-channel Message Board Center
-    private val _generalChats = MutableStateFlow<List<GeneralMessage>>(listOf(
-        GeneralMessage("GM1", "Supervisor", "David, please ensure safety locks are tightly fitted around the Sovereign haul truck hitches.", "09:30 AM"),
-        GeneralMessage("GM2", "Staff", "Understood. Re-checked. Torsion bar and safety chains secured.", "09:35 AM"),
-        GeneralMessage("GM3", "Admin", "All field teams please note: Heavy rain forecasted for Victoria Island area around 15:00. Ensure non-slip mats are fully deployed on steps.", "11:10 AM")
-    ))
+    private val _generalChats = MutableStateFlow<List<GeneralMessage>>(emptyList())
     val generalChats: StateFlow<List<GeneralMessage>> = _generalChats.asStateFlow()
 
     fun sendGeneralChatMessage(sender: String, text: String, channel: String = "Admin") {
