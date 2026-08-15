@@ -12,6 +12,8 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.OTP
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.filter.*
+import io.github.jan.supabase.storage.storage
+import android.net.Uri
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -695,6 +697,57 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     // --- Admin: real Supabase catalog items ---
     private val _supabaseCatalogItems = MutableStateFlow<List<SupabaseCatalogItem>>(emptyList())
     val supabaseCatalogItems: StateFlow<List<SupabaseCatalogItem>> = _supabaseCatalogItems.asStateFlow()
+
+    private val _isUploadingCatalogImage = MutableStateFlow(false)
+    val isUploadingCatalogImage: StateFlow<Boolean> = _isUploadingCatalogImage.asStateFlow()
+
+    // Uploads a picked image (content:// Uri from the photo picker) to the
+    // Supabase "catalog-images" storage bucket and returns its public URL.
+    // Previously the picker's local content:// Uri was saved directly as
+    // image_url - that URI only resolves on the admin's own device/session,
+    // which is why images never showed up on the client side. Run the SQL
+    // in the accompanying setup script to create the bucket before this
+    // will succeed.
+    fun uploadCatalogImage(uri: Uri, onResult: (String?) -> Unit) {
+        viewModelScope.launch {
+            _isUploadingCatalogImage.value = true
+            try {
+                val context = getApplication<Application>().applicationContext
+                val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                if (bytes == null) {
+                    _roleManagementError.value = "Could not read the selected image."
+                    onResult(null)
+                    return@launch
+                }
+                val mimeExt = context.contentResolver.getType(uri)
+                    ?.substringAfter("/")
+                    ?.takeIf { it.isNotBlank() } ?: "jpg"
+                val path = "products/${java.util.UUID.randomUUID()}.$mimeExt"
+
+                val bucket = SupabaseProvider.client.storage.from(SupabaseProvider.CATALOG_IMAGES_BUCKET)
+                bucket.upload(path, bytes)
+                val publicUrl = bucket.publicUrl(path)
+
+                _roleManagementError.value = null
+                onResult(publicUrl)
+            } catch (e: Exception) {
+                _roleManagementError.value = "Image upload failed: ${e.message}"
+                onResult(null)
+            } finally {
+                _isUploadingCatalogImage.value = false
+            }
+        }
+    }
+
+    // What clients actually browse in the Product Discovery tab. This is the
+    // same Supabase-backed data the admin manages (titles, descriptions,
+    // images) — the old local-Room catalogItems flow never reflected admin
+    // edits, which is why images added in the admin panel weren't visible
+    // to clients. Inactive items (is_active = false) are hidden from clients
+    // but still editable by admin.
+    val clientCatalogItems: StateFlow<List<CatalogItem>> = _supabaseCatalogItems
+        .map { rows -> rows.filter { it.is_active }.map { it.toCatalogItem() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     fun loadSupabaseCatalogItems() {
         viewModelScope.launch {
