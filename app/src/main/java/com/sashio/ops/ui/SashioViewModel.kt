@@ -24,6 +24,8 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
+import kotlinx.serialization.json.add
 import java.net.URLEncoder
 
 data class AdminIncident(
@@ -803,6 +805,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         variantName: String,
         basePrice: Double,
         imageUrl: String,
+        imageUrls: List<String>,
         videoUrl: String,
         features: String,
         specifications: String,
@@ -820,6 +823,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                         put("variant_name", variantName)
                         put("base_price", basePrice)
                         put("image_url", imageUrl)
+                        putJsonArray("image_urls") { imageUrls.forEach { add(it) } }
                         put("video_url", videoUrl)
                         put("features", features)
                         put("specifications", specifications)
@@ -844,6 +848,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         variantName: String,
         basePrice: Double,
         imageUrl: String,
+        imageUrls: List<String>,
         videoUrl: String,
         features: String,
         specifications: String,
@@ -861,6 +866,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                         variant_name = variantName,
                         base_price = basePrice,
                         image_url = imageUrl,
+                        image_urls = imageUrls,
                         video_url = videoUrl,
                         features = features,
                         specifications = specifications,
@@ -875,6 +881,22 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
+    // Admin: permanently remove a product from the catalog (hard delete).
+    fun adminDeleteSupabaseCatalogItem(id: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("catalog_items").delete {
+                    filter { eq("id", id) }
+                }
+                loadSupabaseCatalogItems()
+                onComplete()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not delete catalog item: ${e.message}"
+            }
+        }
+    }
+
 
     fun adminSetUserRole(userId: String, newRole: String) {
         viewModelScope.launch {
