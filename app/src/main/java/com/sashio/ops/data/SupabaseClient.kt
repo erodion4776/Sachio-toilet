@@ -4,7 +4,6 @@ import com.sashio.ops.BuildConfig
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.auth.Auth
-import io.github.jan.supabase.storage.Storage
 import kotlinx.serialization.Serializable
 
 @Serializable
@@ -170,7 +169,12 @@ object SupabaseProvider {
         ) {
             install(Auth)
             install(Postgrest)
-            install(Storage)
+            // Storage plugin intentionally NOT installed: the storage-kt
+            // module uses a non-standard Kotlin Multiplatform source-set
+            // hierarchy that fails to resolve its Android classes in this
+            // project's Gradle/Kotlin setup ("Unresolved reference 'Storage'").
+            // Catalog image uploads instead call the Supabase Storage REST
+            // API directly via OkHttp - see SashioViewModel.uploadCatalogImage().
         }
     }
 }
