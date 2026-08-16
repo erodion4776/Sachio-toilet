@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.sashio.ops.data.*
 import androidx.fragment.app.FragmentActivity
 import com.sashio.ops.ui.theme.*
@@ -993,6 +994,8 @@ fun StatCard(
 // --- Product Discovery Tab (10 categories + action prompts) ---
 @Composable
 fun ProductDiscoveryTab(catalogItems: List<CatalogItem>, onRequestQuote: (String) -> Unit) {
+    var selectedProduct by remember { mutableStateOf<CatalogItem?>(null) }
+
     Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
         Text("SACHIO ENTERPRISE CATALOG", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold, letterSpacing = 0.5.sp)
         Text("Prestige in Every Flush. Explore premium, sanitary systems.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
@@ -1000,12 +1003,11 @@ fun ProductDiscoveryTab(catalogItems: List<CatalogItem>, onRequestQuote: (String
 
         LazyColumn(verticalArrangement = Arrangement.spacedBy(16.dp), modifier = Modifier.weight(1f)) {
             items(catalogItems) { cat ->
-                var expanded by remember { mutableStateOf(false) }
                 Card(
                     colors = CardDefaults.cardColors(containerColor = Color.White),
                     elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
                     shape = RoundedCornerShape(16.dp),
-                    modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded }
+                    modifier = Modifier.fillMaxWidth().clickable { selectedProduct = cat }
                 ) {
                     Column(modifier = Modifier.padding(16.dp)) {
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -1026,43 +1028,32 @@ fun ProductDiscoveryTab(catalogItems: List<CatalogItem>, onRequestQuote: (String
                         }
                         
                         if (cat.imageUrl.isNotBlank()) {
-                            AsyncImage(
-                                model = cat.imageUrl,
-                                contentDescription = "Product Image",
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(8.dp))
-                            )
+                            Box {
+                                AsyncImage(
+                                    model = cat.imageUrl,
+                                    contentDescription = "Product Image",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxWidth().height(150.dp).clip(RoundedCornerShape(8.dp))
+                                )
+                                if (cat.imageUrls.size > 1) {
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.6f)),
+                                        shape = RoundedCornerShape(6.dp),
+                                        modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(6.dp, 3.dp)) {
+                                            Icon(Icons.Default.PhotoLibrary, contentDescription = null, tint = Color.White, modifier = Modifier.size(11.dp))
+                                            Spacer(modifier = Modifier.width(3.dp))
+                                            Text("${cat.imageUrls.size}", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
                             Spacer(modifier = Modifier.height(8.dp))
                         }
 
-                        Text(cat.description, style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
-                        
-                        if (expanded) {
-                            Spacer(modifier = Modifier.height(12.dp))
-                            HorizontalDivider(color = Color.LightGray.copy(alpha = 0.5f))
-                            Spacer(modifier = Modifier.height(12.dp))
-                            
-                            if (cat.features.isNotBlank()) {
-                                Text("Features", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SashioTeal)
-                                Text(cat.features, fontSize = 11.sp, color = SashioSlate, modifier = Modifier.padding(bottom = 8.dp))
-                            }
-                            if (cat.specifications.isNotBlank()) {
-                                Text("Specifications", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SashioGold)
-                                Text(cat.specifications, fontSize = 11.sp, color = SashioSlate, modifier = Modifier.padding(bottom = 8.dp))
-                            }
-                            if (cat.benefits.isNotBlank()) {
-                                Text("Benefits", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SashioGreen)
-                                Text(cat.benefits, fontSize = 11.sp, color = SashioSlate, modifier = Modifier.padding(bottom = 8.dp))
-                            }
-                            if (cat.useCases.isNotBlank()) {
-                                Text("Use Cases", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SashioBlue)
-                                Text(cat.useCases, fontSize = 11.sp, color = SashioSlate, modifier = Modifier.padding(bottom = 8.dp))
-                            }
-                        } else {
-                            if (cat.features.isNotBlank() || cat.specifications.isNotBlank() || cat.useCases.isNotBlank()) {
-                                Text("Tap to view Features, Specs, Use Cases & Details", fontSize = 10.sp, color = SashioTeal, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, modifier = Modifier.padding(top = 8.dp))
-                            }
-                        }
+                        Text(cat.description, style = MaterialTheme.typography.bodySmall, color = SashioTextMuted, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                        Text("Tap to view Features, Specs, Use Cases & Details", fontSize = 10.sp, color = SashioTeal, fontStyle = androidx.compose.ui.text.font.FontStyle.Italic, modifier = Modifier.padding(top = 8.dp))
                         
                         // User explicitly requested admin to upload prices in product description.
                         // We show it as a Guide Price if basePrice > 0
@@ -1095,6 +1086,133 @@ fun ProductDiscoveryTab(catalogItems: List<CatalogItem>, onRequestQuote: (String
                             }
                         }
                     }
+                }
+            }
+        }
+    }
+
+    selectedProduct?.let { product ->
+        ProductDetailDialog(
+            product = product,
+            onDismiss = { selectedProduct = null },
+            onRequestQuote = {
+                selectedProduct = null
+                onRequestQuote(product.title)
+            }
+        )
+    }
+}
+
+// Full-detail view for a single product: image gallery (swipeable when there's
+// more than one photo), description, and every spec/feature field, opened
+// when a client taps a catalog card.
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+fun ProductDetailDialog(product: CatalogItem, onDismiss: () -> Unit, onRequestQuote: () -> Unit) {
+    val images = product.imageUrls.ifEmpty { if (product.imageUrl.isNotBlank()) listOf(product.imageUrl) else emptyList() }
+    val pagerState = androidx.compose.foundation.pager.rememberPagerState(pageCount = { images.size })
+
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(0.96f).fillMaxHeight(0.9f),
+            shape = RoundedCornerShape(20.dp),
+            color = Color.White
+        ) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box {
+                    if (images.isNotEmpty()) {
+                        androidx.compose.foundation.pager.HorizontalPager(state = pagerState, modifier = Modifier.fillMaxWidth().height(220.dp)) { page ->
+                            AsyncImage(
+                                model = images[page],
+                                contentDescription = "Product photo ${page + 1}",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                        if (images.size > 1) {
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 10.dp)
+                            ) {
+                                images.indices.forEach { i ->
+                                    Box(
+                                        modifier = Modifier
+                                            .size(if (i == pagerState.currentPage) 8.dp else 6.dp)
+                                            .background(
+                                                if (i == pagerState.currentPage) Color.White else Color.White.copy(alpha = 0.5f),
+                                                CircleShape
+                                            )
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        Box(modifier = Modifier.fillMaxWidth().height(220.dp).background(SashioSlate.copy(alpha = 0.08f)))
+                    }
+                    IconButton(
+                        onClick = onDismiss,
+                        modifier = Modifier.align(Alignment.TopEnd).padding(8.dp).background(Color.Black.copy(alpha = 0.4f), CircleShape)
+                    ) {
+                        Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                    }
+                }
+
+                Column(modifier = Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
+                        Text(product.title, style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = SashioSlate, modifier = Modifier.weight(1f))
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Card(colors = CardDefaults.cardColors(containerColor = SashioGold.copy(alpha = 0.1f)), shape = RoundedCornerShape(4.dp), modifier = Modifier.wrapContentWidth()) {
+                        Text("Variant: ${product.variantName} | Model: ${product.modelNumber}", color = SashioGold, fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, modifier = Modifier.padding(8.dp, 4.dp))
+                    }
+
+                    if (product.videoUrl.isNotBlank()) {
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(top = 10.dp)) {
+                            Icon(Icons.Default.PlayCircle, contentDescription = "Video", tint = SashioRed, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Video Presentation Available", fontSize = 11.sp, color = SashioRed, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text("Description", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SashioSlate)
+                    Text(product.description, fontSize = 13.sp, color = SashioTextMuted, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+
+                    if (product.features.isNotBlank()) {
+                        Text("Features", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SashioTeal)
+                        Text(product.features, fontSize = 12.sp, color = SashioSlate, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+                    }
+                    if (product.specifications.isNotBlank()) {
+                        Text("Specifications", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SashioGold)
+                        Text(product.specifications, fontSize = 12.sp, color = SashioSlate, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+                    }
+                    if (product.benefits.isNotBlank()) {
+                        Text("Benefits", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SashioGreen)
+                        Text(product.benefits, fontSize = 12.sp, color = SashioSlate, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+                    }
+                    if (product.useCases.isNotBlank()) {
+                        Text("Use Cases", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = SashioBlue)
+                        Text(product.useCases, fontSize = 12.sp, color = SashioSlate, modifier = Modifier.padding(top = 4.dp, bottom = 14.dp))
+                    }
+
+                    if (product.basePrice > 0.0) {
+                        Text("Guide Price: ₦%,.2f".format(product.basePrice), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = SashioSlate)
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+                }
+
+                Row(modifier = Modifier.fillMaxWidth().padding(20.dp, 0.dp, 20.dp, 20.dp), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedButton(
+                        onClick = onDismiss,
+                        colors = ButtonDefaults.outlinedButtonColors(contentColor = SashioSlate),
+                        border = BorderStroke(1.dp, SashioSlate.copy(alpha = 0.3f)),
+                        modifier = Modifier.weight(1f).height(44.dp)
+                    ) { Text("Close") }
+                    Button(
+                        onClick = onRequestQuote,
+                        colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
+                        modifier = Modifier.weight(1.4f).height(44.dp)
+                    ) { Text("Request Quotation", fontWeight = FontWeight.Bold) }
                 }
             }
         }
@@ -4325,6 +4443,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                             val supabaseCatalogItems by viewModel.supabaseCatalogItems.collectAsStateWithLifecycle()
                             LaunchedEffect(Unit) { viewModel.loadSupabaseCatalogItems() }
                             var editingCatalogItem by remember { mutableStateOf<SupabaseCatalogItem?>(null) }
+                            var catalogItemPendingDelete by remember { mutableStateOf<SupabaseCatalogItem?>(null) }
 
                             Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -4352,8 +4471,13 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                                         Text(cat.title, fontWeight = FontWeight.Bold)
                                                         Text("Variant: ${cat.variant_name} | Model: ${cat.model_number}", fontSize = 10.sp, color = SashioGold, fontWeight = FontWeight.Bold)
                                                     }
-                                                    IconButton(onClick = { editingCatalogItem = cat }, modifier = Modifier.testTag("edit_catalog_${cat.id}")) {
-                                                        Icon(Icons.Default.Edit, contentDescription = "Edit product", tint = SashioSlate)
+                                                    Row {
+                                                        IconButton(onClick = { editingCatalogItem = cat }, modifier = Modifier.testTag("edit_catalog_${cat.id}")) {
+                                                            Icon(Icons.Default.Edit, contentDescription = "Edit product", tint = SashioSlate)
+                                                        }
+                                                        IconButton(onClick = { catalogItemPendingDelete = cat }, modifier = Modifier.testTag("delete_catalog_${cat.id}")) {
+                                                            Icon(Icons.Default.Delete, contentDescription = "Delete product", tint = SashioRed)
+                                                        }
                                                     }
                                                 }
                                                 Spacer(modifier = Modifier.height(4.dp))
@@ -4362,17 +4486,42 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                                 if (cat.base_price > 0.0) {
                                                     Text("System Reference Price: ₦%,.0f".format(cat.base_price), fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = SashioSlate)
                                                 }
-                                                if (cat.image_url.isNotEmpty()) {
-                                                    AsyncImage(
-                                                        model = cat.image_url,
-                                                        contentDescription = null,
-                                                        contentScale = ContentScale.Crop,
-                                                        modifier = Modifier.fillMaxWidth().height(80.dp).padding(top = 6.dp).clip(RoundedCornerShape(8.dp))
-                                                    )
+                                                val galleryImages = cat.image_urls.ifEmpty { if (cat.image_url.isNotBlank()) listOf(cat.image_url) else emptyList() }
+                                                if (galleryImages.isNotEmpty()) {
+                                                    LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.padding(top = 6.dp)) {
+                                                        items(galleryImages) { img ->
+                                                            AsyncImage(
+                                                                model = img,
+                                                                contentDescription = null,
+                                                                contentScale = ContentScale.Crop,
+                                                                modifier = Modifier.size(80.dp).clip(RoundedCornerShape(8.dp))
+                                                            )
+                                                        }
+                                                    }
                                                 }
                                             }
                                         }
                                     }
+                                }
+
+                                catalogItemPendingDelete?.let { toDelete ->
+                                    AlertDialog(
+                                        onDismissRequest = { catalogItemPendingDelete = null },
+                                        title = { Text("Delete Product?") },
+                                        text = { Text("This will permanently remove \"${toDelete.title}\" from the catalog. Clients will no longer be able to see or request it. This cannot be undone.") },
+                                        confirmButton = {
+                                            Button(
+                                                onClick = {
+                                                    viewModel.adminDeleteSupabaseCatalogItem(toDelete.id)
+                                                    catalogItemPendingDelete = null
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = SashioRed)
+                                            ) { Text("Delete") }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { catalogItemPendingDelete = null }) { Text("Cancel") }
+                                        }
+                                    )
                                 }
 
                                 editingCatalogItem?.let { catItem ->
@@ -4382,6 +4531,11 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                     var editVariant by remember(catItem.id) { mutableStateOf(catItem.variant_name) }
                                     var editPriceStr by remember(catItem.id) { mutableStateOf(if (catItem.base_price > 0.0) catItem.base_price.toInt().toString() else "") }
                                     var editImageUrl by remember(catItem.id) { mutableStateOf(catItem.image_url) }
+                                    val editImageUrls = remember(catItem.id) {
+                                        mutableStateListOf<String>().apply {
+                                            addAll(catItem.image_urls.ifEmpty { if (catItem.image_url.isNotBlank()) listOf(catItem.image_url) else emptyList() })
+                                        }
+                                    }
                                     var editVideoUrl by remember(catItem.id) { mutableStateOf(catItem.video_url) }
                                     var editFeatures by remember(catItem.id) { mutableStateOf(catItem.features) }
                                     var editSpecs by remember(catItem.id) { mutableStateOf(catItem.specifications) }
@@ -4389,13 +4543,20 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                     var editUseCases by remember(catItem.id) { mutableStateOf(catItem.use_cases) }
                                     var editIsUploading by remember { mutableStateOf(false) }
                                     val editPhotoPickerLauncher = rememberLauncherForActivityResult(
-                                        contract = ActivityResultContracts.PickVisualMedia()
-                                    ) { uri ->
-                                        if (uri != null) {
+                                        contract = ActivityResultContracts.PickMultipleVisualMedia()
+                                    ) { uris ->
+                                        if (uris.isNotEmpty()) {
                                             editIsUploading = true
-                                            viewModel.uploadCatalogImage(uri) { publicUrl ->
-                                                editIsUploading = false
-                                                if (publicUrl != null) editImageUrl = publicUrl
+                                            var remaining = uris.size
+                                            uris.forEach { uri ->
+                                                viewModel.uploadCatalogImage(uri) { publicUrl ->
+                                                    if (publicUrl != null) {
+                                                        editImageUrls.add(publicUrl)
+                                                        if (editImageUrl.isBlank()) editImageUrl = publicUrl
+                                                    }
+                                                    remaining -= 1
+                                                    if (remaining <= 0) editIsUploading = false
+                                                }
                                             }
                                         }
                                     }
@@ -4425,18 +4586,33 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                                         } else {
                                                             Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
                                                             Spacer(modifier = Modifier.width(8.dp))
-                                                            Text(if (editImageUrl.isBlank()) "Upload Image" else "Change Image")
+                                                            Text(if (editImageUrls.isEmpty()) "Add Images" else "Add More Images")
                                                         }
                                                     }
                                                 }
-                                                if (editImageUrl.isNotBlank()) {
+                                                if (editImageUrls.isNotEmpty()) {
                                                     item {
-                                                        AsyncImage(
-                                                            model = editImageUrl,
-                                                            contentDescription = "Selected Image preview",
-                                                            contentScale = ContentScale.Crop,
-                                                            modifier = Modifier.fillMaxWidth().height(80.dp).clip(RoundedCornerShape(8.dp))
-                                                        )
+                                                        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                                            items(editImageUrls.toList()) { img ->
+                                                                Box(modifier = Modifier.size(80.dp)) {
+                                                                    AsyncImage(
+                                                                        model = img,
+                                                                        contentDescription = "Product photo",
+                                                                        contentScale = ContentScale.Crop,
+                                                                        modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp))
+                                                                    )
+                                                                    IconButton(
+                                                                        onClick = {
+                                                                            editImageUrls.remove(img)
+                                                                            if (editImageUrl == img) editImageUrl = editImageUrls.firstOrNull() ?: ""
+                                                                        },
+                                                                        modifier = Modifier.align(Alignment.TopEnd).size(22.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                                                    ) {
+                                                                        Icon(Icons.Default.Close, contentDescription = "Remove image", tint = Color.White, modifier = Modifier.size(14.dp))
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
                                                     }
                                                 }
 
@@ -4457,7 +4633,8 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                                         modelNumber = editModel.ifBlank { "N/A" },
                                                         variantName = editVariant.ifBlank { "N/A" },
                                                         basePrice = editPriceStr.toDoubleOrNull() ?: 0.0,
-                                                        imageUrl = editImageUrl,
+                                                        imageUrl = editImageUrls.firstOrNull() ?: editImageUrl,
+                                                        imageUrls = editImageUrls.toList(),
                                                         videoUrl = editVideoUrl,
                                                         features = editFeatures,
                                                         specifications = editSpecs,
@@ -5318,6 +5495,7 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
             var newVariant by remember { mutableStateOf("") }
             var newPriceStr by remember { mutableStateOf("") }
             var newImageUrl by remember { mutableStateOf("") }
+            val newImageUrls = remember { mutableStateListOf<String>() }
             var newVideoUrl by remember { mutableStateOf("") }
             var newFeatures by remember { mutableStateOf("") }
             var newSpecs by remember { mutableStateOf("") }
@@ -5325,13 +5503,20 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
             var newUseCases by remember { mutableStateOf("") }
             var newIsUploading by remember { mutableStateOf(false) }
             val photoPickerLauncher = rememberLauncherForActivityResult(
-                contract = ActivityResultContracts.PickVisualMedia()
-            ) { uri ->
-                if (uri != null) {
+                contract = ActivityResultContracts.PickMultipleVisualMedia()
+            ) { uris ->
+                if (uris.isNotEmpty()) {
                     newIsUploading = true
-                    viewModel.uploadCatalogImage(uri) { publicUrl ->
-                        newIsUploading = false
-                        if (publicUrl != null) newImageUrl = publicUrl
+                    var remaining = uris.size
+                    uris.forEach { uri ->
+                        viewModel.uploadCatalogImage(uri) { publicUrl ->
+                            if (publicUrl != null) {
+                                newImageUrls.add(publicUrl)
+                                if (newImageUrl.isBlank()) newImageUrl = publicUrl
+                            }
+                            remaining -= 1
+                            if (remaining <= 0) newIsUploading = false
+                        }
                     }
                 }
             }
@@ -5360,18 +5545,33 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                 } else {
                                     Icon(Icons.Default.Upload, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(if (newImageUrl.isBlank()) "Upload Image" else "Change Image")
+                                    Text(if (newImageUrls.isEmpty()) "Add Images" else "Add More Images")
                                 }
                             }
                         }
-                        if (newImageUrl.isNotBlank()) {
+                        if (newImageUrls.isNotEmpty()) {
                             item {
-                                AsyncImage(
-                                    model = newImageUrl,
-                                    contentDescription = "Selected Image preview",
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxWidth().height(80.dp).clip(RoundedCornerShape(8.dp))
-                                )
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    items(newImageUrls.toList()) { img ->
+                                        Box(modifier = Modifier.size(80.dp)) {
+                                            AsyncImage(
+                                                model = img,
+                                                contentDescription = "Product photo",
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(8.dp))
+                                            )
+                                            IconButton(
+                                                onClick = {
+                                                    newImageUrls.remove(img)
+                                                    if (newImageUrl == img) newImageUrl = newImageUrls.firstOrNull() ?: ""
+                                                },
+                                                modifier = Modifier.align(Alignment.TopEnd).size(22.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                            ) {
+                                                Icon(Icons.Default.Close, contentDescription = "Remove image", tint = Color.White, modifier = Modifier.size(14.dp))
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
                         
@@ -5391,7 +5591,8 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                 modelNumber = newModel.ifBlank { "N/A" },
                                 variantName = newVariant.ifBlank { "N/A" },
                                 basePrice = newPriceStr.toDoubleOrNull() ?: 0.0,
-                                imageUrl = newImageUrl,
+                                imageUrl = newImageUrls.firstOrNull() ?: newImageUrl,
+                                imageUrls = newImageUrls.toList(),
                                 videoUrl = newVideoUrl,
                                 features = newFeatures,
                                 specifications = newSpecs,
