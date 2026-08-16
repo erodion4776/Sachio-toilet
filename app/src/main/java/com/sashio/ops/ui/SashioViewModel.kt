@@ -12,8 +12,13 @@ import io.github.jan.supabase.auth.providers.builtin.Email
 import io.github.jan.supabase.auth.providers.builtin.OTP
 import io.github.jan.supabase.postgrest.postgrest
 import io.github.jan.supabase.postgrest.query.filter.*
-import io.github.jan.supabase.storage.storage
 import android.net.Uri
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
@@ -708,6 +713,15 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     // which is why images never showed up on the client side. Run the SQL
     // in the accompanying setup script to create the bucket before this
     // will succeed.
+    //
+    // Uses a raw OkHttp call to Supabase's Storage REST API instead of the
+    // supabase-kt "storage-kt" SDK module: that module ships a non-standard
+    // Kotlin Multiplatform source-set layout that fails to resolve its
+    // Android classes in this project's Gradle/Kotlin setup (compile error:
+    // "Unresolved reference 'Storage'"). The REST endpoint is stable and
+    // documented, so this sidesteps that entirely.
+    private val storageHttpClient by lazy { OkHttpClient() }
+
     fun uploadCatalogImage(uri: Uri, onResult: (String?) -> Unit) {
         viewModelScope.launch {
             _isUploadingCatalogImage.value = true
@@ -719,15 +733,32 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                     onResult(null)
                     return@launch
                 }
-                val mimeExt = context.contentResolver.getType(uri)
-                    ?.substringAfter("/")
-                    ?.takeIf { it.isNotBlank() } ?: "jpg"
-                val path = "products/${java.util.UUID.randomUUID()}.$mimeExt"
+                val mimeType = context.contentResolver.getType(uri)?.takeIf { it.isNotBlank() } ?: "image/jpeg"
+                val ext = mimeType.substringAfter("/").takeIf { it.isNotBlank() } ?: "jpg"
+                val path = "products/${java.util.UUID.randomUUID()}.$ext"
 
-                val bucket = SupabaseProvider.client.storage.from(SupabaseProvider.CATALOG_IMAGES_BUCKET)
-                bucket.upload(path, bytes)
-                val publicUrl = bucket.publicUrl(path)
+                val accessToken = SupabaseProvider.client.auth.currentAccessTokenOrNull()
+                    ?: SupabaseProvider.SUPABASE_ANON_KEY
 
+                val uploadUrl = "${SupabaseProvider.SUPABASE_URL}/storage/v1/object/${SupabaseProvider.CATALOG_IMAGES_BUCKET}/$path"
+                val request = Request.Builder()
+                    .url(uploadUrl)
+                    .addHeader("apikey", SupabaseProvider.SUPABASE_ANON_KEY)
+                    .addHeader("Authorization", "Bearer $accessToken")
+                    .post(bytes.toRequestBody(mimeType.toMediaTypeOrNull()))
+                    .build()
+
+                val success = withContext(Dispatchers.IO) {
+                    storageHttpClient.newCall(request).execute().use { it.isSuccessful }
+                }
+
+                if (!success) {
+                    _roleManagementError.value = "Image upload failed. Check the catalog-images bucket exists and RLS policies allow this admin to upload."
+                    onResult(null)
+                    return@launch
+                }
+
+                val publicUrl = "${SupabaseProvider.SUPABASE_URL}/storage/v1/object/public/${SupabaseProvider.CATALOG_IMAGES_BUCKET}/$path"
                 _roleManagementError.value = null
                 onResult(publicUrl)
             } catch (e: Exception) {
@@ -738,6 +769,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+
 
     // What clients actually browse in the Product Discovery tab. This is the
     // same Supabase-backed data the admin manages (titles, descriptions,
