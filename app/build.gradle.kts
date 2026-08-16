@@ -127,6 +127,10 @@ dependencies {
   implementation(platform(libs.supabase.bom))
   implementation(libs.supabase.postgrest)
   implementation(libs.supabase.auth)
+  // NOTE: supabase-storage (storage-kt) intentionally omitted - its Android
+  // classes fail to resolve at compile time in this project's Gradle/Kotlin
+  // setup due to a non-standard KMP source-set hierarchy in that module.
+  // Catalog image uploads use OkHttp against the Storage REST API directly.
   implementation(libs.ktor.client.android)
   implementation(libs.kotlinx.serialization.json)
 }
