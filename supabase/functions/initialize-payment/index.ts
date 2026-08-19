@@ -63,6 +63,13 @@ Deno.serve(async (req) => {
         email,
         amount: Math.round(amount * 100), // Paystack expects kobo
         metadata: { bookingId },
+        // Without this, Paystack shows its own generic "payment complete"
+        // page with no way back into the app - the user has to manually
+        // switch back and tap "I've Paid". This custom scheme is caught by
+        // MainActivity's intent filter (see AndroidManifest.xml) and brings
+        // them straight back in. Paystack automatically appends
+        // ?reference=...&trxref=... to whatever URL is given here.
+        callback_url: "sachioexpress://payment-complete",
       }),
     });
 
