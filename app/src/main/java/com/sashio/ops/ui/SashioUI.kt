@@ -71,6 +71,8 @@ fun SashioAppContent(viewModel: SashioViewModel) {
             "success" -> showPaymentConfirmedDialog = true
             "pending" -> Toast.makeText(context, "Payment still pending - Paystack hasn't confirmed it yet. Try again shortly.", Toast.LENGTH_LONG).show()
             "failed" -> Toast.makeText(context, "Payment failed. Please try again.", Toast.LENGTH_LONG).show()
+            "not_found" -> Toast.makeText(context, "We haven't received confirmation from Paystack yet. If you just paid, wait a few seconds and tap \"I've Paid - Check Status\" again.", Toast.LENGTH_LONG).show()
+            "check_failed" -> Toast.makeText(context, "Couldn't reach the server to check your payment status. Check your connection and try again.", Toast.LENGTH_LONG).show()
             null -> {}
             else -> Toast.makeText(context, "Status: $lastPaymentStatus", Toast.LENGTH_LONG).show()
         }
@@ -285,7 +287,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                     modifier = Modifier.size(46.dp)
                                 )
                                 Spacer(modifier = Modifier.width(12.dp))
-                                Text("SACHIO TOILETS", fontWeight = FontWeight.Bold, color = Color.White, letterSpacing = 2.sp)
+                                Text("SACHIO EXPRESS", fontWeight = FontWeight.Bold, color = Color.White, letterSpacing = 2.sp)
                             }
                         }
                     )
@@ -313,7 +315,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            "SACHIO TOILETS", 
+                            "SACHIO EXPRESS", 
                             fontWeight = FontWeight.ExtraBold, 
                             color = Color.White, 
                             letterSpacing = 3.sp, 
