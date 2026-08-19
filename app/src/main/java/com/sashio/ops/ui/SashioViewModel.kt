@@ -486,8 +486,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
 
             // REAL SUPABASE + POSTGRESQL FLOW
             try {
-                _loginError.value = "Connecting to SACHIO Secure Shield Auth..."
-                
                 SupabaseProvider.client.auth.signInWith(Email) {
                     this.email = email.trim().lowercase()
                     this.password = password
@@ -500,8 +498,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                     return@launch
                 }
 
-                _loginError.value = "Retrieving Enterprise Security profile..."
-                
                 // Fetch profile record
                 val dbProfile = SupabaseProvider.client.postgrest.from("profiles")
                     .select {
