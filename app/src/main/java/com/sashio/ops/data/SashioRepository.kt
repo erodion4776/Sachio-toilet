@@ -74,17 +74,21 @@ class SashioRepository(
     // paystack-webhook Edge Function actually recorded after a genuine
     // Paystack payment. There is no client-side "mark as paid" anymore:
     // the only way a payment becomes "success" is Paystack calling the
-    // real webhook. Returns null if the row can't be found/read.
-    suspend fun checkPaymentStatus(reference: String): String? {
+    // real webhook. Returns "not_found" if no row exists yet (e.g. the
+    // webhook hasn't landed), or "check_failed" if the request itself
+    // errored (network issue, RLS denial, etc.) - kept distinct from a
+    // real Paystack status so the UI can tell the client something
+    // instead of silently doing nothing either way.
+    suspend fun checkPaymentStatus(reference: String): String {
         return try {
             SupabaseProvider.client.postgrest.from("payments")
                 .select {
                     filter { eq("reference", reference) }
                 }
                 .decodeSingleOrNull<SupabasePaymentStatus>()
-                ?.status
+                ?.status ?: "not_found"
         } catch (e: Exception) {
-            null
+            "check_failed"
         }
     }
 
