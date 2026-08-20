@@ -5,6 +5,7 @@ import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
 import io.github.jan.supabase.auth.Auth
 import kotlinx.serialization.Serializable
+import kotlin.time.Duration.Companion.seconds
 
 @Serializable
 data class SupabasePaymentStatus(
@@ -170,6 +171,11 @@ object SupabaseProvider {
             supabaseUrl = SUPABASE_URL,
             supabaseKey = SUPABASE_ANON_KEY
         ) {
+            // supabase-kt defaults this to 10 seconds, which is too tight on
+            // slower/variable mobile connections and was causing genuine
+            // requests to fail with "Request timeout has expired" even
+            // though the request would have succeeded given a bit longer.
+            requestTimeout = 30.seconds
             install(Auth)
             install(Postgrest)
             // Storage plugin intentionally NOT installed: the storage-kt
