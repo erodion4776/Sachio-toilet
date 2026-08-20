@@ -909,6 +909,26 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // Removes a user's profile row so they no longer appear anywhere in the
+    // app (catalogs, bookings, staff lists, etc.). Note: this does not
+    // delete their actual Supabase Auth login - that requires the admin API
+    // with a service-role key, which can't run from the app directly. If
+    // they're not also removed from Auth, they could still sign in and a
+    // new blank profile would get created for them on next login.
+    fun adminDeleteUserProfile(userId: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("profiles").delete {
+                    filter { eq("id", userId) }
+                }
+                loadSupabaseProfiles()
+                onComplete()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not delete user: ${e.message}"
+            }
+        }
+    }
+
     fun adminSetProfileSuspended(userId: String, suspended: Boolean) {
         viewModelScope.launch {
             try {
@@ -1216,6 +1236,10 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         _activePaystackTransaction.value = null
         viewModelScope.launch {
             _lastPaymentStatus.value = repository.checkPaymentStatus(ref)
+            // The webhook updates the booking's status/payment_status in
+            // Supabase directly - reload so the client's tracker actually
+            // reflects that instead of showing stale pre-payment data.
+            loadClientSupabaseBookings()
         }
     }
 
