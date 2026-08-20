@@ -1489,6 +1489,35 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
             Spacer(modifier = Modifier.height(16.dp))
         }
 
+        val paidBookings = liveBookings.filter { it.payment_status == "success" }
+        if (paidBookings.isNotEmpty()) {
+            Text("PAID & CONFIRMED", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SashioGreen)
+            Spacer(modifier = Modifier.height(6.dp))
+            paidBookings.forEach { pb ->
+                val grandTotal = pb.quoted_price + pb.logistics_cost + pb.vat_amount
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(14.dp),
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 10.dp).testTag("paid_booking_card_${pb.id}")
+                ) {
+                    Column(modifier = Modifier.padding(14.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                            Text(pb.service_type, fontWeight = FontWeight.Bold)
+                            BookingStatusBadge(status = pb.status)
+                        }
+                        Text("${pb.event_type} | Qty ${pb.quantity} | ${pb.duration}", fontSize = 10.sp, color = SashioTextMuted)
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SashioGreen, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Paid: ₦%,.0f".format(grandTotal), fontSize = 13.sp, fontWeight = FontWeight.Bold, color = SashioGreen)
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+        }
+
         if (bookings.isEmpty()) {
             Box(modifier = Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Text("No active quotes. Request a quote to initiate the workflow.", color = SashioTextMuted)
@@ -4354,8 +4383,15 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                             LaunchedEffect(Unit) { viewModel.loadSupabaseBookings() }
 
                             Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-                                Text("SMART PRICE QUOTATIONS CONTROL - LIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                                Text("Review and process incoming requests. Generate and configure logistics surcharges, taxes, and specialized inclusions.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text("SMART PRICE QUOTATIONS CONTROL - LIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                    Text("Review and process incoming requests. Generate and configure logistics surcharges, taxes, and specialized inclusions.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
+                                }
+                                IconButton(onClick = { viewModel.loadSupabaseBookings() }, modifier = Modifier.testTag("refresh_quotations")) {
+                                    Icon(Icons.Default.Refresh, contentDescription = "Refresh quotations", tint = SashioSlate)
+                                }
+                            }
                                 Spacer(modifier = Modifier.height(10.dp))
 
                                 var bookingPendingDelete by remember { mutableStateOf<SupabaseBooking?>(null) }
@@ -5707,7 +5743,9 @@ fun strokeWidthLimit(width: Float): Stroke {
 fun ManageUserRolesPanel(viewModel: SashioViewModel) {
     val profiles by viewModel.supabaseProfiles.collectAsStateWithLifecycle()
     val error by viewModel.roleManagementError.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     var searchQuery by remember { mutableStateOf("") }
+    var profilePendingDelete by remember { mutableStateOf<AdminProfileRow?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadSupabaseProfiles()
@@ -5767,33 +5805,73 @@ fun ManageUserRolesPanel(viewModel: SashioViewModel) {
 
                         Spacer(modifier = Modifier.height(6.dp))
 
-                        Box {
-                            OutlinedButton(
-                                onClick = { roleMenuOpen = true },
-                                modifier = Modifier.fillMaxWidth().testTag("manage_role_trigger_${p.id}")
-                            ) {
-                                Text("Change Role")
-                            }
-                            DropdownMenu(
-                                expanded = roleMenuOpen,
-                                onDismissRequest = { roleMenuOpen = false }
-                            ) {
-                                listOf("client", "staff", "admin").forEach { roleOption ->
-                                    DropdownMenuItem(
-                                        text = { Text(roleOption.uppercase()) },
-                                        onClick = {
-                                            roleMenuOpen = false
-                                            if (roleOption != p.role) {
-                                                viewModel.adminSetUserRole(p.id, roleOption)
-                                            }
-                                        }
-                                    )
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedButton(
+                                    onClick = { roleMenuOpen = true },
+                                    modifier = Modifier.fillMaxWidth().testTag("manage_role_trigger_${p.id}")
+                                ) {
+                                    Text("Change Role")
                                 }
+                                DropdownMenu(
+                                    expanded = roleMenuOpen,
+                                    onDismissRequest = { roleMenuOpen = false }
+                                ) {
+                                    listOf("client", "staff", "admin").forEach { roleOption ->
+                                        DropdownMenuItem(
+                                            text = { Text(roleOption.uppercase()) },
+                                            onClick = {
+                                                roleMenuOpen = false
+                                                if (roleOption != p.role) {
+                                                    viewModel.adminSetUserRole(p.id, roleOption)
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+
+                            val isSelf = currentUser?.email?.equals(p.email, ignoreCase = true) == true
+                            OutlinedButton(
+                                onClick = { profilePendingDelete = p },
+                                enabled = !isSelf,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = SashioRed),
+                                border = BorderStroke(1.dp, if (isSelf) Color.LightGray else SashioRed),
+                                modifier = Modifier.testTag("delete_profile_${p.id}")
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = if (isSelf) "Cannot delete your own account" else "Delete user", modifier = Modifier.size(18.dp))
                             }
                         }
                     }
                 }
             }
+        }
+
+        profilePendingDelete?.let { toDelete ->
+            AlertDialog(
+                onDismissRequest = { profilePendingDelete = null },
+                title = { Text("Delete User?") },
+                text = {
+                    Text(
+                        "This permanently removes ${toDelete.full_name?.takeIf { it.isNotBlank() } ?: toDelete.email} " +
+                            "(${toDelete.email}) from the app - their profile, role, and access will be gone. " +
+                            "This does not delete their login credentials from Supabase Auth directly; " +
+                            "for a full account removal also delete them from the Supabase Auth dashboard. This cannot be undone."
+                    )
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            viewModel.adminDeleteUserProfile(toDelete.id)
+                            profilePendingDelete = null
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = SashioRed)
+                    ) { Text("Delete") }
+                },
+                dismissButton = {
+                    TextButton(onClick = { profilePendingDelete = null }) { Text("Cancel") }
+                }
+            )
         }
     }
 }
