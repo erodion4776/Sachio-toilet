@@ -944,8 +944,72 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun resetPassword(email: String): Boolean {
-        return email.isNotBlank() && email.contains("@")
+    private val _passwordResetError = MutableStateFlow<String?>(null)
+    val passwordResetError: StateFlow<String?> = _passwordResetError.asStateFlow()
+
+    private val _passwordResetSent = MutableStateFlow(false)
+    val passwordResetSent: StateFlow<Boolean> = _passwordResetSent.asStateFlow()
+
+    // Sends a real Supabase password-recovery email. redirectUrl points at a
+    // deep link (see AndroidManifest.xml + MainActivity) that brings the
+    // person back into the app on the "set_new_password" screen once they
+    // tap the link, instead of a web page.
+    fun resetPassword(email: String) {
+        if (email.isBlank() || !email.contains("@")) {
+            _passwordResetError.value = "Enter a valid email address."
+            return
+        }
+        _passwordResetError.value = null
+        _passwordResetSent.value = false
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.auth.resetPasswordForEmail(
+                    email = email,
+                    redirectUrl = "sachioexpress://reset-password"
+                )
+                _passwordResetSent.value = true
+            } catch (e: Exception) {
+                _passwordResetError.value = "Could not send reset email: ${e.message}"
+            }
+        }
+    }
+
+    // Called once the person taps the reset link and lands back in the app
+    // (MainActivity extracts the tokens from the deep link). Establishes the
+    // recovery session so updateUserPassword() below is allowed to run.
+    fun beginPasswordRecoverySession(accessToken: String, refreshToken: String) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.auth.importAuthToken(accessToken, refreshToken, retrieveUser = true)
+                _currentScreen.value = "set_new_password"
+            } catch (e: Exception) {
+                _passwordResetError.value = "This reset link is invalid or has expired. Please request a new one."
+            }
+        }
+    }
+
+    private val _newPasswordError = MutableStateFlow<String?>(null)
+    val newPasswordError: StateFlow<String?> = _newPasswordError.asStateFlow()
+
+    private val _newPasswordSetSuccessfully = MutableStateFlow(false)
+    val newPasswordSetSuccessfully: StateFlow<Boolean> = _newPasswordSetSuccessfully.asStateFlow()
+
+    fun updateUserPassword(newPassword: String) {
+        if (newPassword.length < 6) {
+            _newPasswordError.value = "Password must be at least 6 characters."
+            return
+        }
+        _newPasswordError.value = null
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.auth.updateUser {
+                    password = newPassword
+                }
+                _newPasswordSetSuccessfully.value = true
+            } catch (e: Exception) {
+                _newPasswordError.value = "Could not update password: ${e.message}"
+            }
+        }
     }
 
     fun logout() {
