@@ -43,6 +43,12 @@
                 <category android:name="android.intent.category.BROWSABLE" />
 
                 <data android:scheme="sachioexpress" android:host="payment-complete" />
+                <!-- Supabase sends the "reset password" email link here so
+                     it opens the app directly instead of a browser page. -->
+                <data android:scheme="sachioexpress" android:host="reset-password" />
+                <!-- Password recovery link redirect target - see resetPasswordForEmail
+                     in SashioViewModel.kt. -->
+                <data android:scheme="sachioexpress" android:host="reset-password" />
             </intent-filter>
         </activity>
     </application>
