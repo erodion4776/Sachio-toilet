@@ -125,6 +125,7 @@ fun SashioAppContent(viewModel: SashioViewModel) {
                     "login" -> LoginScreen(viewModel)
                     "register" -> RegisterScreen(viewModel)
                     "forgot_password" -> ForgotPasswordScreen(viewModel)
+                    "set_new_password" -> SetNewPasswordScreen(viewModel)
                     "client_dashboard" -> ClientDashboard(viewModel, currentUser)
                     "staff_dashboard" -> StaffDashboard(viewModel, currentUser)
                     "admin_dashboard" -> AdminDashboard(viewModel, currentUser)
@@ -627,7 +628,8 @@ fun RegisterScreen(viewModel: SashioViewModel) {
 @Composable
 fun ForgotPasswordScreen(viewModel: SashioViewModel) {
     var email by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf<String?>(null) }
+    val resetSent by viewModel.passwordResetSent.collectAsStateWithLifecycle()
+    val resetError by viewModel.passwordResetError.collectAsStateWithLifecycle()
 
     Box(modifier = Modifier.fillMaxSize()) {
         LuxuryVideoBackgroundEffect()
@@ -662,7 +664,7 @@ fun ForgotPasswordScreen(viewModel: SashioViewModel) {
                         Text("Reset Verification", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            "Provide your designated email. We will generate verification code instructions.",
+                            "Enter your account email. We'll send you a link to reset your password.",
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.White.copy(alpha = 0.6f)
                         )
@@ -683,25 +685,125 @@ fun ForgotPasswordScreen(viewModel: SashioViewModel) {
                             singleLine = true
                         )
 
-                        message?.let { msg ->
+                        if (resetSent) {
                             Spacer(modifier = Modifier.height(12.dp))
-                            Text(msg, color = SashioGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text("Reset link sent - check your email and tap the link to set a new password.", color = SashioGreen, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                        resetError?.let { err ->
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text(err, color = SashioRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
 
                         Spacer(modifier = Modifier.height(20.dp))
 
                         Button(
-                            onClick = {
-                                if (viewModel.resetPassword(email)) {
-                                    message = "Reset verification sent successfully to your email."
-                                } else {
-                                    message = "Invalid email format. Try again."
-                                }
-                            },
+                            onClick = { viewModel.resetPassword(email) },
                             colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
                             modifier = Modifier.fillMaxWidth().height(48.dp).testTag("reset_submit_btn")
                         ) {
-                            Text("Reset Password", fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Send Reset Link", fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Reached when the person taps the link from their password reset email -
+// MainActivity's deep link handler establishes the recovery session and
+// routes here so they can actually pick a new password inside the app.
+@Composable
+fun SetNewPasswordScreen(viewModel: SashioViewModel) {
+    var newPassword by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
+    val error by viewModel.newPasswordError.collectAsStateWithLifecycle()
+    val success by viewModel.newPasswordSetSuccessfully.collectAsStateWithLifecycle()
+
+    LaunchedEffect(success) {
+        if (success) {
+            kotlinx.coroutines.delay(1800)
+            viewModel.logout()
+        }
+    }
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        LuxuryVideoBackgroundEffect()
+
+        Scaffold(containerColor = Color.Transparent) { innerPadding ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                ElevatedCard(
+                    colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.75f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(24.dp)) {
+                        if (success) {
+                            Icon(Icons.Default.CheckCircle, contentDescription = null, tint = SashioGreen, modifier = Modifier.size(40.dp))
+                            Spacer(modifier = Modifier.height(12.dp))
+                            Text("Password updated", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text("Please sign in again with your new password.", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.6f))
+                        } else {
+                            Text("Set New Password", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text("Choose a new password for your account.", style = MaterialTheme.typography.bodySmall, color = Color.White.copy(alpha = 0.6f))
+
+                            Spacer(modifier = Modifier.height(20.dp))
+                            OutlinedTextField(
+                                value = newPassword,
+                                onValueChange = { newPassword = it },
+                                label = { Text("New Password", color = Color.White.copy(alpha = 0.8f)) },
+                                visualTransformation = PasswordVisualTransformation(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = SashioGold,
+                                    unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("new_password_input"),
+                                singleLine = true
+                            )
+                            Spacer(modifier = Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = confirmPassword,
+                                onValueChange = { confirmPassword = it },
+                                label = { Text("Confirm Password", color = Color.White.copy(alpha = 0.8f)) },
+                                visualTransformation = PasswordVisualTransformation(),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedTextColor = Color.White,
+                                    unfocusedTextColor = Color.White,
+                                    focusedBorderColor = SashioGold,
+                                    unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+                                ),
+                                modifier = Modifier.fillMaxWidth().testTag("confirm_password_input"),
+                                singleLine = true
+                            )
+
+                            error?.let { err ->
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(err, color = SashioRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+                            if (confirmPassword.isNotEmpty() && confirmPassword != newPassword) {
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Text("Passwords don't match.", color = SashioRed, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            }
+
+                            Spacer(modifier = Modifier.height(20.dp))
+                            Button(
+                                onClick = { viewModel.updateUserPassword(newPassword) },
+                                enabled = newPassword.isNotBlank() && newPassword == confirmPassword,
+                                colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
+                                modifier = Modifier.fillMaxWidth().height(48.dp).testTag("set_new_password_btn")
+                            ) {
+                                Text("Update Password", fontWeight = FontWeight.Bold, color = Color.White)
+                            }
                         }
                     }
                 }
