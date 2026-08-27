@@ -1711,7 +1711,7 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
                                                 Text("Distance: %.1f km".format(tracker?.distanceRemainingKm ?: 8.4), color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
                                             }
                                             Column(horizontalAlignment = Alignment.End) {
-                                                Text("Crew: ${b.assignedStaffName ?: "David Staff james"}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                                                Text("Crew: ${b.assignedStaffName ?: "Unassigned"}", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 11.sp)
                                                 Text("Status: ${b.status}", color = SashioGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                             }
                                         }
@@ -2513,6 +2513,7 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
     val expenses by viewModel.staffExpenses.collectAsStateWithLifecycle()
     val inspections by viewModel.inspections.collectAsStateWithLifecycle()
     val generalChats by viewModel.generalChats.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.loadGeneralChats() }
 
     var clockInWorkplace by remember { mutableStateOf("SACHIO Victoria Island Depot") }
     var showClockInDialog by remember { mutableStateOf(false) }
@@ -3626,13 +3627,14 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
                                     .padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
+                                val myId = remember { SupabaseProvider.client.auth.currentUserOrNull()?.id }
                                 items(generalChats) { gm ->
-                                    val isMe = gm.sender == "Staff"
+                                    val isMe = gm.sender_id == myId
                                     Column(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalAlignment = if (isMe) Alignment.End else Alignment.Start
                                     ) {
-                                        Text(gm.sender, fontSize = 10.sp, color = SashioGold, fontWeight = FontWeight.Bold)
+                                        Text(gm.sender_name, fontSize = 10.sp, color = SashioGold, fontWeight = FontWeight.Bold)
                                         Card(
                                             colors = CardDefaults.cardColors(
                                                 containerColor = if (isMe) SashioGold.copy(alpha = 0.12f) else SashioSlate.copy(alpha = 0.35f)
@@ -3640,9 +3642,9 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
                                             border = BorderStroke(1.dp, if (isMe) SashioGold.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.05f)),
                                             modifier = Modifier.widthIn(max = 280.dp).padding(vertical = 2.dp)
                                         ) {
-                                            Text(gm.text, modifier = Modifier.padding(10.dp), color = Color.White, fontSize = 12.sp)
+                                            Text(gm.content, modifier = Modifier.padding(10.dp), color = Color.White, fontSize = 12.sp)
                                         }
-                                        Text(gm.timestamp, fontSize = 8.sp, color = Color.White.copy(alpha = 0.4f))
+                                        Text(formatMessageTimestamp(gm.created_at), fontSize = 8.sp, color = Color.White.copy(alpha = 0.4f))
                                     }
                                 }
                             }
@@ -3670,7 +3672,7 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
                                 IconButton(
                                     onClick = {
                                         if (typedGeneralMsgText.isNotEmpty()) {
-                                            viewModel.sendGeneralChatMessage("Staff", typedGeneralMsgText, messagingChannelSelect)
+                                            viewModel.sendGeneralChatMessage(typedGeneralMsgText, messagingChannelSelect)
                                             typedGeneralMsgText = ""
                                         }
                                     },
@@ -4111,7 +4113,6 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
     // Broadcaster State
     var broadcastTarget by remember { mutableStateOf("All") } // All, Clients, Staff, Corporate
     var broadcastMessageText by remember { mutableStateOf("") }
-    var listSentBroadcasts by remember { mutableStateOf<List<String>>(emptyList()) }
 
     // Reports export state
     var isExportReportOpen by remember { mutableStateOf(false) }
@@ -4120,10 +4121,11 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
     var exportProgressPercent by remember { mutableStateOf(0f) }
     val localContext = LocalContext.current
 
-    // Chat Simulator State
+    // Live messages (real, Supabase-backed - see public.messages)
     var msgChannel by remember { mutableStateOf("Clients") } // Clients, Staff, Supervisors
     var msgFormText by remember { mutableStateOf("") }
-    var adminChatMessages by remember { mutableStateOf(listOf<String>()) }
+    val adminChats by viewModel.generalChats.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.loadGeneralChats() }
 
     // Settings Profile Toggles
     var enforceBiometricsAdmin by remember { mutableStateOf(true) }
@@ -4483,6 +4485,9 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                         "quotations" -> {
                             val supabaseBookings by viewModel.supabaseBookings.collectAsStateWithLifecycle()
                             LaunchedEffect(Unit) { viewModel.loadSupabaseBookings() }
+                            val realStaffProfiles by viewModel.realStaffProfiles.collectAsStateWithLifecycle()
+                            LaunchedEffect(Unit) { viewModel.loadSupabaseProfiles() }
+                            var staffPickerForBookingId by remember { mutableStateOf<String?>(null) }
 
                             Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -4535,6 +4540,12 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                                 Text("Client: ${b.client_name} | ${b.company_name.ifBlank { "Individual" }}", fontSize = 10.sp, color = SashioTextMuted)
                                                 Text("Specs: Event=${b.event_type} | Qty=${b.quantity} | Duration=${b.duration}", fontSize = 10.sp, color = SashioTextMuted)
                                                 Text("Location: ${b.address}", fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = SashioTextMuted)
+                                                Text(
+                                                    if (b.assigned_staff_name != null) "Crew: ${b.assigned_staff_name}" else "Crew: Unassigned",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = if (b.assigned_staff_name != null) SashioTeal else SashioGold
+                                                )
 
                                                 if (b.quoted_price > 0.0) {
                                                     Spacer(modifier = Modifier.height(4.dp))
@@ -4563,6 +4574,33 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                                         contentPadding = PaddingValues(0.dp)
                                                     ) {
                                                         Text("Compile PDF & Email", fontSize = 9.sp)
+                                                    }
+
+                                                    Box {
+                                                        IconButton(
+                                                            onClick = { staffPickerForBookingId = b.id },
+                                                            modifier = Modifier.testTag("assign_staff_${b.id}")
+                                                        ) {
+                                                            Icon(Icons.Default.PersonAdd, contentDescription = "Assign staff", tint = SashioTeal)
+                                                        }
+                                                        DropdownMenu(
+                                                            expanded = staffPickerForBookingId == b.id,
+                                                            onDismissRequest = { staffPickerForBookingId = null }
+                                                        ) {
+                                                            if (realStaffProfiles.isEmpty()) {
+                                                                DropdownMenuItem(text = { Text("No staff accounts yet") }, onClick = { staffPickerForBookingId = null }, enabled = false)
+                                                            }
+                                                            realStaffProfiles.forEach { s ->
+                                                                DropdownMenuItem(
+                                                                    text = { Text(s.full_name?.takeIf { it.isNotBlank() } ?: s.email) },
+                                                                    onClick = {
+                                                                        val name = s.full_name?.takeIf { it.isNotBlank() } ?: s.email
+                                                                        viewModel.adminAssignStaffToSupabaseBooking(b.id, s.id, name)
+                                                                        staffPickerForBookingId = null
+                                                                    }
+                                                                )
+                                                            }
+                                                        }
                                                     }
 
                                                     IconButton(
@@ -5331,18 +5369,24 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                 modifier = Modifier.weight(1f).fillMaxWidth()
                             ) {
                                 Column(modifier = Modifier.padding(10.dp)) {
+                                    val myAdminId = remember { SupabaseProvider.client.auth.currentUserOrNull()?.id }
+                                    val filteredAdminChats = adminChats.filter {
+                                        val targetRole = when (msgChannel) { "Clients" -> "client"; "Staff", "Supervisors" -> "staff"; else -> null }
+                                        it.sender_id == myAdminId || it.recipient_role == targetRole || it.sender_role == targetRole
+                                    }
                                     LazyColumn(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                                        items(adminChatMessages) { m ->
+                                        items(filteredAdminChats) { m ->
+                                            val isMe = m.sender_id == myAdminId
                                             Card(
                                                 colors = CardDefaults.cardColors(
-                                                    containerColor = if (m.startsWith("SysAdmin") || m.startsWith("Admin")) SashioSlate else Color.LightGray.copy(alpha = 0.3f)
+                                                    containerColor = if (isMe) SashioSlate else Color.LightGray.copy(alpha = 0.3f)
                                                 ),
-                                                modifier = Modifier.padding(horizontal = 4.dp).align(if (m.startsWith("Admin")) Alignment.End else Alignment.Start)
+                                                modifier = Modifier.padding(horizontal = 4.dp).align(if (isMe) Alignment.End else Alignment.Start)
                                             ) {
                                                 Text(
-                                                    m, 
-                                                    fontSize = 11.sp, 
-                                                    color = if (m.startsWith("SysAdmin") || m.startsWith("Admin")) Color.White else SashioSlate,
+                                                    "${m.sender_name}: ${m.content}",
+                                                    fontSize = 11.sp,
+                                                    color = if (isMe) Color.White else SashioSlate,
                                                     modifier = Modifier.padding(8.dp)
                                                 )
                                             }
@@ -5364,14 +5408,9 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                         IconButton(
                                             onClick = {
                                                 if (msgFormText.isNotBlank()) {
-                                                    adminChatMessages = adminChatMessages + "Admin: $msgFormText"
-                                                    // Simulated echo reply
-                                                    val replyChannel = msgChannel
+                                                    val targetRole = when (msgChannel) { "Clients" -> "client"; else -> "staff" }
+                                                    viewModel.sendGeneralChatMessage(msgFormText, targetRole)
                                                     msgFormText = ""
-                                                    coroutineScope.launch {
-                                                        delay(1200)
-                                                        adminChatMessages = adminChatMessages + "$replyChannel Operative: Node message received. Complying."
-                                                    }
                                                 }
                                             },
                                             modifier = Modifier.background(SashioGold, CircleShape)
@@ -5410,8 +5449,9 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                     Button(
                                         onClick = {
                                             if (broadcastMessageText.isNotBlank()) {
-                                                listSentBroadcasts = listSentBroadcasts + "Broadcaster Log [Target=$broadcastTarget]: $broadcastMessageText"
-                                                Toast.makeText(localContext, "Commercial broadcast successfully sent to all $broadcastTarget channels.", Toast.LENGTH_LONG).show()
+                                                val targetRole = when (broadcastTarget) { "Clients" -> "client"; "Staff" -> "staff"; else -> "all" }
+                                                viewModel.sendGeneralChatMessage(broadcastMessageText, targetRole)
+                                                Toast.makeText(localContext, "Broadcast sent to $broadcastTarget.", Toast.LENGTH_LONG).show()
                                                 broadcastMessageText = ""
                                             }
                                         },
@@ -5423,11 +5463,13 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                                         Text("DISPATCH BROADCAST NOTIFICATION", color = Color.White)
                                     }
 
-                                    if (listSentBroadcasts.isNotEmpty()) {
+                                    val myBroadcastId = remember { SupabaseProvider.client.auth.currentUserOrNull()?.id }
+                                    val sentBroadcasts = adminChats.filter { it.sender_id == myBroadcastId && it.recipient_role != null }
+                                    if (sentBroadcasts.isNotEmpty()) {
                                         Spacer(modifier = Modifier.height(10.dp))
-                                        Text("RECENTLY TRANSMITTED BROADCAST SIGS:", fontWeight = FontWeight.Bold, fontSize = 10.sp)
-                                        listSentBroadcasts.reversed().forEach { sign ->
-                                            Text(sign, fontSize = 9.sp, color = SashioTextMuted, modifier = Modifier.padding(vertical = 2.dp))
+                                        Text("RECENTLY SENT BROADCASTS:", fontWeight = FontWeight.Bold, fontSize = 10.sp)
+                                        sentBroadcasts.reversed().forEach { sign ->
+                                            Text("[${sign.recipient_role}] ${sign.content}", fontSize = 9.sp, color = SashioTextMuted, modifier = Modifier.padding(vertical = 2.dp))
                                         }
                                     }
                                 }
@@ -5839,6 +5881,23 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
 // Helper drawing utilities to ensure seamless compilation
 fun strokeWidthLimit(width: Float): Stroke {
     return Stroke(width = width)
+}
+
+// Formats a Postgres timestamptz string (e.g. "2026-08-26T06:47:53.427+00:00")
+// into a short local time like "6:47 AM" for chat bubbles. Falls back to the
+// raw string if parsing fails, rather than crashing the screen over it.
+fun formatMessageTimestamp(isoTimestamp: String): String {
+    return try {
+        val instant = java.time.Instant.parse(
+            if (isoTimestamp.contains("+") || isoTimestamp.endsWith("Z")) isoTimestamp
+            else "${isoTimestamp}Z"
+        )
+        val formatter = java.time.format.DateTimeFormatter.ofPattern("h:mm a")
+            .withZone(java.time.ZoneId.systemDefault())
+        formatter.format(instant)
+    } catch (e: Exception) {
+        isoTimestamp
+    }
 }
 
 @Composable
