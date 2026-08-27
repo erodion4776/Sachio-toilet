@@ -141,6 +141,18 @@ data class AdminProfileRow(
 )
 
 @Serializable
+data class SupabaseMessage(
+    val id: String = "",
+    val sender_id: String = "",
+    val sender_name: String = "",
+    val sender_role: String = "client",
+    val recipient_id: String? = null,
+    val recipient_role: String? = null, // "staff" | "client" | "admin" | "all" | null
+    val content: String = "",
+    val created_at: String = ""
+)
+
+@Serializable
 data class SupabaseProfile(
     val id: String,
     val email: String,
@@ -176,7 +188,14 @@ object SupabaseProvider {
             // requests to fail with "Request timeout has expired" even
             // though the request would have succeeded given a bit longer.
             requestTimeout = 30.seconds
-            install(Auth)
+            install(Auth) {
+                // Lets the SDK build the right redirect URL for
+                // resetPasswordForEmail() and recognize the incoming link
+                // in MainActivity.handleDeeplinks() - see AndroidManifest.xml
+                // for the matching intent filter.
+                scheme = "sachioexpress"
+                host = "reset-password"
+            }
             install(Postgrest)
             // Storage plugin intentionally NOT installed: the storage-kt
             // module uses a non-standard Kotlin Multiplatform source-set
