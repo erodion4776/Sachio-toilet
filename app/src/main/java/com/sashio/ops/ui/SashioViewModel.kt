@@ -636,6 +636,40 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // The real staff roster - derived from the same live profiles data
+    // used on the Manage Roles screen, filtered to role == "staff". This
+    // replaces the old local-only staffProfiles (repository.staffProfiles,
+    // a Room table that was never connected to real accounts - admin had
+    // no real staff to assign work to, and a hardcoded fake name
+    // ("David Staff james") was shown wherever nobody was assigned).
+    val realStaffProfiles: StateFlow<List<AdminProfileRow>> = _supabaseProfiles
+        .map { rows -> rows.filter { it.role == "staff" } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Assigns a real staff account to a real Supabase booking (the one
+    // admin actually manages in the Quotations Console). The old
+    // adminAssignStaffToBooking only touched local Room data, which had no
+    // connection to the real bookings clients actually create and pay for.
+    fun adminAssignStaffToSupabaseBooking(bookingId: String, staffId: String, staffName: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("bookings").update(
+                    buildJsonObject {
+                        put("assigned_staff_id", staffId)
+                        put("assigned_staff_name", staffName)
+                        put("status", "Staff Assigned")
+                    }
+                ) {
+                    filter { eq("id", bookingId) }
+                }
+                loadSupabaseBookings()
+                onComplete()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not assign staff: ${e.message}"
+            }
+        }
+    }
+
     // --- Admin: real Supabase bookings (quotations console) ---
     private val _supabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
     val supabaseBookings: StateFlow<List<SupabaseBooking>> = _supabaseBookings.asStateFlow()
@@ -1906,40 +1940,69 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     // General Chat / Multi-channel Message Board Center
-    private val _generalChats = MutableStateFlow<List<GeneralMessage>>(emptyList())
-    val generalChats: StateFlow<List<GeneralMessage>> = _generalChats.asStateFlow()
+    //
+    // This used to be a purely in-memory list with a scripted auto-reply
+    // ("David, report noted...") standing in for a real conversation -
+    // nothing was saved, and each person's device had its own separate
+    // copy, so a message one person sent could never actually reach
+    // anyone else. This now reads/writes the real public.messages table.
+    private val _generalChats = MutableStateFlow<List<SupabaseMessage>>(emptyList())
+    val generalChats: StateFlow<List<SupabaseMessage>> = _generalChats.asStateFlow()
 
-    fun sendGeneralChatMessage(sender: String, text: String, channel: String = "Admin") {
-        val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault())
-        val newMsg = GeneralMessage(
-            id = "GM-${java.util.Random().nextInt(9000) + 1000}",
-            sender = sender,
-            text = text,
-            timestamp = sdf.format(java.util.Date())
-        )
-        _generalChats.value = _generalChats.value + newMsg
-
-        // Trigger context automatic response
+    // Loads every message the signed-in user is allowed to see (their own
+    // sent messages, direct messages to them, and broadcasts matching
+    // their role) - RLS on public.messages enforces that scoping, this
+    // just pulls everything the policy already permits.
+    fun loadGeneralChats() {
         viewModelScope.launch {
-            kotlinx.coroutines.delay(1800)
-            val replyText = when {
-                text.lowercase().contains("rain") || text.lowercase().contains("weather") -> {
-                    "Understood. Non-slip vinyl mats are loaded in the trailer utility locker."
-                }
-                text.lowercase().contains("accident") || text.lowercase().contains("emergency") || text.lowercase().contains("support") -> {
-                    "INCIDENT RESOLUTION ENGINE: Copy that. Supervisor notified. Please stay on site and wait for emergency response."
-                }
-                else -> {
-                    "David, report noted. Keep up the prestige service standards. 'Comfort. Hygiene. Dignity Anywhere.'"
-                }
+            try {
+                val rows = SupabaseProvider.client.postgrest.from("messages")
+                    .select {
+                        order("created_at", io.github.jan.supabase.postgrest.query.Order.ASCENDING)
+                    }
+                    .decodeList<SupabaseMessage>()
+                _generalChats.value = rows
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not load messages: ${e.message}"
             }
-            val autoReply = GeneralMessage(
-                id = "GM-${java.util.Random().nextInt(9000) + 1000}",
-                sender = if (channel == "Supervisor") "Supervisor" else "Admin",
-                text = replyText,
-                timestamp = sdf.format(java.util.Date())
-            )
-            _generalChats.value = _generalChats.value + autoReply
+        }
+    }
+
+    // channel: "Admin" broadcasts to every admin (recipient_role="admin"),
+    // "Supervisor" is treated the same way for now since this app has no
+    // separate supervisor role. Pass a specific recipientId instead for a
+    // private one-to-one message.
+    fun sendGeneralChatMessage(text: String, channel: String = "Admin", recipientId: String? = null) {
+        viewModelScope.launch {
+            try {
+                val supaUser = SupabaseProvider.client.auth.currentUserOrNull() ?: run {
+                    _roleManagementError.value = "You need to be signed in to send a message."
+                    return@launch
+                }
+                val senderProfile = _supabaseProfiles.value.find { it.id == supaUser.id }
+                val senderName = senderProfile?.full_name?.takeIf { it.isNotBlank() }
+                    ?: _currentUser.value?.name
+                    ?: supaUser.email
+                    ?: "Unknown"
+                val senderRole = senderProfile?.role ?: _currentUser.value?.role ?: "client"
+
+                SupabaseProvider.client.postgrest.from("messages").insert(
+                    buildJsonObject {
+                        put("sender_id", supaUser.id)
+                        put("sender_name", senderName)
+                        put("sender_role", senderRole)
+                        if (recipientId != null) {
+                            put("recipient_id", recipientId)
+                        } else {
+                            put("recipient_role", if (channel == "Supervisor") "admin" else channel.lowercase())
+                        }
+                        put("content", text)
+                    }
+                )
+                loadGeneralChats()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not send message: ${e.message}"
+            }
         }
     }
 
