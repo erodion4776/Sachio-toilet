@@ -50,6 +50,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.sashio.ops.data.*
+import io.github.jan.supabase.auth.auth
 import androidx.fragment.app.FragmentActivity
 import com.sashio.ops.ui.theme.*
 import java.text.NumberFormat
