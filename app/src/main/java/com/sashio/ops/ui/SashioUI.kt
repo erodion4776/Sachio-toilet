@@ -3621,6 +3621,7 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
                                 }
                             }
 
+                            val myId = remember { SupabaseProvider.client.auth.currentUserOrNull()?.id }
                             LazyColumn(
                                 modifier = Modifier
                                     .weight(1f)
@@ -3628,7 +3629,6 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
                                     .padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                val myId = remember { SupabaseProvider.client.auth.currentUserOrNull()?.id }
                                 items(generalChats) { gm ->
                                     val isMe = gm.sender_id == myId
                                     Column(
