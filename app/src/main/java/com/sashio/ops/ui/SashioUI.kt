@@ -2502,6 +2502,11 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
     val localCtx = LocalContext.current
     val bookings by viewModel.staffBookings.collectAsStateWithLifecycle()
     val allBookings by viewModel.allBookings.collectAsStateWithLifecycle()
+    // Real jobs actually assigned by admin via Supabase - the rest of this
+    // screen (below) still runs on local demo data; this is what actually
+    // connects to what admin assigns in the real Quotations Console.
+    val myAssignedBookings by viewModel.myAssignedBookings.collectAsStateWithLifecycle()
+    LaunchedEffect(Unit) { viewModel.loadMyAssignedBookings() }
     var isSettingsOpen by remember { mutableStateOf(false) }
 
     // Workforce Core States
@@ -2755,8 +2760,8 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
                                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                                     ) {
                                         listOf(
-                                            Triple("Jobs Today", "${bookings.size}", SashioGold),
-                                            Triple("Active Tasks", "${bookings.filter { it.status == "ARRIVED" || it.status == "IN TRANSIT" }.size}", SashioTeal),
+                                            Triple("Jobs Today", "${bookings.size + myAssignedBookings.size}", SashioGold),
+                                            Triple("Active Tasks", "${bookings.filter { it.status == "ARRIVED" || it.status == "IN TRANSIT" }.size + myAssignedBookings.count { it.status == "IN TRANSIT" || it.status == "Staff Assigned" }}", SashioTeal),
                                             Triple("Performance", "94%", SashioGreen)
                                         ).forEach { (title, count, col) ->
                                             Card(
@@ -3403,6 +3408,50 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
                                 }
 
                                 Spacer(modifier = Modifier.height(14.dp))
+
+                                // Real jobs, actually assigned by admin via Supabase - this
+                                // is the piece that was missing: admin could assign a real
+                                // staff member to a real booking, but staff had no way to
+                                // see it since the rest of this screen runs on local demo
+                                // data. Kept separate from that demo list below rather than
+                                // risking a full rewrite of it.
+                                if (myAssignedBookings.isNotEmpty()) {
+                                    Text("ASSIGNED BY ADMIN", fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = SashioGold, letterSpacing = 1.sp)
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    myAssignedBookings.forEach { ab ->
+                                        Card(
+                                            colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.4f)),
+                                            border = BorderStroke(1.dp, SashioGold.copy(alpha = 0.3f)),
+                                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                                        ) {
+                                            Column(modifier = Modifier.padding(12.dp)) {
+                                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                                    Text(ab.service_type, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                                    BookingStatusBadge(status = ab.status)
+                                                }
+                                                Text("${ab.event_type} | ${ab.address}", color = Color.White.copy(alpha = 0.6f), fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                                Spacer(modifier = Modifier.height(8.dp))
+                                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                                    if (ab.status != "SERVICE DELIVERED") {
+                                                        OutlinedButton(
+                                                            onClick = { viewModel.staffUpdateBookingStatus(ab.id, "IN TRANSIT") },
+                                                            colors = ButtonDefaults.outlinedButtonColors(contentColor = SashioTeal),
+                                                            modifier = Modifier.testTag("start_job_${ab.id}")
+                                                        ) { Text("Start Job", fontSize = 10.sp) }
+                                                        Button(
+                                                            onClick = { viewModel.staffUpdateBookingStatus(ab.id, "SERVICE DELIVERED") },
+                                                            colors = ButtonDefaults.buttonColors(containerColor = SashioGreen),
+                                                            modifier = Modifier.testTag("complete_job_${ab.id}")
+                                                        ) { Text("Mark Complete", fontSize = 10.sp) }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                }
 
                                 val filteredList = bookings.filter { b ->
                                     when (selectedFilterTab) {
