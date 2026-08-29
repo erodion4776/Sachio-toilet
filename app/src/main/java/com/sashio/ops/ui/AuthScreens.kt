@@ -24,6 +24,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.sashio.ops.R
+import com.sashio.ops.data.BiometricAuthHelper
 import com.sashio.ops.data.SashioViewModel
 import com.sashio.ops.ui.theme.*
 import kotlinx.coroutines.delay
@@ -192,7 +193,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                         if (bioActivity == null) return@OutlinedButton
                                         BiometricAuthHelper.authenticateAndGetCredentials(
                                             activity = bioActivity,
-                                            title = "Touch ID Sign-In",
+                                            title = "Biometric Verification",
                                             onSuccess = { savedEmail, savedPassword ->
                                                 viewModel.loginWithEmail(savedEmail, null, savedPassword)
                                             },
@@ -207,7 +208,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                 ) {
                                     Icon(Icons.Default.Fingerprint, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Touch ID", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("Biometrics", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
 
                                 OutlinedButton(
@@ -215,7 +216,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                         if (bioActivity == null) return@OutlinedButton
                                         BiometricAuthHelper.authenticateAndGetCredentials(
                                             activity = bioActivity,
-                                            title = "Face ID Sign-In",
+                                            title = "Biometric Verification",
                                             onSuccess = { savedEmail, savedPassword ->
                                                 viewModel.loginWithEmail(savedEmail, null, savedPassword)
                                             },
@@ -230,7 +231,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                 ) {
                                     Icon(Icons.Default.Face, contentDescription = null, modifier = Modifier.size(16.dp))
                                     Spacer(modifier = Modifier.width(4.dp))
-                                    Text("Face ID Scan", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    Text("Face Scanner", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                 }
                             }
 
