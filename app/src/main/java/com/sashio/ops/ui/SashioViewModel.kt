@@ -670,6 +670,43 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Staff: their own real assigned jobs (the other half of the
+    // admin<->staff connection - admin assigns a real staff member to a
+    // real booking above, this is how that staff member actually sees it).
+    private val _myAssignedBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
+    val myAssignedBookings: StateFlow<List<SupabaseBooking>> = _myAssignedBookings.asStateFlow()
+
+    fun loadMyAssignedBookings() {
+        viewModelScope.launch {
+            try {
+                val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id ?: return@launch
+                val rows = SupabaseProvider.client.postgrest.from("bookings")
+                    .select {
+                        filter { eq("assigned_staff_id", uid) }
+                    }
+                    .decodeList<SupabaseBooking>()
+                _myAssignedBookings.value = rows
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not load assigned jobs: ${e.message}"
+            }
+        }
+    }
+
+    fun staffUpdateBookingStatus(bookingId: String, newStatus: String) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("bookings").update(
+                    buildJsonObject { put("status", newStatus) }
+                ) {
+                    filter { eq("id", bookingId) }
+                }
+                loadMyAssignedBookings()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not update job status: ${e.message}"
+            }
+        }
+    }
+
     // --- Admin: real Supabase bookings (quotations console) ---
     private val _supabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
     val supabaseBookings: StateFlow<List<SupabaseBooking>> = _supabaseBookings.asStateFlow()
