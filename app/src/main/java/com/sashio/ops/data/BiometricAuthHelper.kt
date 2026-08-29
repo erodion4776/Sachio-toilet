@@ -23,13 +23,6 @@ import androidx.security.crypto.MasterKey
 //    animation. Only after a genuine biometric match does the app decrypt
 //    the stored credentials and log in with them via the normal Supabase
 //    Auth path.
-//
-// Note on threat model: this gates access to the stored credentials behind
-// a successful biometric check, and the credentials themselves are
-// encrypted at rest - but it is not as strong as binding the encryption
-// key itself to biometric hardware attestation (Android's
-// setUserAuthenticationRequired() key flag). For a fuller banking-grade
-// implementation, that would be the next hardening step.
 object BiometricAuthHelper {
 
     private const val PREFS_NAME = "sashio_biometric_credentials"
@@ -71,7 +64,7 @@ object BiometricAuthHelper {
     fun saveCredentials(context: Context, email: String, password: String) {
         try {
             encryptedPrefs(context).edit()
-                .putString(KEY_EMAIL, email)
+                .putString(KEY_EMAIL, email.trim().lowercase())
                 .putString(KEY_PASSWORD, password)
                 .apply()
         } catch (e: Exception) {
@@ -87,9 +80,9 @@ object BiometricAuthHelper {
         }
     }
 
-    // Shows the REAL system biometric prompt (actual fingerprint/face
-    // sensor). onSuccess receives the decrypted email/password to log in
-    // with; onError receives a human-readable reason if it fails/cancels.
+    // Shows the REAL system biometric prompt (actual fingerprint/face sensor).
+    // onSuccess receives the decrypted email/password to log in with;
+    // onError receives a human-readable reason if it fails/cancels.
     fun authenticateAndGetCredentials(
         activity: FragmentActivity,
         title: String,
@@ -105,7 +98,7 @@ object BiometricAuthHelper {
 
         val savedEmail = prefs.getString(KEY_EMAIL, null)
         val savedPassword = prefs.getString(KEY_PASSWORD, null)
-        if (savedEmail == null || savedPassword == null) {
+        if (savedEmail.isNullOrBlank() || savedPassword.isNullOrBlank()) {
             onError("No biometric login set up yet - sign in with your password first, then enable it.")
             return
         }
@@ -122,7 +115,10 @@ object BiometricAuthHelper {
 
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    onError(errString.toString())
+                    // errorCode 13 (Cancel by user) or 10 (Negative button)
+                    if (errorCode != BiometricPrompt.ERROR_USER_CANCELED && errorCode != BiometricPrompt.ERROR_NEGATIVE_BUTTON) {
+                        onError(errString.toString())
+                    }
                 }
 
                 override fun onAuthenticationFailed() {
