@@ -4,6 +4,10 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.providers.builtin.Email
+import io.github.jan.supabase.postgrest.postgrest
+import io.github.jan.supabase.postgrest.query.Order
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -27,8 +31,8 @@ data class AdminIncident(
     val id: String,
     val title: String,
     val reporter: String,
-    val priority: String, // "Low", "Medium", "High", "Critical"
-    val status: String, // "Open", "Investigating", "Resolved"
+    val priority: String,
+    val status: String,
     val date: String,
     val details: String
 )
@@ -46,10 +50,10 @@ data class AdminStaffAttendance(
 data class AdminExpenseClaim(
     val id: String,
     val staffName: String,
-    val category: String, // "Fuel Costs", "Maintenance Costs", "Staff Expenses"
+    val category: String,
     val amount: Double,
     val details: String,
-    val status: String, // "Pending Approval", "Approved", "Rejected"
+    val status: String,
     val date: String
 )
 
@@ -62,7 +66,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentUser = MutableStateFlow<UserProfile?>(null)
     val currentUser: StateFlow<UserProfile?> = _currentUser.asStateFlow()
 
-    // --- Extra Profile Fields for Settings ---
     private val _userAltPhone = MutableStateFlow("")
     val userAltPhone = _userAltPhone.asStateFlow()
 
@@ -78,7 +81,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _userLocation = MutableStateFlow("Victoria Island, Lagos, Nigeria")
     val userLocation = _userLocation.asStateFlow()
 
-    // --- Settings Preferences ---
     private val _themePreference = MutableStateFlow("dark")
     val themePreference = _themePreference.asStateFlow()
 
@@ -118,7 +120,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _storageUsed = MutableStateFlow("118 MB")
     val storageUsed = _storageUsed.asStateFlow()
 
-    // Notifications Toggles
     private val _pushNotifications = MutableStateFlow(true)
     val pushNotifications = _pushNotifications.asStateFlow()
 
@@ -146,7 +147,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _pushSound = MutableStateFlow("Premium Chime")
     val pushSound = _pushSound.asStateFlow()
 
-    // Privacy Controls
     private val _privacyProfilePicVisible = MutableStateFlow("Public")
     val privacyProfilePicVisible = _privacyProfilePicVisible.asStateFlow()
 
@@ -162,7 +162,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _privacyAnalyticsAllowed = MutableStateFlow(true)
     val privacyAnalyticsAllowed = _privacyAnalyticsAllowed.asStateFlow()
 
-    // Security Settings
     private val _securityBiometricsEnabled = MutableStateFlow(true)
     val securityBiometricsEnabled = _securityBiometricsEnabled.asStateFlow()
 
@@ -172,15 +171,12 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _securityScore = MutableStateFlow("Excellent")
     val securityScore = _securityScore.asStateFlow()
 
-    // Languages
     private val _selectedLanguage = MutableStateFlow("English")
     val selectedLanguage = _selectedLanguage.asStateFlow()
 
-    // Support Request lists
     private val _ticketHistory = MutableStateFlow<List<SupportTicket>>(emptyList())
     val ticketHistory = _ticketHistory.asStateFlow()
 
-    // Error and Screen Flow
     private val _loginError = MutableStateFlow<String?>(null)
     val loginError: StateFlow<String?> = _loginError.asStateFlow()
 
@@ -190,7 +186,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentScreen = MutableStateFlow("splash")
     val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
 
-    // Core Listings
     val allBookings: StateFlow<List<Booking>> = repository.allBookings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -224,7 +219,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _expenseLogs = MutableStateFlow<List<AdminExpenseClaim>>(emptyList())
     val expenseLogs: StateFlow<List<AdminExpenseClaim>> = _expenseLogs.asStateFlow()
 
-    // Role-Filtered Bookings
     val clientBookings: StateFlow<List<Booking>> = _currentUser
         .flatMapLatest { user ->
             if (user != null && user.role == "client") {
@@ -245,7 +239,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Active Live Dispatch Trackers
     private val _activeLiveTrackers = MutableStateFlow<Map<Long, LiveTrackingState>>(emptyMap())
     val activeLiveTrackers: StateFlow<Map<Long, LiveTrackingState>> = _activeLiveTrackers.asStateFlow()
 
@@ -259,14 +252,12 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Places Autocomplete
     private val _addressSearchQuery = MutableStateFlow("")
     val addressSearchQuery: StateFlow<String> = _addressSearchQuery.asStateFlow()
 
     private val _addressSuggestions = MutableStateFlow<List<SimulatedPlace>>(emptyList())
     val addressSuggestions: StateFlow<List<SimulatedPlace>> = _addressSuggestions.asStateFlow()
 
-    // Real Supabase User Management
     private val _supabaseProfiles = MutableStateFlow<List<AdminProfileRow>>(emptyList())
     val supabaseProfiles: StateFlow<List<AdminProfileRow>> = _supabaseProfiles.asStateFlow()
 
@@ -277,15 +268,12 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         .map { rows -> rows.filter { it.role == "staff" } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Staff Live Assigned Bookings (Supabase)
     private val _myAssignedBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
     val myAssignedBookings: StateFlow<List<SupabaseBooking>> = _myAssignedBookings.asStateFlow()
 
-    // Admin Supabase Bookings
     private val _supabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
     val supabaseBookings: StateFlow<List<SupabaseBooking>> = _supabaseBookings.asStateFlow()
 
-    // Catalog Image Upload
     private val _supabaseCatalogItems = MutableStateFlow<List<SupabaseCatalogItem>>(emptyList())
     val supabaseCatalogItems: StateFlow<List<SupabaseCatalogItem>> = _supabaseCatalogItems.asStateFlow()
 
@@ -304,7 +292,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         .map { rows -> rows.filter { it.is_active }.map { it.toCatalogItem() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Password Reset
     private val _passwordResetError = MutableStateFlow<String?>(null)
     val passwordResetError: StateFlow<String?> = _passwordResetError.asStateFlow()
 
@@ -320,7 +307,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _bookingSyncMessage = MutableStateFlow<String?>(null)
     val bookingSyncMessage: StateFlow<String?> = _bookingSyncMessage.asStateFlow()
 
-    // Paystack Payments
     private val _activePaystackTransaction = MutableStateFlow<CreatePaymentResponse?>(null)
     val activePaystackTransaction: StateFlow<CreatePaymentResponse?> = _activePaystackTransaction.asStateFlow()
 
@@ -330,7 +316,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _lastPaymentStatus = MutableStateFlow<String?>(null)
     val lastPaymentStatus: StateFlow<String?> = _lastPaymentStatus.asStateFlow()
 
-    // Staff Portal Specifics
     private val _staffExpenses = MutableStateFlow<List<StaffExpense>>(emptyList())
     val staffExpenses: StateFlow<List<StaffExpense>> = _staffExpenses.asStateFlow()
 
@@ -352,7 +337,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Helper Methods ---
     fun getCurrentUserId(): String {
         return SupabaseProvider.client.auth.currentUserOrNull()?.id
             ?: _currentUser.value?.id?.toString()
@@ -365,7 +349,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         _signUpError.value = null
     }
 
-    // --- Authentication ---
     fun loginWithEmail(email: String, requiredRole: String? = null, password: String = "") {
         viewModelScope.launch {
             _loginError.value = null
@@ -510,7 +493,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         _currentScreen.value = "login"
     }
 
-    // --- Profile Settings Handlers ---
     fun updateUserProfileInfo(name: String, email: String, phone: String, company: String) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -623,7 +605,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         _currentScreen.value = "login"
     }
 
-    // --- Supabase Profiles Management ---
     fun loadSupabaseProfiles() {
         viewModelScope.launch {
             try {
@@ -682,7 +663,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Bookings & Quotation Workflows ---
     fun loadSupabaseBookings() {
         viewModelScope.launch {
             try {
@@ -910,7 +890,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Supabase Catalog Items ---
     fun loadSupabaseCatalogItems() {
         viewModelScope.launch {
             try {
@@ -1072,7 +1051,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Password Reset & Recovery ---
     fun resetPassword(email: String) {
         if (email.isBlank() || !email.contains("@")) {
             _passwordResetError.value = "Enter a valid email address."
@@ -1122,7 +1100,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Consultations & Reviews ---
     fun bookConsultation(type: String, preferredDate: String, notes: String, onComplete: () -> Unit) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1158,7 +1135,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Paystack Payments & Webhook ---
     fun triggerPaystackPayment(bookingId: Long, totalAmount: Double) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1208,7 +1184,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Address Lookup Autocomplete ---
     fun updateAddressSearch(query: String) {
         _addressSearchQuery.value = query
         if (query.length < 3) {
@@ -1235,7 +1210,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- WhatsApp Pre-fill Generator ---
     fun generateWhatsAppText(booking: Booking): String {
         val inclusions = mutableListOf<String>()
         if (booking.cleaningSupport) inclusions.add("Cleaning Support")
@@ -1280,7 +1254,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Favorite Locations ---
     fun saveFavoriteLocation(name: String, address: String, lat: Double, lng: Double, type: String) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1320,7 +1293,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Live Dispatch Tracking Simulation & Chat ---
     fun addActivityLog(bookingId: Long, title: String, description: String) {
         _activeLiveTrackers.update { currentMap ->
             val tracker = currentMap[bookingId] ?: return@update currentMap
@@ -1385,7 +1357,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 vehicleLat = booking.latitude - 0.048,
                 vehicleLng = booking.longitude - 0.038,
                 distanceRemainingKm = 15.0,
-                boxWidthOffset = 3.3, // fallback offsets if necessary
+                boxWidthOffset = 3.3,
                 etaMinutes = 25,
                 isTrackingActive = true,
                 journeyStatus = "Staff Assigned",
@@ -1591,7 +1563,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Logistics Matrix Calculation ---
     fun calculateLogisticsMetrics(lat: Double, lng: Double): LogisticsMetrics {
         val depotLat = 6.4282
         val depotLng = 3.4211
@@ -1631,7 +1602,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
-    // --- Staff Portal Workforce Management ---
     fun submitStaffExpense(amount: Double, category: String, notes: String, date: String) {
         val newExp = StaffExpense(
             id = "EXP-${Random().nextInt(9000) + 1000}",
@@ -1708,13 +1678,12 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         addActivityLog(bookingId, "Digital Quality Check", "Field technician transmitted digital parameters: Cleanliness ($cleanlinessScore/5), Condition ($toiletCondition).")
     }
 
-    // --- Message Board Center with Role Normalization ---
     fun loadGeneralChats() {
         viewModelScope.launch {
             try {
                 val rows = SupabaseProvider.client.postgrest.from("messages")
                     .select {
-                        order("created_at", io.github.jan.supabase.postgrest.query.Order.ASCENDING)
+                        order("created_at", Order.ASCENDING)
                     }
                     .decodeList<SupabaseMessage>()
                 _generalChats.value = rows
@@ -1763,7 +1732,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Admin Operational Actions ---
     fun toggleProfileSuspension(id: Long) {
         _suspendedProfileIds.update { if (it.contains(id)) it - id else it + id }
     }
@@ -1803,7 +1771,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     }
 }
 
-// --- Data Models for Attendance & Logs ---
 data class StaffExpense(
     val id: String,
     val amount: Double,
