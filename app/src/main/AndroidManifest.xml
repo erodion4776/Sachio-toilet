@@ -2,7 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Network permissions for Supabase, Paystack, and online media -->
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+
+    <!-- Biometric sensor permissions for Touch ID / Face ID sign-in -->
+    <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <application
         android:allowBackup="true"
@@ -14,9 +19,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
 
-        <!-- Populated at build time from MAPS_API_KEY in .env via the Secrets Gradle Plugin.
-             Only takes effect once the Maps SDK for Android dependency is added -
-             the in-app map is currently a hand-drawn Compose Canvas, not real Google Maps. -->
+        <!-- Populated at build time from MAPS_API_KEY in .env via the Secrets Gradle Plugin -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
@@ -27,28 +30,28 @@
             android:label="@string/app_name"
             android:launchMode="singleTask"
             android:theme="@style/Theme.MyApplication">
+            
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
-
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Paystack redirects the browser here once a payment finishes,
-                 so the app can automatically check the real status instead
-                 of leaving the user stuck on Paystack's own page. -->
+            <!-- Deep link intent filters:
+                 1. Paystack payment gateway callback: sachioexpress://payment-complete
+                 2. Supabase password reset link:       sachioexpress://reset-password -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
 
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data android:scheme="sachioexpress" android:host="payment-complete" />
-                <!-- Supabase sends the "reset password" email link here so
-                     it opens the app directly instead of a browser page. -->
-                <data android:scheme="sachioexpress" android:host="reset-password" />
-                <!-- Password recovery link redirect target - see resetPasswordForEmail
-                     in SashioViewModel.kt. -->
-                <data android:scheme="sachioexpress" android:host="reset-password" />
+                <data
+                    android:scheme="sachioexpress"
+                    android:host="payment-complete" />
+
+                <data
+                    android:scheme="sachioexpress"
+                    android:host="reset-password" />
             </intent-filter>
         </activity>
     </application>
