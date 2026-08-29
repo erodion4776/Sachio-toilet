@@ -4,10 +4,6 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import com.sashio.ops.ui.BiometricAuthHelper
-import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.providers.builtin.Email
-import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -1389,6 +1385,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 vehicleLat = booking.latitude - 0.048,
                 vehicleLng = booking.longitude - 0.038,
                 distanceRemainingKm = 15.0,
+                boxWidthOffset = 3.3, // fallback offsets if necessary
                 etaMinutes = 25,
                 isTrackingActive = true,
                 journeyStatus = "Staff Assigned",
@@ -1870,6 +1867,7 @@ data class LiveTrackingState(
     val vehicleLat: Double = 0.0,
     val vehicleLng: Double = 0.0,
     val distanceRemainingKm: Double = 15.0,
+    val boxWidthOffset: Double = 3.3,
     val etaMinutes: Int = 25,
     val isTrackingActive: Boolean = false,
     val journeyStatus: String = "Idle",
