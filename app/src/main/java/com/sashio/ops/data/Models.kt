@@ -3,17 +3,20 @@ package com.sashio.ops.data
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
+import androidx.room.TypeConverters
+import kotlinx.serialization.Serializable
 
+// --- Room Type Converters ---
 // Room only stores primitive-compatible columns, so List<String> (used for
 // CatalogItem.imageUrls) needs an explicit converter. Registered on
 // SashioDatabase via @TypeConverters(Converters::class).
 class Converters {
     @TypeConverter
-    fun fromStringList(list: List<String>): String = list.joinToString("|||")
+    fun fromStringList(list: List<String>?): String = list?.joinToString("|||") ?: ""
 
     @TypeConverter
-    fun toStringList(data: String): List<String> =
-        if (data.isBlank()) emptyList() else data.split("|||")
+    fun toStringList(data: String?): List<String> =
+        if (data.isNullOrBlank()) emptyList() else data.split("|||")
 }
 
 @Entity(tableName = "user_profiles")
@@ -121,6 +124,7 @@ data class Review(
 )
 
 @Entity(tableName = "catalog_items")
+@TypeConverters(Converters::class)
 data class CatalogItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
