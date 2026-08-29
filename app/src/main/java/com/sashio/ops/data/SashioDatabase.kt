@@ -21,7 +21,6 @@ import androidx.room.TypeConverters
 )
 @TypeConverters(Converters::class)
 abstract class SashioDatabase : RoomDatabase() {
-
     abstract fun sashioDao(): SashioDao
 
     companion object {
