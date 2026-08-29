@@ -1,32 +1,31 @@
-package com.sashio.ops.ui
+package com.sashio.ops.data
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import androidx.security.crypto.EncryptedSharedPreferences
-import androidx.security.crypto.MasterKey
-import com.sashio.ops.data.*
+import com.sashio.ops.ui.BiometricAuthHelper
 import io.github.jan.supabase.auth.auth
-import io.github.jan.supabase.auth.OtpType
 import io.github.jan.supabase.auth.providers.builtin.Email
-import io.github.jan.supabase.auth.providers.builtin.OTP
 import io.github.jan.supabase.postgrest.postgrest
-import io.github.jan.supabase.postgrest.query.filter.*
-import android.net.Uri
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.add
+import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.flow.*
-import kotlinx.coroutines.launch
-import kotlinx.serialization.json.buildJsonObject
-import kotlinx.serialization.json.put
-import kotlinx.serialization.json.putJsonArray
-import kotlinx.serialization.json.add
 import java.net.URLEncoder
+import java.text.SimpleDateFormat
+import java.util.*
+import java.util.concurrent.TimeUnit
 
 data class AdminIncident(
     val id: String,
@@ -67,7 +66,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentUser = MutableStateFlow<UserProfile?>(null)
     val currentUser: StateFlow<UserProfile?> = _currentUser.asStateFlow()
 
-    // --- Extra Profile Fields for Premium Settings ---
+    // --- Extra Profile Fields for Settings ---
     private val _userAltPhone = MutableStateFlow("")
     val userAltPhone = _userAltPhone.asStateFlow()
 
@@ -84,19 +83,19 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     val userLocation = _userLocation.asStateFlow()
 
     // --- Settings Preferences ---
-    private val _themePreference = MutableStateFlow("dark") // ui is dark by default
+    private val _themePreference = MutableStateFlow("dark")
     val themePreference = _themePreference.asStateFlow()
 
-    private val _accentColor = MutableStateFlow("Mustard") // Mustard (Logo Color), Golden, Charcoal, Slate
+    private val _accentColor = MutableStateFlow("Gold")
     val accentColor = _accentColor.asStateFlow()
 
-    private val _fontSizeScale = MutableStateFlow("Standard") // Compact, Standard, Expanded, Large
+    private val _fontSizeScale = MutableStateFlow("Standard")
     val fontSizeScale = _fontSizeScale.asStateFlow()
 
-    private val _cardDensity = MutableStateFlow("Comfortable") // Comfortable, High Density, Minimal
+    private val _cardDensity = MutableStateFlow("Comfortable")
     val cardDensity = _cardDensity.asStateFlow()
 
-    private val _mapTheme = MutableStateFlow("Dark Map") // Standard, Satellite, Terrain, Dark Map
+    private val _mapTheme = MutableStateFlow("Standard Map")
     val mapTheme = _mapTheme.asStateFlow()
 
     private val _accessibilityMode = MutableStateFlow(false)
@@ -123,7 +122,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _storageUsed = MutableStateFlow("118 MB")
     val storageUsed = _storageUsed.asStateFlow()
 
-    // Notifications Enable Toggles
+    // Notifications Toggles
     private val _pushNotifications = MutableStateFlow(true)
     val pushNotifications = _pushNotifications.asStateFlow()
 
@@ -152,7 +151,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     val pushSound = _pushSound.asStateFlow()
 
     // Privacy Controls
-    private val _privacyProfilePicVisible = MutableStateFlow("Public") // Public, Private, Custom
+    private val _privacyProfilePicVisible = MutableStateFlow("Public")
     val privacyProfilePicVisible = _privacyProfilePicVisible.asStateFlow()
 
     private val _privacyContactVisible = MutableStateFlow("Public")
@@ -174,18 +173,348 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _security2FAEnabled = MutableStateFlow(false)
     val security2FAEnabled = _security2FAEnabled.asStateFlow()
 
-    private val _securityScore = MutableStateFlow("Excellent") // Low, Medium, High, Excellent
+    private val _securityScore = MutableStateFlow("Excellent")
     val securityScore = _securityScore.asStateFlow()
 
     // Languages
-    private val _selectedLanguage = MutableStateFlow("English") // English, French, Spanish, Swahili, Arabic
+    private val _selectedLanguage = MutableStateFlow("English")
     val selectedLanguage = _selectedLanguage.asStateFlow()
 
     // Support Request lists
     private val _ticketHistory = MutableStateFlow<List<SupportTicket>>(emptyList())
     val ticketHistory = _ticketHistory.asStateFlow()
 
-    // Update handlers
+    // Error and Screen Flow
+    private val _loginError = MutableStateFlow<String?>(null)
+    val loginError: StateFlow<String?> = _loginError.asStateFlow()
+
+    private val _signUpError = MutableStateFlow<String?>(null)
+    val signUpError: StateFlow<String?> = _signUpError.asStateFlow()
+
+    private val _currentScreen = MutableStateFlow("splash")
+    val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
+
+    // Core Listings
+    val allBookings: StateFlow<List<Booking>> = repository.allBookings
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val staffProfiles: StateFlow<List<UserProfile>> = repository.staffProfiles
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allPayments: StateFlow<List<Payment>> = repository.allPayments
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allConsultations: StateFlow<List<Consultation>> = repository.allConsultations
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allReviews: StateFlow<List<Review>> = repository.allReviews
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val catalogItems: StateFlow<List<CatalogItem>> = repository.allCatalogItems
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val allProfiles: StateFlow<List<UserProfile>> = repository.allProfiles
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _suspendedProfileIds = MutableStateFlow<Set<Long>>(emptySet())
+    val suspendedProfileIds: StateFlow<Set<Long>> = _suspendedProfileIds.asStateFlow()
+
+    private val _incidents = MutableStateFlow<List<AdminIncident>>(emptyList())
+    val incidents: StateFlow<List<AdminIncident>> = _incidents.asStateFlow()
+
+    private val _attendanceLogs = MutableStateFlow<List<AdminStaffAttendance>>(emptyList())
+    val attendanceLogs: StateFlow<List<AdminStaffAttendance>> = _attendanceLogs.asStateFlow()
+
+    private val _expenseLogs = MutableStateFlow<List<AdminExpenseClaim>>(emptyList())
+    val expenseLogs: StateFlow<List<AdminExpenseClaim>> = _expenseLogs.asStateFlow()
+
+    // Role-Filtered Bookings
+    val clientBookings: StateFlow<List<Booking>> = _currentUser
+        .flatMapLatest { user ->
+            if (user != null && user.role == "client") {
+                repository.getBookingsForClient(user.id)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val clientFavoriteLocations: StateFlow<List<FavoriteLocation>> = _currentUser
+        .flatMapLatest { user ->
+            if (user != null && user.role == "client") {
+                repository.getFavoriteLocationsForClient(user.id)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Active Live Dispatch Trackers
+    private val _activeLiveTrackers = MutableStateFlow<Map<Long, LiveTrackingState>>(emptyMap())
+    val activeLiveTrackers: StateFlow<Map<Long, LiveTrackingState>> = _activeLiveTrackers.asStateFlow()
+
+    val staffBookings: StateFlow<List<Booking>> = _currentUser
+        .flatMapLatest { user ->
+            if (user != null && user.role == "staff") {
+                repository.getBookingsForStaff(user.id)
+            } else {
+                flowOf(emptyList())
+            }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Places Autocomplete
+    private val _addressSearchQuery = MutableStateFlow("")
+    val addressSearchQuery: StateFlow<String> = _addressSearchQuery.asStateFlow()
+
+    private val _addressSuggestions = MutableStateFlow<List<SimulatedPlace>>(emptyList())
+    val addressSuggestions: StateFlow<List<SimulatedPlace>> = _addressSuggestions.asStateFlow()
+
+    // Real Supabase User Management
+    private val _supabaseProfiles = MutableStateFlow<List<AdminProfileRow>>(emptyList())
+    val supabaseProfiles: StateFlow<List<AdminProfileRow>> = _supabaseProfiles.asStateFlow()
+
+    private val _roleManagementError = MutableStateFlow<String?>(null)
+    val roleManagementError: StateFlow<String?> = _roleManagementError.asStateFlow()
+
+    val realStaffProfiles: StateFlow<List<AdminProfileRow>> = _supabaseProfiles
+        .map { rows -> rows.filter { it.role == "staff" } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Staff Live Assigned Bookings (Supabase)
+    private val _myAssignedBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
+    val myAssignedBookings: StateFlow<List<SupabaseBooking>> = _myAssignedBookings.asStateFlow()
+
+    // Admin Supabase Bookings
+    private val _supabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
+    val supabaseBookings: StateFlow<List<SupabaseBooking>> = _supabaseBookings.asStateFlow()
+
+    // Catalog Image Upload
+    private val _supabaseCatalogItems = MutableStateFlow<List<SupabaseCatalogItem>>(emptyList())
+    val supabaseCatalogItems: StateFlow<List<SupabaseCatalogItem>> = _supabaseCatalogItems.asStateFlow()
+
+    private val _isUploadingCatalogImage = MutableStateFlow(false)
+    val isUploadingCatalogImage: StateFlow<Boolean> = _isUploadingCatalogImage.asStateFlow()
+
+    private val storageHttpClient: OkHttpClient by lazy {
+        OkHttpClient.Builder()
+            .connectTimeout(30, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
+            .writeTimeout(30, TimeUnit.SECONDS)
+            .build()
+    }
+
+    val clientCatalogItems: StateFlow<List<CatalogItem>> = _supabaseCatalogItems
+        .map { rows -> rows.filter { it.is_active }.map { it.toCatalogItem() } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    // Password Reset
+    private val _passwordResetError = MutableStateFlow<String?>(null)
+    val passwordResetError: StateFlow<String?> = _passwordResetError.asStateFlow()
+
+    private val _passwordResetSent = MutableStateFlow(false)
+    val passwordResetSent: StateFlow<Boolean> = _passwordResetSent.asStateFlow()
+
+    private val _newPasswordError = MutableStateFlow<String?>(null)
+    val newPasswordError: StateFlow<String?> = _newPasswordError.asStateFlow()
+
+    private val _newPasswordSetSuccessfully = MutableStateFlow(false)
+    val newPasswordSetSuccessfully: StateFlow<Boolean> = _newPasswordSetSuccessfully.asStateFlow()
+
+    private val _bookingSyncMessage = MutableStateFlow<String?>(null)
+    val bookingSyncMessage: StateFlow<String?> = _bookingSyncMessage.asStateFlow()
+
+    // Paystack Payments
+    private val _activePaystackTransaction = MutableStateFlow<CreatePaymentResponse?>(null)
+    val activePaystackTransaction: StateFlow<CreatePaymentResponse?> = _activePaystackTransaction.asStateFlow()
+
+    private val _clientSupabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
+    val clientSupabaseBookings: StateFlow<List<SupabaseBooking>> = _clientSupabaseBookings.asStateFlow()
+
+    private val _lastPaymentStatus = MutableStateFlow<String?>(null)
+    val lastPaymentStatus: StateFlow<String?> = _lastPaymentStatus.asStateFlow()
+
+    // Staff Portal Specifics
+    private val _staffExpenses = MutableStateFlow<List<StaffExpense>>(emptyList())
+    val staffExpenses: StateFlow<List<StaffExpense>> = _staffExpenses.asStateFlow()
+
+    private val _isClockedIn = MutableStateFlow(false)
+    val isClockedIn: StateFlow<Boolean> = _isClockedIn.asStateFlow()
+
+    private val _attendanceHistory = MutableStateFlow<List<AttendanceLog>>(emptyList())
+    val attendanceHistory: StateFlow<List<AttendanceLog>> = _attendanceHistory.asStateFlow()
+
+    private val _inspections = MutableStateFlow<List<DigitalInspection>>(emptyList())
+    val inspections: StateFlow<List<DigitalInspection>> = _inspections.asStateFlow()
+
+    private val _generalChats = MutableStateFlow<List<SupabaseMessage>>(emptyList())
+    val generalChats: StateFlow<List<SupabaseMessage>> = _generalChats.asStateFlow()
+
+    init {
+        viewModelScope.launch {
+            repository.seedDatabaseIfEmpty()
+        }
+    }
+
+    // --- Helper Methods ---
+    fun getCurrentUserId(): String {
+        return SupabaseProvider.client.auth.currentUserOrNull()?.id
+            ?: _currentUser.value?.id?.toString()
+            ?: "guest_user"
+    }
+
+    fun setScreen(screen: String) {
+        _currentScreen.value = screen
+        _loginError.value = null
+        _signUpError.value = null
+    }
+
+    // --- Authentication ---
+    fun loginWithEmail(email: String, requiredRole: String? = null, password: String = "") {
+        viewModelScope.launch {
+            _loginError.value = null
+
+            if (SupabaseProvider.SUPABASE_URL == "YOUR_SUPABASE_URL") {
+                val user = repository.getProfileByEmail(email.trim().lowercase())
+                if (user == null) {
+                    _loginError.value = "Account not found. Please check your email or register a new account."
+                    return@launch
+                }
+
+                if (requiredRole != null && user.role != requiredRole) {
+                    _loginError.value = "Access Denied: Highly secured portal. Privileges unmatched."
+                    return@launch
+                }
+
+                _loginError.value = null
+                _currentUser.value = user
+
+                when (user.role) {
+                    "client" -> _currentScreen.value = "client_dashboard"
+                    "staff" -> _currentScreen.value = "staff_dashboard"
+                    "admin" -> _currentScreen.value = "admin_dashboard"
+                }
+                return@launch
+            }
+
+            try {
+                SupabaseProvider.client.auth.signInWith(Email) {
+                    this.email = email.trim().lowercase()
+                    this.password = password
+                }
+
+                val finalUser = SupabaseProvider.client.auth.currentUserOrNull()
+                val uid = finalUser?.id
+                if (uid == null) {
+                    _loginError.value = "Authentication failed: No valid session returned from Supabase."
+                    return@launch
+                }
+
+                val dbProfile = SupabaseProvider.client.postgrest.from("profiles")
+                    .select {
+                        filter { eq("id", uid) }
+                    }.decodeSingle<SupabaseProfile>()
+
+                val mappedRole = dbProfile.role
+                if (requiredRole != null && mappedRole != requiredRole) {
+                    _loginError.value = "Access Denied: Highly secured portal. Privileges unmatched for role '$requiredRole'."
+                    return@launch
+                }
+
+                val user = UserProfile(
+                    id = 1,
+                    name = dbProfile.full_name ?: email,
+                    email = dbProfile.email,
+                    role = mappedRole,
+                    phoneNumber = dbProfile.phone_number ?: "",
+                    companyName = dbProfile.company_name ?: ""
+                )
+
+                _loginError.value = null
+                _currentUser.value = user
+
+                if (password.isNotBlank()) {
+                    BiometricAuthHelper.saveCredentials(getApplication(), email.trim().lowercase(), password)
+                }
+
+                when (mappedRole) {
+                    "client" -> _currentScreen.value = "client_dashboard"
+                    "staff" -> _currentScreen.value = "staff_dashboard"
+                    "admin" -> _currentScreen.value = "admin_dashboard"
+                }
+            } catch (e: Exception) {
+                _loginError.value = "Supabase Shield Connection: ${e.localizedMessage ?: e.message ?: "Invalid credentials or network failure"}"
+            }
+        }
+    }
+
+    fun signUpUser(name: String, email: String, role: String, phone: String, company: String = "", password: String = "") {
+        if (name.isBlank() || email.isBlank() || phone.isBlank() || password.isBlank()) {
+            _signUpError.value = "All fields except company are mandatory"
+            return
+        }
+        if (password.length < 6) {
+            _signUpError.value = "Password must be at least 6 characters"
+            return
+        }
+        val safeRole = "client"
+        viewModelScope.launch {
+            val existing = repository.getProfileByEmail(email.trim().lowercase())
+            if (existing != null) {
+                _signUpError.value = "Email address already exists in the system"
+                return@launch
+            }
+
+            try {
+                SupabaseProvider.client.auth.signUpWith(Email) {
+                    this.email = email.trim().lowercase()
+                    this.password = password
+                }
+                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
+                if (supaUser != null) {
+                    SupabaseProvider.client.postgrest.from("profiles").update(
+                        buildJsonObject {
+                            put("full_name", name.trim())
+                            put("phone_number", phone.trim())
+                            put("company_name", company.trim())
+                        }
+                    ) {
+                        filter { eq("id", supaUser.id) }
+                    }
+                }
+            } catch (e: Exception) {
+                _signUpError.value = "Could not create account: ${e.message}"
+                return@launch
+            }
+
+            val userId = repository.registerProfile(
+                name = name.trim(),
+                email = email.trim().lowercase(),
+                role = safeRole,
+                phone = phone.trim(),
+                company = company.trim()
+            )
+
+            _signUpError.value = null
+            val newUser = repository.getProfileById(userId)
+            _currentUser.value = newUser
+
+            if (newUser != null) {
+                when (newUser.role) {
+                    "client" -> _currentScreen.value = "client_dashboard"
+                    "staff" -> _currentScreen.value = "staff_dashboard"
+                    "admin" -> _currentScreen.value = "admin_dashboard"
+                }
+            }
+        }
+    }
+
+    fun logout() {
+        _currentUser.value = null
+        _currentScreen.value = "login"
+    }
+
+    // --- Profile Settings Handlers ---
     fun updateUserProfileInfo(name: String, email: String, phone: String, company: String) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -275,17 +604,17 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun submitSupportTicket(subject: String, category: String, description: String) {
-        val list = _ticketHistory.value.toMutableList()
-        val ticket = SupportTicket(
-            id = "SCH-${1000 + list.size}",
-            subject = subject,
-            category = category,
-            description = description,
-            status = "Open",
-            date = "June 12, 2026 at 13:30"
-        )
-        list.add(0, ticket)
-        _ticketHistory.value = list
+        _ticketHistory.update { list ->
+            val ticket = SupportTicket(
+                id = "SCH-${1000 + list.size}",
+                subject = subject,
+                category = category,
+                description = description,
+                status = "Open",
+                date = SimpleDateFormat("MMM d, yyyy 'at' HH:mm", Locale.getDefault()).format(Date())
+            )
+            listOf(ticket) + list
+        }
     }
 
     fun deactivateAccount() {
@@ -294,334 +623,11 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     }
 
     fun deleteAccount() {
-        val user = _currentUser.value
-        if (user != null) {
-            viewModelScope.launch {
-                // Remove or deactivate profile in DB if needed; for now, log out and close
-                _currentUser.value = null
-                _currentScreen.value = "login"
-            }
-        }
+        _currentUser.value = null
+        _currentScreen.value = "login"
     }
 
-    private val _loginError = MutableStateFlow<String?>(null)
-    val loginError: StateFlow<String?> = _loginError.asStateFlow()
-
-    private val _signUpError = MutableStateFlow<String?>(null)
-    val signUpError: StateFlow<String?> = _signUpError.asStateFlow()
-
-    // Screen state
-    private val _currentScreen = MutableStateFlow("splash") // splash, login, register, forgot_password, client_dashboard, staff_dashboard, admin_dashboard
-    val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
-
-    // Core Listings
-    val allBookings: StateFlow<List<Booking>> = repository.allBookings
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val staffProfiles: StateFlow<List<UserProfile>> = repository.staffProfiles
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val allPayments: StateFlow<List<Payment>> = repository.allPayments
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val allConsultations: StateFlow<List<Consultation>> = repository.allConsultations
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val allReviews: StateFlow<List<Review>> = repository.allReviews
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val catalogItems: StateFlow<List<CatalogItem>> = repository.allCatalogItems
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // --- Enterprise Admin Center Flows ---
-    val allProfiles: StateFlow<List<UserProfile>> = repository.allProfiles
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    private val _suspendedProfileIds = MutableStateFlow<Set<Long>>(emptySet())
-    val suspendedProfileIds: StateFlow<Set<Long>> = _suspendedProfileIds.asStateFlow()
-
-    private val _incidents = MutableStateFlow<List<AdminIncident>>(emptyList())
-    val incidents: StateFlow<List<AdminIncident>> = _incidents.asStateFlow()
-
-    private val _attendanceLogs = MutableStateFlow<List<AdminStaffAttendance>>(emptyList())
-    val attendanceLogs: StateFlow<List<AdminStaffAttendance>> = _attendanceLogs.asStateFlow()
-
-    private val _expenseLogs = MutableStateFlow<List<AdminExpenseClaim>>(emptyList())
-    val expenseLogs: StateFlow<List<AdminExpenseClaim>> = _expenseLogs.asStateFlow()
-
-    fun toggleProfileSuspension(id: Long) {
-        _suspendedProfileIds.value = if (_suspendedProfileIds.value.contains(id)) {
-            _suspendedProfileIds.value - id
-        } else {
-            _suspendedProfileIds.value + id
-        }
-    }
-
-    fun addNewStaffProfile(name: String, email: String, phone: String) {
-        viewModelScope.launch {
-            repository.registerProfile(name = name, email = email, role = "staff", phone = phone)
-        }
-    }
-
-    fun createIncident(title: String, reporter: String, priority: String, details: String) {
-        val current = _incidents.value.toMutableList()
-        val newId = "INC-${100 + current.size + 1}"
-        current.add(0, AdminIncident(newId, title, reporter, priority, "Open", "June 12, 2026", details))
-        _incidents.value = current
-    }
-
-    fun approveExpenseClaim(id: String) {
-        val current = _expenseLogs.value.map {
-            if (it.id == id) it.copy(status = "Approved") else it
-        }
-        _expenseLogs.value = current
-    }
-
-    fun rejectExpenseClaim(id: String) {
-        val current = _expenseLogs.value.map {
-            if (it.id == id) it.copy(status = "Rejected") else it
-        }
-        _expenseLogs.value = current
-    }
-
-    fun submitExpenseFromAdmin(staffName: String, category: String, amount: Double, details: String) {
-        val current = _expenseLogs.value.toMutableList()
-        val newId = "EXP-${900 + current.size + 1}"
-        current.add(0, AdminExpenseClaim(newId, staffName, category, amount, details, "Approved", "June 12, 2026"))
-        _expenseLogs.value = current
-    }
-
-    // Role-Filtered Bookings & Consultations
-    val clientBookings: StateFlow<List<Booking>> = _currentUser
-        .flatMapLatest { user ->
-            if (user != null && user.role == "client") {
-                repository.getBookingsForClient(user.id)
-            } else {
-                flowOf(emptyList())
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val clientFavoriteLocations: StateFlow<List<FavoriteLocation>> = _currentUser
-        .flatMapLatest { user ->
-            if (user != null && user.role == "client") {
-                repository.getFavoriteLocationsForClient(user.id)
-            } else {
-                flowOf(emptyList())
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // --- Real-time Active Location Tracking State Map ---
-    private val _activeLiveTrackers = MutableStateFlow<Map<Long, LiveTrackingState>>(emptyMap())
-    val activeLiveTrackers: StateFlow<Map<Long, LiveTrackingState>> = _activeLiveTrackers.asStateFlow()
-
-    val clientConsultations: StateFlow<List<Consultation>> = _currentUser
-        .flatMapLatest { user ->
-            if (user != null && user.role == "client") {
-                repository.getConsultationsForClient(user.id)
-            } else {
-                flowOf(emptyList())
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    val staffBookings: StateFlow<List<Booking>> = _currentUser
-        .flatMapLatest { user ->
-            if (user != null && user.role == "staff") {
-                repository.getBookingsForStaff(user.id)
-            } else {
-                flowOf(emptyList())
-            }
-        }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // Address Lookup Simulator State
-    private val _addressSearchQuery = MutableStateFlow("")
-    val addressSearchQuery: StateFlow<String> = _addressSearchQuery.asStateFlow()
-
-    private val _addressSuggestions = MutableStateFlow<List<SimulatedPlace>>(emptyList())
-    val addressSuggestions: StateFlow<List<SimulatedPlace>> = _addressSuggestions.asStateFlow()
-
-    init {
-        viewModelScope.launch {
-            repository.seedDatabaseIfEmpty()
-        }
-    }
-
-    // --- Navigation & Auth Actions ---
-    fun setScreen(screen: String) {
-        _currentScreen.value = screen
-        _loginError.value = null
-        _signUpError.value = null
-    }
-
-    fun loginWithEmail(email: String, requiredRole: String? = null, password: String = "") {
-        viewModelScope.launch {
-            _loginError.value = null
-
-            if (SupabaseProvider.SUPABASE_URL == "YOUR_SUPABASE_URL") {
-                // FALLBACK LOGIN FOR PREVIEW / OFFLINE MODE
-                val user = repository.getProfileByEmail(email.trim().lowercase())
-                if (user == null) {
-                    _loginError.value = "Account not found. Please check your email or register a new account."
-                    return@launch
-                }
-
-                if (requiredRole != null && user.role != requiredRole) {
-                    _loginError.value = "Access Denied: Highly secured portal. Privileges unmatched."
-                    return@launch
-                }
-
-                _loginError.value = null
-                _currentUser.value = user
-
-                when (user.role) {
-                    "client" -> _currentScreen.value = "client_dashboard"
-                    "staff" -> _currentScreen.value = "staff_dashboard"
-                    "admin" -> _currentScreen.value = "admin_dashboard"
-                }
-                return@launch
-            }
-
-            // REAL SUPABASE + POSTGRESQL FLOW
-            try {
-                SupabaseProvider.client.auth.signInWith(Email) {
-                    this.email = email.trim().lowercase()
-                    this.password = password
-                }
-
-                val finalUser = SupabaseProvider.client.auth.currentUserOrNull()
-                val uid = finalUser?.id
-                if (uid == null) {
-                    _loginError.value = "Authentication failed: No valid session returned from Supabase."
-                    return@launch
-                }
-
-                // Fetch profile record
-                val dbProfile = SupabaseProvider.client.postgrest.from("profiles")
-                    .select {
-                        filter {
-                            eq("id", uid)
-                        }
-                    }.decodeSingle<SupabaseProfile>()
-
-                val mappedRole = dbProfile.role // 'client' | 'staff' | 'admin'
-                if (requiredRole != null && mappedRole != requiredRole) {
-                    _loginError.value = "Access Denied: Highly secured portal. Privileges unmatched for role '$requiredRole'."
-                    return@launch
-                }
-
-                val user = UserProfile(
-                    id = 1,
-                    name = dbProfile.full_name ?: email,
-                    email = dbProfile.email,
-                    role = mappedRole,
-                    phoneNumber = dbProfile.phone_number ?: "",
-                    companyName = dbProfile.company_name ?: ""
-                )
-
-                _loginError.value = null
-                _currentUser.value = user
-
-                if (password.isNotBlank()) {
-                    BiometricAuthHelper.saveCredentials(getApplication(), email.trim().lowercase(), password)
-                }
-
-                when (mappedRole) {
-                    "client" -> _currentScreen.value = "client_dashboard"
-                    "staff" -> _currentScreen.value = "staff_dashboard"
-                    "admin" -> _currentScreen.value = "admin_dashboard"
-                }
-            } catch (e: Exception) {
-                _loginError.value = "Supabase Shield Connection: ${e.localizedMessage ?: e.message ?: "Invalid credentials or network failure"}"
-            }
-        }
-    }
-
-
-    fun signUpUser(name: String, email: String, role: String, phone: String, company: String = "", password: String = "") {
-        if (name.isBlank() || email.isBlank() || phone.isBlank() || password.isBlank()) {
-            _signUpError.value = "All fields except company are mandatory"
-            return
-        }
-        if (password.length < 6) {
-            _signUpError.value = "Password must be at least 6 characters"
-            return
-        }
-        // Public sign-up always creates a client account - role is not
-        // caller-controlled. Staff/admin are granted later via the
-        // ManageUserRolesPanel by an existing admin (or the DB trigger
-        // blocks it anyway).
-        val safeRole = "client"
-        viewModelScope.launch {
-            val existing = repository.getProfileByEmail(email.trim().lowercase())
-            if (existing != null) {
-                _signUpError.value = "Email address already exists in the system"
-                return@launch
-            }
-
-            // Creates the real Supabase account - this is what makes the user
-            // actually show up in Supabase Authentication / the profiles table.
-            // "Confirm email" should be OFF in Supabase for this to log the
-            // user in immediately without needing an email verification step.
-            try {
-                SupabaseProvider.client.auth.signUpWith(Email) {
-                    this.email = email.trim().lowercase()
-                    this.password = password
-                }
-                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
-                if (supaUser != null) {
-                    SupabaseProvider.client.postgrest.from("profiles").update(
-                        buildJsonObject {
-                            put("full_name", name.trim())
-                            put("phone_number", phone.trim())
-                            put("company_name", company.trim())
-                        }
-                    ) {
-                        filter { eq("id", supaUser.id) }
-                    }
-                }
-            } catch (e: Exception) {
-                _signUpError.value = "Could not create account: ${e.message}"
-                return@launch
-            }
-
-            // Mirrors into the local Room database, since the rest of the app
-            // still runs on local Long ids, not Supabase uuids yet.
-            val userId = repository.registerProfile(
-                name = name.trim(),
-                email = email.trim().lowercase(),
-                role = safeRole,
-                phone = phone.trim(),
-                company = company.trim()
-            )
-
-            _signUpError.value = null
-            val newUser = repository.getProfileById(userId)
-            _currentUser.value = newUser
-
-            if (newUser != null) {
-                when (newUser.role) {
-                    "client" -> _currentScreen.value = "client_dashboard"
-                    "staff" -> _currentScreen.value = "staff_dashboard"
-                    "admin" -> _currentScreen.value = "admin_dashboard"
-                }
-            }
-        }
-    }
-
-    // --- Admin: real Supabase role management ---
-    // Independent of the local Room-based staff list above - this talks
-    // directly to the live profiles table, since that's what actually
-    // controls access (the DB trigger blocks non-admins from changing role;
-    // this lets an actual admin do it from within the app).
-    private val _supabaseProfiles = MutableStateFlow<List<AdminProfileRow>>(emptyList())
-    val supabaseProfiles: StateFlow<List<AdminProfileRow>> = _supabaseProfiles.asStateFlow()
-
-    private val _roleManagementError = MutableStateFlow<String?>(null)
-    val roleManagementError: StateFlow<String?> = _roleManagementError.asStateFlow()
-
+    // --- Supabase Profiles Management ---
     fun loadSupabaseProfiles() {
         viewModelScope.launch {
             try {
@@ -636,81 +642,51 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // The real staff roster - derived from the same live profiles data
-    // used on the Manage Roles screen, filtered to role == "staff". This
-    // replaces the old local-only staffProfiles (repository.staffProfiles,
-    // a Room table that was never connected to real accounts - admin had
-    // no real staff to assign work to, and a hardcoded fake name
-    // ("David Staff james") was shown wherever nobody was assigned).
-    val realStaffProfiles: StateFlow<List<AdminProfileRow>> = _supabaseProfiles
-        .map { rows -> rows.filter { it.role == "staff" } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    // Assigns a real staff account to a real Supabase booking (the one
-    // admin actually manages in the Quotations Console). The old
-    // adminAssignStaffToBooking only touched local Room data, which had no
-    // connection to the real bookings clients actually create and pay for.
-    fun adminAssignStaffToSupabaseBooking(bookingId: String, staffId: String, staffName: String, onComplete: () -> Unit = {}) {
+    fun adminSetUserRole(userId: String, newRole: String) {
         viewModelScope.launch {
             try {
-                SupabaseProvider.client.postgrest.from("bookings").update(
-                    buildJsonObject {
-                        put("assigned_staff_id", staffId)
-                        put("assigned_staff_name", staffName)
-                        put("status", "Staff Assigned")
-                    }
+                SupabaseProvider.client.postgrest.from("profiles").update(
+                    buildJsonObject { put("role", newRole) }
                 ) {
-                    filter { eq("id", bookingId) }
+                    filter { eq("id", userId) }
                 }
-                loadSupabaseBookings()
+                loadSupabaseProfiles()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not update role: ${e.message}"
+            }
+        }
+    }
+
+    fun adminDeleteUserProfile(userId: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("profiles").delete {
+                    filter { eq("id", userId) }
+                }
+                loadSupabaseProfiles()
                 onComplete()
             } catch (e: Exception) {
-                _roleManagementError.value = "Could not assign staff: ${e.message}"
+                _roleManagementError.value = "Could not delete user: ${e.message}"
             }
         }
     }
 
-    // --- Staff: their own real assigned jobs (the other half of the
-    // admin<->staff connection - admin assigns a real staff member to a
-    // real booking above, this is how that staff member actually sees it).
-    private val _myAssignedBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
-    val myAssignedBookings: StateFlow<List<SupabaseBooking>> = _myAssignedBookings.asStateFlow()
-
-    fun loadMyAssignedBookings() {
+    fun adminSetProfileSuspended(userId: String, suspended: Boolean) {
         viewModelScope.launch {
             try {
-                val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id ?: return@launch
-                val rows = SupabaseProvider.client.postgrest.from("bookings")
-                    .select {
-                        filter { eq("assigned_staff_id", uid) }
-                    }
-                    .decodeList<SupabaseBooking>()
-                _myAssignedBookings.value = rows
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not load assigned jobs: ${e.message}"
-            }
-        }
-    }
-
-    fun staffUpdateBookingStatus(bookingId: String, newStatus: String) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("bookings").update(
-                    buildJsonObject { put("status", newStatus) }
+                SupabaseProvider.client.postgrest.from("profiles").update(
+                    buildJsonObject { put("suspended", suspended) }
                 ) {
-                    filter { eq("id", bookingId) }
+                    filter { eq("id", userId) }
                 }
-                loadMyAssignedBookings()
+                loadSupabaseProfiles()
             } catch (e: Exception) {
-                _roleManagementError.value = "Could not update job status: ${e.message}"
+                _roleManagementError.value = "Could not update status: ${e.message}"
             }
         }
     }
 
-    // --- Admin: real Supabase bookings (quotations console) ---
-    private val _supabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
-    val supabaseBookings: StateFlow<List<SupabaseBooking>> = _supabaseBookings.asStateFlow()
-
+    // --- Bookings & Quotation Workflows ---
     fun loadSupabaseBookings() {
         viewModelScope.launch {
             try {
@@ -768,28 +744,190 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Admin: real Supabase catalog items ---
-    private val _supabaseCatalogItems = MutableStateFlow<List<SupabaseCatalogItem>>(emptyList())
-    val supabaseCatalogItems: StateFlow<List<SupabaseCatalogItem>> = _supabaseCatalogItems.asStateFlow()
+    fun adminAssignStaffToSupabaseBooking(
+        bookingId: String,
+        staffId: String,
+        staffName: String,
+        onComplete: (Boolean) -> Unit = {}
+    ) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("bookings").update(
+                    buildJsonObject {
+                        put("assigned_staff_id", staffId)
+                        put("assigned_staff_name", staffName)
+                        put("status", "Staff Assigned")
+                    }
+                ) {
+                    filter { eq("id", bookingId) }
+                }
+                loadSupabaseBookings()
+                _roleManagementError.value = null
+                onComplete(true)
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not assign staff: ${e.message}"
+                onComplete(false)
+            }
+        }
+    }
 
-    private val _isUploadingCatalogImage = MutableStateFlow(false)
-    val isUploadingCatalogImage: StateFlow<Boolean> = _isUploadingCatalogImage.asStateFlow()
+    fun loadMyAssignedBookings() {
+        viewModelScope.launch {
+            try {
+                val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id
+                if (uid == null) {
+                    val localEmail = _currentUser.value?.email
+                    if (localEmail != null) {
+                        val rows = SupabaseProvider.client.postgrest.from("bookings")
+                            .select {
+                                filter { eq("assigned_staff_name", _currentUser.value?.name ?: "") }
+                            }
+                            .decodeList<SupabaseBooking>()
+                        _myAssignedBookings.value = rows
+                    }
+                    return@launch
+                }
 
-    // Uploads a picked image (content:// Uri from the photo picker) to the
-    // Supabase "catalog-images" storage bucket and returns its public URL.
-    // Previously the picker's local content:// Uri was saved directly as
-    // image_url - that URI only resolves on the admin's own device/session,
-    // which is why images never showed up on the client side. Run the SQL
-    // in the accompanying setup script to create the bucket before this
-    // will succeed.
-    //
-    // Uses a raw OkHttp call to Supabase's Storage REST API instead of the
-    // supabase-kt "storage-kt" SDK module: that module ships a non-standard
-    // Kotlin Multiplatform source-set layout that fails to resolve its
-    // Android classes in this project's Gradle/Kotlin setup (compile error:
-    // "Unresolved reference 'Storage'"). The REST endpoint is stable and
-    // documented, so this sidesteps that entirely.
-    private val storageHttpClient by lazy { OkHttpClient() }
+                val rows = SupabaseProvider.client.postgrest.from("bookings")
+                    .select {
+                        filter { eq("assigned_staff_id", uid) }
+                    }
+                    .decodeList<SupabaseBooking>()
+                _myAssignedBookings.value = rows
+                _roleManagementError.value = null
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not load assigned jobs: ${e.message}"
+            }
+        }
+    }
+
+    fun staffUpdateBookingStatus(bookingId: String, newStatus: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("bookings").update(
+                    buildJsonObject { put("status", newStatus) }
+                ) {
+                    filter { eq("id", bookingId) }
+                }
+                loadMyAssignedBookings()
+                loadSupabaseBookings()
+                onComplete()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not update job status: ${e.message}"
+            }
+        }
+    }
+
+    fun staffUpdateLocalBookingStatus(bookingId: Long, status: String) {
+        viewModelScope.launch {
+            repository.updateBookingStatus(bookingId, status)
+        }
+    }
+
+    fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            repository.insertBooking(booking)
+
+            try {
+                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
+                if (supaUser != null) {
+                    SupabaseProvider.client.postgrest.from("bookings").insert(
+                        NewSupabaseBooking(
+                            client_id = supaUser.id,
+                            client_name = booking.clientName,
+                            client_phone = booking.clientPhone,
+                            client_email = booking.clientEmail,
+                            company_name = booking.companyName,
+                            service_mode = booking.serviceMode,
+                            service_type = booking.serviceType,
+                            variant_name = booking.variantName,
+                            model_number = booking.modelNumber,
+                            quantity = booking.quantity,
+                            duration = booking.duration,
+                            address = booking.address,
+                            latitude = booking.latitude,
+                            longitude = booking.longitude,
+                            venue_name = booking.venueName,
+                            event_type = booking.eventType,
+                            guest_count = booking.guestCount,
+                            event_date = booking.eventDate,
+                            cleaning_support = booking.cleaningSupport,
+                            on_site_attendant = booking.onSiteAttendant,
+                            waste_evacuation = booking.wasteEvacuation,
+                            maintenance_support = booking.maintenanceSupport,
+                            special_instructions = booking.specialInstructions
+                        )
+                    )
+                    _bookingSyncMessage.value = "synced"
+                } else {
+                    _bookingSyncMessage.value = "no_supabase_session"
+                }
+            } catch (e: Exception) {
+                _bookingSyncMessage.value = "sync_failed: ${e.message}"
+            }
+
+            onComplete()
+        }
+    }
+
+    fun clientConvertCopyToBooking(
+        bookingId: Long,
+        serviceDate: String,
+        duration: String,
+        deliveryAddress: String,
+        specialInstructions: String,
+        onComplete: () -> Unit
+    ) {
+        viewModelScope.launch {
+            val booking = database.sashioDao().getBookingById(bookingId)
+            if (booking != null) {
+                val updatedBooking = booking.copy(
+                    eventDate = serviceDate,
+                    duration = duration,
+                    address = deliveryAddress,
+                    specialInstructions = specialInstructions,
+                    status = "Client Accepted"
+                )
+                repository.updateBooking(updatedBooking)
+                onComplete()
+            }
+        }
+    }
+
+    fun clientRejectQuotation(bookingId: Long, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            repository.updateBookingStatus(bookingId, "Cancelled")
+            onComplete()
+        }
+    }
+
+    fun clientRequestRevision(bookingId: Long, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            repository.updateBookingStatus(bookingId, "Under Review")
+            onComplete()
+        }
+    }
+
+    fun adminAssignStaffToBooking(bookingId: Long, staffId: Long) {
+        viewModelScope.launch {
+            repository.assignBooking(bookingId, staffId)
+        }
+    }
+
+    // --- Supabase Catalog Items ---
+    fun loadSupabaseCatalogItems() {
+        viewModelScope.launch {
+            try {
+                val rows = SupabaseProvider.client.postgrest.from("catalog_items")
+                    .select()
+                    .decodeList<SupabaseCatalogItem>()
+                _supabaseCatalogItems.value = rows
+                _roleManagementError.value = null
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not load catalog: ${e.message}"
+            }
+        }
+    }
 
     fun uploadCatalogImage(uri: Uri, onResult: (String?) -> Unit) {
         viewModelScope.launch {
@@ -804,7 +942,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 }
                 val mimeType = context.contentResolver.getType(uri)?.takeIf { it.isNotBlank() } ?: "image/jpeg"
                 val ext = mimeType.substringAfter("/").takeIf { it.isNotBlank() } ?: "jpg"
-                val path = "products/${java.util.UUID.randomUUID()}.$ext"
+                val path = "products/${UUID.randomUUID()}.$ext"
 
                 val accessToken = SupabaseProvider.client.auth.currentAccessTokenOrNull()
                     ?: SupabaseProvider.SUPABASE_ANON_KEY
@@ -822,7 +960,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 }
 
                 if (!success) {
-                    _roleManagementError.value = "Image upload failed. Check the catalog-images bucket exists and RLS policies allow this admin to upload."
+                    _roleManagementError.value = "Image upload failed. Verify storage bucket and RLS policies."
                     onResult(null)
                     return@launch
                 }
@@ -839,27 +977,43 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-
-    // What clients actually browse in the Product Discovery tab. This is the
-    // same Supabase-backed data the admin manages (titles, descriptions,
-    // images) — the old local-Room catalogItems flow never reflected admin
-    // edits, which is why images added in the admin panel weren't visible
-    // to clients. Inactive items (is_active = false) are hidden from clients
-    // but still editable by admin.
-    val clientCatalogItems: StateFlow<List<CatalogItem>> = _supabaseCatalogItems
-        .map { rows -> rows.filter { it.is_active }.map { it.toCatalogItem() } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-    fun loadSupabaseCatalogItems() {
+    fun adminAddSupabaseCatalogItem(
+        title: String,
+        description: String,
+        modelNumber: String,
+        variantName: String,
+        basePrice: Double,
+        imageUrl: String,
+        imageUrls: List<String>,
+        videoUrl: String,
+        features: String,
+        specifications: String,
+        benefits: String,
+        useCases: String,
+        onComplete: () -> Unit
+    ) {
         viewModelScope.launch {
             try {
-                val rows = SupabaseProvider.client.postgrest.from("catalog_items")
-                    .select()
-                    .decodeList<SupabaseCatalogItem>()
-                _supabaseCatalogItems.value = rows
-                _roleManagementError.value = null
+                SupabaseProvider.client.postgrest.from("catalog_items").insert(
+                    NewSupabaseCatalogItem(
+                        title = title,
+                        description = description,
+                        model_number = modelNumber,
+                        variant_name = variantName,
+                        base_price = basePrice,
+                        image_url = imageUrl,
+                        image_urls = imageUrls,
+                        video_url = videoUrl,
+                        features = features,
+                        specifications = specifications,
+                        benefits = benefits,
+                        use_cases = useCases
+                    )
+                )
+                loadSupabaseCatalogItems()
+                onComplete()
             } catch (e: Exception) {
-                _roleManagementError.value = "Could not load catalog: ${e.message}"
+                _roleManagementError.value = "Could not add catalog item: ${e.message}"
             }
         }
     }
@@ -908,48 +1062,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun adminAddSupabaseCatalogItem(
-        title: String,
-        description: String,
-        modelNumber: String,
-        variantName: String,
-        basePrice: Double,
-        imageUrl: String,
-        imageUrls: List<String>,
-        videoUrl: String,
-        features: String,
-        specifications: String,
-        benefits: String,
-        useCases: String,
-        onComplete: () -> Unit
-    ) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("catalog_items").insert(
-                    NewSupabaseCatalogItem(
-                        title = title,
-                        description = description,
-                        model_number = modelNumber,
-                        variant_name = variantName,
-                        base_price = basePrice,
-                        image_url = imageUrl,
-                        image_urls = imageUrls,
-                        video_url = videoUrl,
-                        features = features,
-                        specifications = specifications,
-                        benefits = benefits,
-                        use_cases = useCases
-                    )
-                )
-                loadSupabaseCatalogItems()
-                onComplete()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not add catalog item: ${e.message}"
-            }
-        }
-    }
-
-    // Admin: permanently remove a product from the catalog (hard delete).
     fun adminDeleteSupabaseCatalogItem(id: String, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
             try {
@@ -964,67 +1076,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-
-    fun adminSetUserRole(userId: String, newRole: String) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("profiles").update(
-                    buildJsonObject { put("role", newRole) }
-                ) {
-                    filter { eq("id", userId) }
-                }
-                loadSupabaseProfiles()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not update role: ${e.message}"
-            }
-        }
-    }
-
-    // Removes a user's profile row so they no longer appear anywhere in the
-    // app (catalogs, bookings, staff lists, etc.). Note: this does not
-    // delete their actual Supabase Auth login - that requires the admin API
-    // with a service-role key, which can't run from the app directly. If
-    // they're not also removed from Auth, they could still sign in and a
-    // new blank profile would get created for them on next login.
-    fun adminDeleteUserProfile(userId: String, onComplete: () -> Unit = {}) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("profiles").delete {
-                    filter { eq("id", userId) }
-                }
-                loadSupabaseProfiles()
-                onComplete()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not delete user: ${e.message}"
-            }
-        }
-    }
-
-    fun adminSetProfileSuspended(userId: String, suspended: Boolean) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("profiles").update(
-                    buildJsonObject { put("suspended", suspended) }
-                ) {
-                    filter { eq("id", userId) }
-                }
-                loadSupabaseProfiles()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not update status: ${e.message}"
-            }
-        }
-    }
-
-    private val _passwordResetError = MutableStateFlow<String?>(null)
-    val passwordResetError: StateFlow<String?> = _passwordResetError.asStateFlow()
-
-    private val _passwordResetSent = MutableStateFlow(false)
-    val passwordResetSent: StateFlow<Boolean> = _passwordResetSent.asStateFlow()
-
-    // Sends a real Supabase password-recovery email. redirectUrl points at a
-    // deep link (see AndroidManifest.xml + MainActivity) that brings the
-    // person back into the app on the "set_new_password" screen once they
-    // tap the link, instead of a web page.
+    // --- Password Reset & Recovery ---
     fun resetPassword(email: String) {
         if (email.isBlank() || !email.contains("@")) {
             _passwordResetError.value = "Enter a valid email address."
@@ -1035,7 +1087,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             try {
                 SupabaseProvider.client.auth.resetPasswordForEmail(
-                    email = email,
+                    email = email.trim(),
                     redirectUrl = "sachioexpress://reset-password"
                 )
                 _passwordResetSent.value = true
@@ -1045,9 +1097,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // Called once the person taps the reset link and lands back in the app
-    // (MainActivity extracts the tokens from the deep link). Establishes the
-    // recovery session so updateUserPassword() below is allowed to run.
     fun beginPasswordRecoverySession(accessToken: String, refreshToken: String) {
         viewModelScope.launch {
             try {
@@ -1058,12 +1107,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
-
-    private val _newPasswordError = MutableStateFlow<String?>(null)
-    val newPasswordError: StateFlow<String?> = _newPasswordError.asStateFlow()
-
-    private val _newPasswordSetSuccessfully = MutableStateFlow(false)
-    val newPasswordSetSuccessfully: StateFlow<Boolean> = _newPasswordSetSuccessfully.asStateFlow()
 
     fun updateUserPassword(newPassword: String) {
         if (newPassword.length < 6) {
@@ -1083,197 +1126,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun logout() {
-        _currentUser.value = null
-        _currentScreen.value = "login"
-    }
-
-    // --- Bookings & Quotation Request Management ---
-    private val _bookingSyncMessage = MutableStateFlow<String?>(null)
-    val bookingSyncMessage: StateFlow<String?> = _bookingSyncMessage.asStateFlow()
-
-    fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
-        viewModelScope.launch {
-            repository.insertBooking(booking)
-
-            // Also creates the real booking in Supabase, so it shows up for
-            // admin in the live Quotations Console. Requires the client to
-            // be signed in with a real Supabase account - if not (e.g. still
-            // using an old local-only demo account), this is skipped.
-            try {
-                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
-                if (supaUser != null) {
-                    SupabaseProvider.client.postgrest.from("bookings").insert(
-                        NewSupabaseBooking(
-                            client_id = supaUser.id,
-                            client_name = booking.clientName,
-                            client_phone = booking.clientPhone,
-                            client_email = booking.clientEmail,
-                            company_name = booking.companyName,
-                            service_mode = booking.serviceMode,
-                            service_type = booking.serviceType,
-                            variant_name = booking.variantName,
-                            model_number = booking.modelNumber,
-                            quantity = booking.quantity,
-                            duration = booking.duration,
-                            address = booking.address,
-                            latitude = booking.latitude,
-                            longitude = booking.longitude,
-                            venue_name = booking.venueName,
-                            event_type = booking.eventType,
-                            guest_count = booking.guestCount,
-                            cleaning_support = booking.cleaningSupport,
-                            on_site_attendant = booking.onSiteAttendant,
-                            waste_evacuation = booking.wasteEvacuation,
-                            maintenance_support = booking.maintenanceSupport,
-                            special_instructions = booking.specialInstructions
-                        )
-                    )
-                    _bookingSyncMessage.value = "synced"
-                } else {
-                    _bookingSyncMessage.value = "no_supabase_session"
-                }
-            } catch (e: Exception) {
-                _bookingSyncMessage.value = "sync_failed: ${e.message}"
-            }
-
-            onComplete()
-        }
-    }
-
-    // Admin pricing and quotation generation
-    fun adminGenerateQuotation(
-        bookingId: Long,
-        quotedPrice: Double,
-        logisticsCost: Double,
-        vatAmount: Double,
-        adminNotes: String,
-        onComplete: () -> Unit
-    ) {
-        viewModelScope.launch {
-            val booking = database.sashioDao().getBookingById(bookingId)
-            if (booking != null) {
-                val updatedBooking = booking.copy(
-                    quotedPrice = quotedPrice,
-                    logisticsCost = logisticsCost,
-                    vatAmount = vatAmount,
-                    adminNotes = adminNotes,
-                    quoteIssuedDate = System.currentTimeMillis(),
-                    status = "Quotation Sent"
-                )
-                repository.updateBooking(updatedBooking)
-                onComplete()
-            }
-        }
-    }
-
-    // Admin rejects request
-    fun adminRejectQuotationRequest(bookingId: Long, onComplete: () -> Unit) {
-        viewModelScope.launch {
-            repository.updateBookingStatus(bookingId, "CANCELLED")
-            onComplete()
-        }
-    }
-
-    // Admin catalog management
-    fun adminAddCatalogItem(
-        title: String,
-        description: String,
-        modelNumber: String,
-        variantName: String,
-        basePrice: Double,
-        imageUrl: String,
-        videoUrl: String = "",
-        features: String = "",
-        specifications: String = "",
-        benefits: String = "",
-        useCases: String = "",
-        onComplete: () -> Unit
-    ) {
-        viewModelScope.launch {
-            repository.insertCatalogItem(
-                CatalogItem(
-                    title = title,
-                    description = description,
-                    modelNumber = modelNumber,
-                    variantName = variantName,
-                    basePrice = basePrice,
-                    imageUrl = imageUrl,
-                    videoUrl = videoUrl,
-                    features = features,
-                    specifications = specifications,
-                    benefits = benefits,
-                    useCases = useCases
-                )
-            )
-            onComplete()
-        }
-    }
-
-    // Client accepts generated quotation
-    fun clientAcceptQuotation(bookingId: Long, onComplete: () -> Unit) {
-        viewModelScope.launch {
-            repository.updateBookingStatus(bookingId, "Client Accepted")
-            onComplete()
-        }
-    }
-
-    // Client converts quotation to booking, confirming service details and updating dates/dates/location/instructions
-    fun clientConvertCopyToBooking(
-        bookingId: Long,
-        serviceDate: String,
-        duration: String,
-        deliveryAddress: String,
-        specialInstructions: String,
-        onComplete: () -> Unit
-    ) {
-        viewModelScope.launch {
-            val booking = database.sashioDao().getBookingById(bookingId)
-            if (booking != null) {
-                val updatedBooking = booking.copy(
-                    eventDate = serviceDate,
-                    duration = duration,
-                    address = deliveryAddress,
-                    specialInstructions = specialInstructions,
-                    status = "Client Accepted"
-                )
-                repository.updateBooking(updatedBooking)
-                onComplete()
-            }
-        }
-    }
-
-    // Client rejects generated quotation
-    fun clientRejectQuotation(bookingId: Long, onComplete: () -> Unit) {
-        viewModelScope.launch {
-            repository.updateBookingStatus(bookingId, "Cancelled")
-            onComplete()
-        }
-    }
-
-    // Client requests revision for generated quotation
-    fun clientRequestRevision(bookingId: Long, onComplete: () -> Unit) {
-        viewModelScope.launch {
-            repository.updateBookingStatus(bookingId, "Under Review")
-            onComplete()
-        }
-    }
-
-    // Assigning crew (admin)
-    fun adminAssignStaffToBooking(bookingId: Long, staffId: Long) {
-        viewModelScope.launch {
-            repository.assignBooking(bookingId, staffId)
-        }
-    }
-
-    // Updating status by Crew (staff)
-    fun staffUpdateBookingStatus(bookingId: Long, status: String) {
-        viewModelScope.launch {
-            repository.updateBookingStatus(bookingId, status)
-        }
-    }
-
-    // --- Consultation Actions ---
+    // --- Consultations & Reviews ---
     fun bookConsultation(type: String, preferredDate: String, notes: String, onComplete: () -> Unit) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1293,7 +1146,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Reviews Actions ---
     fun submitReview(rating: Int, comment: String, category: String, onComplete: () -> Unit) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1303,17 +1155,14 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                     rating = rating,
                     comment = comment,
                     category = category,
-                    date = "Today"
+                    date = SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date())
                 )
             )
             onComplete()
         }
     }
 
-    // --- Paystack Secured Checkout Simulator ---
-    private val _activePaystackTransaction = MutableStateFlow<CreatePaymentResponse?>(null)
-    val activePaystackTransaction: StateFlow<CreatePaymentResponse?> = _activePaystackTransaction.asStateFlow()
-
+    // --- Paystack Payments & Webhook ---
     fun triggerPaystackPayment(bookingId: Long, totalAmount: Double) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1321,11 +1170,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             _activePaystackTransaction.value = response
         }
     }
-
-    // --- Client: real Supabase bookings, so real admin-issued quotations
-    // actually show up here for the client to review and pay ---
-    private val _clientSupabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
-    val clientSupabaseBookings: StateFlow<List<SupabaseBooking>> = _clientSupabaseBookings.asStateFlow()
 
     fun loadClientSupabaseBookings() {
         viewModelScope.launch {
@@ -1360,25 +1204,15 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         _activePaystackTransaction.value = null
     }
 
-    // Renamed in spirit from "simWebpayComplete": this no longer marks a
-    // payment successful on tap. It closes the checkout sheet and asks
-    // Supabase for the real status, which only becomes "success" once
-    // Paystack's own webhook has actually confirmed the charge.
-    private val _lastPaymentStatus = MutableStateFlow<String?>(null)
-    val lastPaymentStatus: StateFlow<String?> = _lastPaymentStatus.asStateFlow()
-
     fun simWebpayComplete(ref: String) {
         _activePaystackTransaction.value = null
         viewModelScope.launch {
             _lastPaymentStatus.value = repository.checkPaymentStatus(ref)
-            // The webhook updates the booking's status/payment_status in
-            // Supabase directly - reload so the client's tracker actually
-            // reflects that instead of showing stale pre-payment data.
             loadClientSupabaseBookings()
         }
     }
 
-    // --- Places Autocomplete Simulator ---
+    // --- Address Lookup Autocomplete ---
     fun updateAddressSearch(query: String) {
         _addressSearchQuery.value = query
         if (query.length < 3) {
@@ -1405,7 +1239,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- WhatsApp Prepopulate Generator ---
+    // --- WhatsApp Pre-fill Generator ---
     fun generateWhatsAppText(booking: Booking): String {
         val inclusions = mutableListOf<String>()
         if (booking.cleaningSupport) inclusions.add("Cleaning Support")
@@ -1413,17 +1247,15 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         if (booking.wasteEvacuation) inclusions.add("Waste Evacuation")
         if (booking.maintenanceSupport) inclusions.add("Maintenance Support")
 
-        val boldDivider = "============================"
         val message = """
             *SACHIO MOBILE TOILETS LTD*
             *QUOTATION REQUEST DETAILS*
-            $boldDivider
+            ============================
             *Client:* ${booking.clientName}
-            *Company:* ${booking.companyName.ifBlank() { "N/A" }}
+            *Company:* ${booking.companyName.ifBlank { "N/A" }}
             *Service Mode:* ${booking.serviceMode}
             *Category:* ${booking.serviceType}
-            *Product:* ${booking.variantName}
-            *Model:* ${booking.modelNumber}
+            *Product:* ${booking.variantName} (${booking.modelNumber})
             *Quantity:* ${booking.quantity}
             *Duration:* ${booking.duration}
             
@@ -1440,11 +1272,11 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             ${if (inclusions.isNotEmpty()) inclusions.joinToString(", ") else "None selected"}
             
             *SPECIAL REQUESTS:*
-            ${booking.specialInstructions.ifBlank() { "None" }}
-            $boldDivider
+            ${booking.specialInstructions.ifBlank { "None" }}
+            ============================
             _Comfort. Hygiene. Dignity Anywhere._
         """.trimIndent()
-        
+
         return try {
             URLEncoder.encode(message, "UTF-8")
         } catch (e: Exception) {
@@ -1452,7 +1284,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- FAVORITE LOCATIONS MANAGEMENT ---
+    // --- Favorite Locations ---
     fun saveFavoriteLocation(name: String, address: String, lat: Double, lng: Double, type: String) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1492,26 +1324,26 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- REAL-TIME LIVE TRACKING & DISPATCH SIMULATION ---
+    // --- Live Dispatch Tracking Simulation & Chat ---
     fun addActivityLog(bookingId: Long, title: String, description: String) {
-        val currentTracker = _activeLiveTrackers.value[bookingId] ?: return
-        val updatedLogs = currentTracker.logs + ActivityLog(title, description)
-        val updatedMap = _activeLiveTrackers.value.toMutableMap()
-        updatedMap[bookingId] = currentTracker.copy(logs = updatedLogs, lastUpdated = System.currentTimeMillis())
-        _activeLiveTrackers.value = updatedMap
+        _activeLiveTrackers.update { currentMap ->
+            val tracker = currentMap[bookingId] ?: return@update currentMap
+            val updatedLogs = tracker.logs + ActivityLog(title, description)
+            currentMap + (bookingId to tracker.copy(logs = updatedLogs, lastUpdated = System.currentTimeMillis()))
+        }
     }
 
     fun addTrackingNotification(bookingId: Long, title: String, message: String, tag: String) {
-        val currentTracker = _activeLiveTrackers.value[bookingId] ?: return
-        val updatedNotifs = currentTracker.notifications + TrackingNotification(
-            id = "notif_${System.currentTimeMillis()}",
-            title = title,
-            message = message,
-            tag = tag
-        )
-        val updatedMap = _activeLiveTrackers.value.toMutableMap()
-        updatedMap[bookingId] = currentTracker.copy(notifications = updatedNotifs, lastUpdated = System.currentTimeMillis())
-        _activeLiveTrackers.value = updatedMap
+        _activeLiveTrackers.update { currentMap ->
+            val tracker = currentMap[bookingId] ?: return@update currentMap
+            val updatedNotifs = tracker.notifications + TrackingNotification(
+                id = "notif_${System.currentTimeMillis()}",
+                title = title,
+                message = message,
+                tag = tag
+            )
+            currentMap + (bookingId to tracker.copy(notifications = updatedNotifs, lastUpdated = System.currentTimeMillis()))
+        }
     }
 
     fun sendClientChatMessage(bookingId: Long, text: String, imageUri: String? = null, locationShare: Pair<Double, Double>? = null) {
@@ -1523,32 +1355,17 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             imageUri = imageUri,
             locationShare = locationShare
         )
-        val updatedMap = _activeLiveTrackers.value.toMutableMap()
-        updatedMap[bookingId] = currentTracker.copy(messages = updatedMessages, lastUpdated = System.currentTimeMillis())
-        _activeLiveTrackers.value = updatedMap
+        _activeLiveTrackers.update { it + (bookingId to currentTracker.copy(messages = updatedMessages, lastUpdated = System.currentTimeMillis())) }
 
-        // Trigger real-time, context-aware automated reply from field staff or support
         viewModelScope.launch {
-            kotlinx.coroutines.delay(1500)
+            delay(1500)
             val replyText = when {
-                text.lowercase().contains("where") || text.lowercase().contains("far") || text.lowercase().contains("eta") -> {
-                    "Hi! We are currently en route on the bypass. Current ETA is about ${currentTracker.etaMinutes} minutes. Hold on for us!"
-                }
-                text.lowercase().contains("gate") || text.lowercase().contains("parking") || text.lowercase().contains("landmark") -> {
-                    "Copy that, gate intelligence received! Adjusting maneuvers accordingly."
-                }
-                text.lowercase().contains("issue") || text.lowercase().contains("broken") || text.lowercase().contains("help") -> {
-                    "This is SACHIO Support Cockpit. We have logged your request. Dispatch engineer is on rapid alert."
-                }
-                imageUri != null -> {
-                    "Image attachment received successfully. Reviewing space clearance with dispatch team."
-                }
-                locationShare != null -> {
-                    "Location pin received: (%.4f, %.4f). Tuning routing vectors.".format(locationShare.first, locationShare.second)
-                }
-                else -> {
-                    "Prestige service acknowledged! We are strictly dedicated to providing 'Comfort. Hygiene. Dignity' at your venue."
-                }
+                text.lowercase().contains("where") || text.lowercase().contains("eta") -> "Hi! We are currently en route on the bypass. Current ETA is about ${currentTracker.etaMinutes} minutes."
+                text.lowercase().contains("gate") || text.lowercase().contains("parking") -> "Copy that, gate intelligence received! Adjusting maneuvers accordingly."
+                text.lowercase().contains("issue") || text.lowercase().contains("help") -> "This is SACHIO Support Cockpit. We have logged your request. Dispatch engineer is on rapid alert."
+                imageUri != null -> "Image attachment received successfully. Reviewing space clearance with dispatch team."
+                locationShare != null -> "Location pin received: (%.4f, %.4f). Tuning routing vectors.".format(locationShare.first, locationShare.second)
+                else -> "Prestige service acknowledged! We are dedicated to providing 'Comfort. Hygiene. Dignity' at your venue."
             }
             val trackerNow = _activeLiveTrackers.value[bookingId] ?: return@launch
             val finalizedMessages = trackerNow.messages + ChatMessage(
@@ -1556,9 +1373,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 sender = if (text.lowercase().contains("help") || text.lowercase().contains("issue")) "Support Office" else "Obinna (Driver)",
                 text = replyText
             )
-            val finalMap = _activeLiveTrackers.value.toMutableMap()
-            finalMap[bookingId] = trackerNow.copy(messages = finalizedMessages)
-            _activeLiveTrackers.value = finalMap
+            _activeLiveTrackers.update { it + (bookingId to trackerNow.copy(messages = finalizedMessages)) }
         }
     }
 
@@ -1566,7 +1381,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         viewModelScope.launch {
             repository.updateBookingStatus(bookingId, "Staff Assigned")
             val booking = database.sashioDao().getBookingById(bookingId) ?: return@launch
-            
+
             val initialTracker = LiveTrackingState(
                 bookingId = bookingId,
                 staffLat = booking.latitude - 0.05,
@@ -1581,9 +1396,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 staffState = "Standby"
             )
 
-            val currentMap = _activeLiveTrackers.value.toMutableMap()
-            currentMap[bookingId] = initialTracker
-            _activeLiveTrackers.value = currentMap
+            _activeLiveTrackers.update { it + (bookingId to initialTracker) }
 
             addActivityLog(bookingId, "Task Confirmed", "Staff Obinna Okafor accepted service task #QR-$bookingId.")
             addActivityLog(bookingId, "Crew Assigned", "Attendant Obinna Okafor allocated and reviewing venue directions.")
@@ -1599,15 +1412,13 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     fun startStaffJourney(bookingId: Long) {
         viewModelScope.launch {
             repository.updateBookingStatus(bookingId, "IN TRANSIT")
-            
             val booking = database.sashioDao().getBookingById(bookingId) ?: return@launch
-            
+
             val startLat = booking.latitude - 0.05
             val startLng = booking.longitude - 0.04
             val vehicleStartLat = booking.latitude - 0.048
             val vehicleStartLng = booking.longitude - 0.038
-            
-            // Check if there is an existing tracker state, if so copy details, else initialize
+
             val existingTracker = _activeLiveTrackers.value[bookingId]
             val trackerState = (existingTracker ?: LiveTrackingState(bookingId = bookingId)).copy(
                 staffLat = startLat,
@@ -1620,91 +1431,71 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 journeyStatus = "In Transit",
                 staffState = "Driving"
             )
-            
-            val currentMap = _activeLiveTrackers.value.toMutableMap()
-            currentMap[bookingId] = trackerState
-            _activeLiveTrackers.value = currentMap
-            
+
+            _activeLiveTrackers.update { it + (bookingId to trackerState) }
+
             addActivityLog(bookingId, "Vehicle Dispatched", "SACHIO Restroom Hauler departed VI Operations Center.")
-            addActivityLog(bookingId, "En Route", "Dispatch team is cruising along Third Mainland bridge.")
+            addActivityLog(bookingId, "En Route", "Dispatch team is cruising along the expressway.")
             addTrackingNotification(
                 bookingId = bookingId,
                 title = "Vehicle Dispatched",
-                message = "Your luxury cabins are en route! Super-DeLuxe Trailer has departed depot.",
+                message = "Your luxury cabins are en route! Hauler has departed depot.",
                 tag = "VEHICLE_DISPATCHED"
             )
-            addTrackingNotification(
-                bookingId = bookingId,
-                title = "Booking En Route",
-                message = "Driver Obinna is navigating optimally. Current traffic is moderate.",
-                tag = "VEHICLE_EN_ROUTE"
-            )
-            
-            // Start updating coordinates in real time
+
             launch {
                 val steps = 10
                 for (i in 1..steps) {
-                    kotlinx.coroutines.delay(3000) // Ticks every 3 seconds for smooth visual representation
-                    val activeMap = _activeLiveTrackers.value
-                    val currentTracker = activeMap[bookingId] ?: break
+                    delay(3000)
+                    val currentTracker = _activeLiveTrackers.value[bookingId] ?: break
                     if (currentTracker.journeyStatus != "In Transit") break
-                    
+
                     val pct = i.toDouble() / steps.toDouble()
                     val nextStaffLat = startLat + pct * (booking.latitude - startLat)
                     val nextStaffLng = startLng + pct * (booking.longitude - startLng)
                     val nextVehLat = vehicleStartLat + pct * (booking.latitude - vehicleStartLat)
                     val nextVehLng = vehicleStartLng + pct * (booking.longitude - vehicleStartLng)
-                    
+
                     val nextDist = (12.5 * (1.0 - pct)).coerceAtLeast(0.0)
                     val nextEta = (20 * (1.0 - pct)).toInt().coerceAtLeast(1)
-                    
-                    val updatedMap = _activeLiveTrackers.value.toMutableMap()
-                    
-                    // Add periodic activity updates
+
                     val nextLogs = currentTracker.logs.toMutableList()
                     if (i == 3) {
-                        nextLogs.add(ActivityLog("Toll Gate Bypass", "Cruising past Lekki Toll area. Optimizing alternate speed bypass."))
+                        nextLogs.add(ActivityLog("Toll Gate Bypass", "Cruising past Toll area. Optimizing alternate speed bypass."))
                     } else if (i == 7) {
-                        nextLogs.add(ActivityLog("Vicinity Approaching", "Nearing venue gates. Attendant setting up dynamic toolkits."))
+                        nextLogs.add(ActivityLog("Vicinity Approaching", "Nearing venue gates. Attendant setting up toolkits."))
                     }
-                    
-                    updatedMap[bookingId] = currentTracker.copy(
-                        staffLat = nextStaffLat,
-                        staffLng = nextStaffLng,
-                        vehicleLat = nextVehLat,
-                        vehicleLng = nextVehLng,
-                        distanceRemainingKm = nextDist,
-                        etaMinutes = if (i == steps) 0 else nextEta,
-                        logs = nextLogs,
-                        lastUpdated = System.currentTimeMillis()
-                    )
-                    _activeLiveTrackers.value = updatedMap
+
+                    _activeLiveTrackers.update {
+                        it + (bookingId to currentTracker.copy(
+                            staffLat = nextStaffLat,
+                            staffLng = nextStaffLng,
+                            vehicleLat = nextVehLat,
+                            vehicleLng = nextVehLng,
+                            distanceRemainingKm = nextDist,
+                            etaMinutes = if (i == steps) 0 else nextEta,
+                            logs = nextLogs,
+                            lastUpdated = System.currentTimeMillis()
+                        ))
+                    }
                 }
-                
-                // Once steps complete, auto-transition to ARRIVED
-                val finalMap = _activeLiveTrackers.value.toMutableMap()
-                val finalTracker = finalMap[bookingId]
+
+                val finalTracker = _activeLiveTrackers.value[bookingId]
                 if (finalTracker != null && finalTracker.journeyStatus == "In Transit") {
-                    finalMap[bookingId] = finalTracker.copy(
-                        staffLat = booking.latitude,
-                        staffLng = booking.longitude,
-                        vehicleLat = booking.latitude,
-                        vehicleLng = booking.longitude,
-                        distanceRemainingKm = 0.0,
-                        etaMinutes = 0,
-                        journeyStatus = "Arrived",
-                        staffState = "Standby"
-                    )
-                    _activeLiveTrackers.value = finalMap
+                    _activeLiveTrackers.update {
+                        it + (bookingId to finalTracker.copy(
+                            staffLat = booking.latitude,
+                            staffLng = booking.longitude,
+                            vehicleLat = booking.latitude,
+                            vehicleLng = booking.longitude,
+                            distanceRemainingKm = 0.0,
+                            etaMinutes = 0,
+                            journeyStatus = "Arrived",
+                            staffState = "Standby"
+                        ))
+                    }
                     repository.updateBookingStatus(bookingId, "ARRIVED")
-                    
-                    addActivityLog(bookingId, "Arrived at Venue", "SACHIO Restroom Hauler has successfully parked at event location.")
-                    addTrackingNotification(
-                        bookingId = bookingId,
-                        title = "Arrived at Venue",
-                        message = "Your assigned sanitation team has arrived at the venue! Preparing cabin deploy.",
-                        tag = "VEHICLE_ARRIVED"
-                    )
+                    addActivityLog(bookingId, "Arrived at Venue", "Restroom hauler has safely parked at event coordinates.")
                 }
             }
         }
@@ -1713,31 +1504,24 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     fun staffMarkArrived(bookingId: Long) {
         viewModelScope.launch {
             repository.updateBookingStatus(bookingId, "ARRIVED")
-            val currentMap = _activeLiveTrackers.value.toMutableMap()
-            val trackerState = currentMap[bookingId]
+            val trackerState = _activeLiveTrackers.value[bookingId]
             if (trackerState != null) {
                 val booking = database.sashioDao().getBookingById(bookingId)
                 val targetLat = booking?.latitude ?: trackerState.staffLat
                 val targetLng = booking?.longitude ?: trackerState.staffLng
-                currentMap[bookingId] = trackerState.copy(
-                    staffLat = targetLat,
-                    staffLng = targetLng,
-                    vehicleLat = targetLat,
-                    vehicleLng = targetLng,
-                    distanceRemainingKm = 0.0,
-                    etaMinutes = 0,
-                    journeyStatus = "Arrived",
-                    staffState = "Standby"
-                )
-                _activeLiveTrackers.value = currentMap
-                
+                _activeLiveTrackers.update {
+                    it + (bookingId to trackerState.copy(
+                        staffLat = targetLat,
+                        staffLng = targetLng,
+                        vehicleLat = targetLat,
+                        vehicleLng = targetLng,
+                        distanceRemainingKm = 0.0,
+                        etaMinutes = 0,
+                        journeyStatus = "Arrived",
+                        staffState = "Standby"
+                    ))
+                }
                 addActivityLog(bookingId, "Arrived at Venue", "Staff marked arrival manually. Fleet parked at designated slot.")
-                addTrackingNotification(
-                    bookingId = bookingId,
-                    title = "Arrived at Venue",
-                    message = "assigned team has arrived at the venue safely.",
-                    tag = "VEHICLE_ARRIVED"
-                )
             }
         }
     }
@@ -1745,23 +1529,16 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     fun staffStartSetup(bookingId: Long) {
         viewModelScope.launch {
             repository.updateBookingStatus(bookingId, "SETUP IN PROGRESS")
-            val currentMap = _activeLiveTrackers.value.toMutableMap()
-            val trackerState = currentMap[bookingId]
+            val trackerState = _activeLiveTrackers.value[bookingId]
             if (trackerState != null) {
-                currentMap[bookingId] = trackerState.copy(
-                    journeyStatus = "Setup",
-                    staffState = "Setting Up",
-                    lastUpdated = System.currentTimeMillis()
-                )
-                _activeLiveTrackers.value = currentMap
-                
+                _activeLiveTrackers.update {
+                    it + (bookingId to trackerState.copy(
+                        journeyStatus = "Setup",
+                        staffState = "Setting Up",
+                        lastUpdated = System.currentTimeMillis()
+                    ))
+                }
                 addActivityLog(bookingId, "Setup Started", "Chief Attendant is deploying high-pressure waste connectors and stabilizers.")
-                addTrackingNotification(
-                    bookingId = bookingId,
-                    title = "Setup in Progress",
-                    message = "Crew has started unpacking and placing the premium mobile cabins.",
-                    tag = "SETUP_STARTED"
-                )
             }
         }
     }
@@ -1769,40 +1546,32 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     fun staffMarkActive(bookingId: Long) {
         viewModelScope.launch {
             repository.updateBookingStatus(bookingId, "SERVICE ACTIVE")
-            val currentMap = _activeLiveTrackers.value.toMutableMap()
-            val trackerState = currentMap[bookingId]
+            val trackerState = _activeLiveTrackers.value[bookingId]
             if (trackerState != null) {
-                currentMap[bookingId] = trackerState.copy(
-                    journeyStatus = "Active",
-                    staffState = "Active Monitoring",
-                    lastUpdated = System.currentTimeMillis()
-                )
-                _activeLiveTrackers.value = currentMap
-                
-                addActivityLog(bookingId, "Service Active", "Sanitary cabins fully operational. Air fresheners, power generators, and premium soaps active.")
-                addTrackingNotification(
-                    bookingId = bookingId,
-                    title = "Service Started",
-                    message = "Your SACHIO prestige rest cabins are now LIVE and open for guests.",
-                    tag = "SERVICE_STARTED"
-                )
+                _activeLiveTrackers.update {
+                    it + (bookingId to trackerState.copy(
+                        journeyStatus = "Active",
+                        staffState = "Active Monitoring",
+                        lastUpdated = System.currentTimeMillis()
+                    ))
+                }
+                addActivityLog(bookingId, "Service Active", "Sanitary cabins fully operational. Air fresheners, generators, and soaps active.")
             }
         }
     }
 
     fun staffPerformMaintenance(bookingId: Long) {
         viewModelScope.launch {
-            val currentMap = _activeLiveTrackers.value.toMutableMap()
-            val trackerState = currentMap[bookingId]
+            val trackerState = _activeLiveTrackers.value[bookingId]
             if (trackerState != null) {
-                currentMap[bookingId] = trackerState.copy(
-                    journeyStatus = "Maintenance",
-                    staffState = "Cleaning & Upkeep",
-                    lastUpdated = System.currentTimeMillis()
-                )
-                _activeLiveTrackers.value = currentMap
-                
-                addActivityLog(bookingId, "Maintenance Performed", "Attendant performed scheduled pressure wash and diesel generator level top-up.")
+                _activeLiveTrackers.update {
+                    it + (bookingId to trackerState.copy(
+                        journeyStatus = "Maintenance",
+                        staffState = "Cleaning & Upkeep",
+                        lastUpdated = System.currentTimeMillis()
+                    ))
+                }
+                addActivityLog(bookingId, "Maintenance Performed", "Attendant performed scheduled pressure wash and fluid refill.")
             }
         }
     }
@@ -1810,45 +1579,33 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     fun staffMarkCompleted(bookingId: Long) {
         viewModelScope.launch {
             repository.updateBookingStatus(bookingId, "COMPLETED")
-            val currentMap = _activeLiveTrackers.value.toMutableMap()
-            val trackerState = currentMap[bookingId]
+            val trackerState = _activeLiveTrackers.value[bookingId]
             if (trackerState != null) {
-                currentMap[bookingId] = trackerState.copy(
-                    journeyStatus = "Completed",
-                    staffState = "Standby",
-                    isTrackingActive = false,
-                    lastUpdated = System.currentTimeMillis()
-                )
-                _activeLiveTrackers.value = currentMap
-                
-                addActivityLog(bookingId, "Service Completed", "Sanitary units cleared, disinfected, packed and secured. Mission accomplished.")
-                addTrackingNotification(
-                    bookingId = bookingId,
-                    title = "Service Completed",
-                    message = "Thank you for choosing SACHIO. Your service is completed successfully.",
-                    tag = "SERVICE_COMPLETED"
-                )
+                _activeLiveTrackers.update {
+                    it + (bookingId to trackerState.copy(
+                        journeyStatus = "Completed",
+                        staffState = "Standby",
+                        isTrackingActive = false,
+                        lastUpdated = System.currentTimeMillis()
+                    ))
+                }
+                addActivityLog(bookingId, "Service Completed", "Sanitary units cleared, disinfected, packed and secured.")
             }
         }
     }
 
-    // --- LOGISTICS & LOCATION MATH MATRIX ---
+    // --- Logistics Matrix Calculation ---
     fun calculateLogisticsMetrics(lat: Double, lng: Double): LogisticsMetrics {
-        // Central SACHIO Operations Depot Location (Victoria Island, Lagos)
         val depotLat = 6.4282
         val depotLng = 3.4211
-        
-        // Euclidean-to-KM approximation for West African region
         val dLat = lat - depotLat
         val dLng = lng - depotLng
-        val distanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.0 // 1 degree ~ 111km
-        
-        val travelTimeMinutes = (distanceKm * 2.5).toInt().coerceAtLeast(15) // Traffic weighted
-        val fuelUsageLitres = (distanceKm * 0.15).coerceAtLeast(5.0) // Average diesel burn per KM
-        
+        val distanceKm = Math.sqrt(dLat * dLat + dLng * dLng) * 111.0
+        val travelTimeMinutes = (distanceKm * 2.5).toInt().coerceAtLeast(15)
+        val fuelUsageLitres = (distanceKm * 0.15).coerceAtLeast(5.0)
+
         val zone: String
         val recommendedCost: Double
-        
         when {
             distanceKm <= 5.0 -> {
                 zone = "Zone 1 (Core Victoria Island / Ikoyi)"
@@ -1867,7 +1624,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 recommendedCost = 350000.0
             }
         }
-        
+
         return LogisticsMetrics(
             distanceKm = distanceKm,
             travelTimeMinutes = travelTimeMinutes,
@@ -1877,17 +1634,10 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
-    // ==========================================
-    // STAFF PORTAL WORKFORCE STATES & SERVICES
-    // ==========================================
-
-    // Expense Management Models & Flows
-    private val _staffExpenses = MutableStateFlow<List<StaffExpense>>(emptyList())
-    val staffExpenses: StateFlow<List<StaffExpense>> = _staffExpenses.asStateFlow()
-
+    // --- Staff Portal Workforce Management ---
     fun submitStaffExpense(amount: Double, category: String, notes: String, date: String) {
         val newExp = StaffExpense(
-            id = "EXP-${java.util.Random().nextInt(9000) + 1000}",
+            id = "EXP-${Random().nextInt(9000) + 1000}",
             amount = amount,
             date = date,
             category = category,
@@ -1895,56 +1645,43 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             imageUri = "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500&auto=format&fit=crop",
             status = "Pending Approval"
         )
-        _staffExpenses.value = listOf(newExp) + _staffExpenses.value
+        _staffExpenses.update { listOf(newExp) + it }
     }
 
     fun approveStaffExpense(id: String) {
-        _staffExpenses.value = _staffExpenses.value.map {
-            if (it.id == id) it.copy(status = "Approved") else it
+        _staffExpenses.update { list ->
+            list.map { if (it.id == id) it.copy(status = "Approved") else it }
         }
     }
 
-    // Attendance System Logs & Tracking Flow
-    private val _isClockedIn = MutableStateFlow(false)
-    val isClockedIn: StateFlow<Boolean> = _isClockedIn.asStateFlow()
-
-    private val _attendanceHistory = MutableStateFlow<List<AttendanceLog>>(emptyList())
-    val attendanceHistory: StateFlow<List<AttendanceLog>> = _attendanceHistory.asStateFlow()
-
     fun clockInStaff(location: String) {
         _isClockedIn.value = true
-        val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault())
-        val dateSdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-        val nowStr = sdf.format(java.util.Date())
-        val dateStr = dateSdf.format(java.util.Date())
+        val nowStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
         val newLog = AttendanceLog(
-            id = "ATT-${java.util.Random().nextInt(900) + 100}",
+            id = "ATT-${Random().nextInt(900) + 100}",
             clockInTime = nowStr,
             clockOutTime = null,
             date = dateStr,
             location = location,
             status = "Checked In"
         )
-        _attendanceHistory.value = listOf(newLog) + _attendanceHistory.value
+        _attendanceHistory.update { listOf(newLog) + it }
     }
 
     fun clockOutStaff() {
         _isClockedIn.value = false
-        val sdf = java.text.SimpleDateFormat("hh:mm a", java.util.Locale.getDefault())
-        val nowStr = sdf.format(java.util.Date())
-        val updated = _attendanceHistory.value.mapIndexed { idx, log ->
-            if (idx == 0 && log.clockOutTime == null) {
-                log.copy(clockOutTime = nowStr, status = "Completed")
-            } else {
-                log
+        val nowStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+        _attendanceHistory.update { list ->
+            list.mapIndexed { idx, log ->
+                if (idx == 0 && log.clockOutTime == null) {
+                    log.copy(clockOutTime = nowStr, status = "Completed")
+                } else {
+                    log
+                }
             }
         }
-        _attendanceHistory.value = updated
     }
-
-    // Digital Inspection Tooling & Reporting System
-    private val _inspections = MutableStateFlow<List<DigitalInspection>>(emptyList())
-    val inspections: StateFlow<List<DigitalInspection>> = _inspections.asStateFlow()
 
     fun submitInspectionReport(
         bookingId: Long,
@@ -1958,7 +1695,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         afterPhotos: List<String>
     ) {
         val newInsp = DigitalInspection(
-            id = "INSP-${java.util.Random().nextInt(9000) + 1000}",
+            id = "INSP-${Random().nextInt(9000) + 1000}",
             bookingId = bookingId,
             toiletCondition = toiletCondition,
             waterLevel = waterLevel,
@@ -1970,26 +1707,11 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             afterPhotos = afterPhotos,
             timestamp = System.currentTimeMillis()
         )
-        _inspections.value = listOf(newInsp) + _inspections.value
-        
-        // Push activity log to mapping center
-        addActivityLog(bookingId, "Digital Quality Check", "Field technician successfully transmitted digital parameters: Cleanliness ($cleanlinessScore/5), Condition ($toiletCondition).")
+        _inspections.update { listOf(newInsp) + it }
+        addActivityLog(bookingId, "Digital Quality Check", "Field technician transmitted digital parameters: Cleanliness ($cleanlinessScore/5), Condition ($toiletCondition).")
     }
 
-    // General Chat / Multi-channel Message Board Center
-    //
-    // This used to be a purely in-memory list with a scripted auto-reply
-    // ("David, report noted...") standing in for a real conversation -
-    // nothing was saved, and each person's device had its own separate
-    // copy, so a message one person sent could never actually reach
-    // anyone else. This now reads/writes the real public.messages table.
-    private val _generalChats = MutableStateFlow<List<SupabaseMessage>>(emptyList())
-    val generalChats: StateFlow<List<SupabaseMessage>> = _generalChats.asStateFlow()
-
-    // Loads every message the signed-in user is allowed to see (their own
-    // sent messages, direct messages to them, and broadcasts matching
-    // their role) - RLS on public.messages enforces that scoping, this
-    // just pulls everything the policy already permits.
+    // --- Message Board Center with Role Normalization ---
     fun loadGeneralChats() {
         viewModelScope.launch {
             try {
@@ -2005,23 +1727,24 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // channel: "Admin" broadcasts to every admin (recipient_role="admin"),
-    // "Supervisor" is treated the same way for now since this app has no
-    // separate supervisor role. Pass a specific recipientId instead for a
-    // private one-to-one message.
-    fun sendGeneralChatMessage(text: String, channel: String = "Admin", recipientId: String? = null) {
+    fun sendGeneralChatMessage(text: String, channel: String = "admin", recipientId: String? = null) {
         viewModelScope.launch {
             try {
                 val supaUser = SupabaseProvider.client.auth.currentUserOrNull() ?: run {
                     _roleManagementError.value = "You need to be signed in to send a message."
                     return@launch
                 }
-                val senderProfile = _supabaseProfiles.value.find { it.id == supaUser.id }
-                val senderName = senderProfile?.full_name?.takeIf { it.isNotBlank() }
-                    ?: _currentUser.value?.name
-                    ?: supaUser.email
-                    ?: "Unknown"
-                val senderRole = senderProfile?.role ?: _currentUser.value?.role ?: "client"
+
+                val senderName = _currentUser.value?.name ?: supaUser.email ?: "User"
+                val senderRole = _currentUser.value?.role ?: "client"
+
+                val targetRole = when (channel.trim().lowercase()) {
+                    "admin center", "admin", "field supervisor", "supervisor" -> "admin"
+                    "staff", "field operative", "crews" -> "staff"
+                    "active customer", "client", "clients" -> "client"
+                    "all", "broadcast" -> "all"
+                    else -> channel.trim().lowercase()
+                }
 
                 SupabaseProvider.client.postgrest.from("messages").insert(
                     buildJsonObject {
@@ -2031,9 +1754,9 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                         if (recipientId != null) {
                             put("recipient_id", recipientId)
                         } else {
-                            put("recipient_role", if (channel == "Supervisor") "admin" else channel.lowercase())
+                            put("recipient_role", targetRole)
                         }
-                        put("content", text)
+                        put("content", text.trim())
                     }
                 )
                 loadGeneralChats()
@@ -2043,62 +1766,55 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // Booking-Specific Staff Chat Router
-    fun sendStaffChatMessage(bookingId: Long, text: String, imageUri: String? = null, locationShare: Pair<Double, Double>? = null) {
-        val currentTracker = _activeLiveTrackers.value[bookingId] ?: return
-        val updatedMessages = currentTracker.messages + ChatMessage(
-            id = "msg_${System.currentTimeMillis()}",
-            sender = "Driver",
-            text = text,
-            imageUri = imageUri,
-            locationShare = locationShare
-        )
-        val updatedMap = _activeLiveTrackers.value.toMutableMap()
-        updatedMap[bookingId] = currentTracker.copy(messages = updatedMessages, lastUpdated = System.currentTimeMillis())
-        _activeLiveTrackers.value = updatedMap
+    // --- Admin Operational Actions ---
+    fun toggleProfileSuspension(id: Long) {
+        _suspendedProfileIds.update { if (it.contains(id)) it - id else it + id }
+    }
 
-        // Trigger automated response from client or system admin
+    fun addNewStaffProfile(name: String, email: String, phone: String) {
         viewModelScope.launch {
-            kotlinx.coroutines.delay(1800)
-            val replyText = when {
-                text.lowercase().contains("arrive") || text.lowercase().contains("on site") || text.lowercase().contains("gate") -> {
-                    "Excellent! Security on Broad Street has been informed. I will come out to meet you."
-                }
-                text.lowercase().contains("active") || text.lowercase().contains("setup") || text.lowercase().contains("ready") -> {
-                    "Lovely! We appreciate the prestige setup and quick response. Tested water and vacuum flush, looks 5-star."
-                }
-                text.lowercase().contains("clog") || text.lowercase().contains("issue") || text.lowercase().contains("leak") -> {
-                    "Thanks for reporting. Let us know if you need our on-site plumber or any additional water source hookups."
-                }
-                else -> {
-                    "Acknowledge. Proceed with standard service activities according to SACHIO safety manuals."
-                }
-            }
-            val trackerNow = _activeLiveTrackers.value[bookingId] ?: return@launch
-            val finalizedMessages = trackerNow.messages + ChatMessage(
-                id = "msg_reply_${System.currentTimeMillis()}",
-                sender = "Client",
-                text = replyText
-            )
-            val finalMap = _activeLiveTrackers.value.toMutableMap()
-            finalMap[bookingId] = trackerNow.copy(messages = finalizedMessages)
-            _activeLiveTrackers.value = finalMap
+            repository.registerProfile(name = name, email = email, role = "staff", phone = phone)
+        }
+    }
+
+    fun createIncident(title: String, reporter: String, priority: String, details: String) {
+        _incidents.update { list ->
+            val newId = "INC-${100 + list.size + 1}"
+            val dateStr = SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date())
+            listOf(AdminIncident(newId, title, reporter, priority, "Open", dateStr, details)) + list
+        }
+    }
+
+    fun approveExpenseClaim(id: String) {
+        _expenseLogs.update { list ->
+            list.map { if (it.id == id) it.copy(status = "Approved") else it }
+        }
+    }
+
+    fun rejectExpenseClaim(id: String) {
+        _expenseLogs.update { list ->
+            list.map { if (it.id == id) it.copy(status = "Rejected") else it }
+        }
+    }
+
+    fun submitExpenseFromAdmin(staffName: String, category: String, amount: Double, details: String) {
+        _expenseLogs.update { list ->
+            val newId = "EXP-${900 + list.size + 1}"
+            val dateStr = SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date())
+            listOf(AdminExpenseClaim(newId, staffName, category, amount, details, "Approved", dateStr)) + list
         }
     }
 }
 
-// ==========================================
-// STAFF PORTAL STRUCTURED DATA DEFS
-// ==========================================
-
+// --- Data Models for Attendance & Logs ---
 data class StaffExpense(
     val id: String,
     val amount: Double,
     val date: String,
-    val category: String, // Fuel, Parking, Toll, Emergency
+    val category: String,
     val notes: String,
     val imageUri: String,
-    val status: String // Pending Approval, Approved
+    val status: String
 )
 
 data class AttendanceLog(
@@ -2107,16 +1823,16 @@ data class AttendanceLog(
     val clockOutTime: String?,
     val date: String,
     val location: String,
-    val status: String // Checked In, Completed
+    val status: String
 )
 
 data class DigitalInspection(
     val id: String,
     val bookingId: Long,
-    val toiletCondition: String, // Pristine, Fair, Needs Repair
-    val waterLevel: String, // 100%, 75%, 50%, 25%
-    val cleanlinessScore: Int, // 1 to 5
-    val equipmentCondition: String, // Good, Faulty
+    val toiletCondition: String,
+    val waterLevel: String,
+    val cleanlinessScore: Int,
+    val equipmentCondition: String,
     val damageAssessment: String,
     val comments: String,
     val beforePhotos: List<String>,
@@ -2124,23 +1840,6 @@ data class DigitalInspection(
     val timestamp: Long
 )
 
-data class GeneralMessage(
-    val id: String,
-    val sender: String, // Admin, Supervisor, Support Team, Staff
-    val text: String,
-    val timestamp: String
-)
-
-data class SOPDocument(
-    val id: String,
-    val title: String,
-    val category: String, // Safety, Plumbing, Chemical, Customer Service
-    val overview: String,
-    val checklist: List<String>
-)
-
-
-// --- DATA TRANSFER OBJECTS FOR MAP SYSTEM ---
 data class ActivityLog(
     val title: String,
     val description: String,
@@ -2157,7 +1856,7 @@ data class TrackingNotification(
 
 data class ChatMessage(
     val id: String,
-    val sender: String, // "Client", "Driver", "Support"
+    val sender: String,
     val text: String,
     val timestamp: Long = System.currentTimeMillis(),
     val imageUri: String? = null,
@@ -2173,12 +1872,12 @@ data class LiveTrackingState(
     val distanceRemainingKm: Double = 15.0,
     val etaMinutes: Int = 25,
     val isTrackingActive: Boolean = false,
-    val journeyStatus: String = "Idle", // "Idle", "In Transit", "Arrived", "Completed", "Setup", "Active", "Maintenance"
+    val journeyStatus: String = "Idle",
     val lastUpdated: Long = System.currentTimeMillis(),
     val staffName: String = "Obinna Okafor",
     val staffPhone: String = "+234 812 345 6789",
     val staffExperience: Int = 8,
-    val staffState: String = "Driving", // "Driving", "Setting Up", "Active Monitoring", "Standby"
+    val staffState: String = "Driving",
     val staffPosition: String = "Chief Sanitary Attendant",
     val staffPhotoUrl: String = "",
     val vehicleType: String = "SACHIO VIP Restroom Hauler Wagon - Series V",
