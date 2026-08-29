@@ -1,48 +1,84 @@
 package com.sashio.ops.ui.theme
 
-import android.os.Build
+import android.app.Activity
 import androidx.compose.foundation.isSystemInDarkTheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
-private val DarkColorScheme =
-  darkColorScheme(primary = Purple80, secondary = PurpleGrey80, tertiary = Pink80)
+// --- Brand Colors ---
+val SashioGold = Color(0xFFD4AF37)
+val SashioGoldLight = Color(0xFFF3E5AB)
+val SashioGoldDark = Color(0xFFA67C00)
 
-private val LightColorScheme =
-  lightColorScheme(
-    primary = Purple40,
-    secondary = PurpleGrey40,
-    tertiary = Pink40,
-    background = VibrantBackground,
-    surface = VibrantBackground,
-    onBackground = VibrantOnSurface,
-    onSurface = VibrantOnSurface,
-    surfaceVariant = VibrantSurfaceVariant,
-    outline = VibrantBorder
-  )
+val SashioSlate = Color(0xFF0F172A)
+val SashioSlateDark = Color(0xFF020617)
+val SashioSlateCard = Color(0xFF1E293B)
+
+val SashioTeal = Color(0xFF0D9488)
+val SashioTealDark = Color(0xFF115E59)
+val SashioTealLight = Color(0xFF5EEAD4)
+
+val SashioGreen = Color(0xFF16A34A)
+val SashioRed = Color(0xFFDC2626)
+val SashioBlue = Color(0xFF2563EB)
+val SashioLight = Color(0xFFF8FAFC)
+val SashioTextMuted = Color(0xFF64748B)
+
+private val DarkColorScheme = darkColorScheme(
+    primary = SashioGold,
+    onPrimary = SashioSlate,
+    secondary = SashioTeal,
+    background = SashioSlate,
+    surface = SashioSlateCard,
+    onBackground = Color.White,
+    onSurface = Color.White,
+    error = SashioRed
+)
+
+private val LightColorScheme = lightColorScheme(
+    primary = SashioGold,
+    onPrimary = Color.White,
+    secondary = SashioTeal,
+    background = SashioLight,
+    surface = Color.White,
+    onBackground = Color(0xFF0F172A),
+    onSurface = Color(0xFF0F172A),
+    error = SashioRed
+)
 
 @Composable
-fun MyApplicationTheme(
-  darkTheme: Boolean = isSystemInDarkTheme(),
-  // Dynamic color is available on Android 12+
-  dynamicColor: Boolean = false,
-  content: @Composable () -> Unit,
+fun SashioTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
 ) {
-  val colorScheme =
-    when {
-      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-        val context = LocalContext.current
-        if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-      }
+    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val view = LocalView.current
 
-      darkTheme -> DarkColorScheme
-      else -> LightColorScheme
+    if (!view.isInEditMode) {
+        SideEffect {
+            val window = (view.context as Activity).window
+            window.statusBarColor = SashioSlate.toArgb()
+            window.navigationBarColor = SashioSlate.toArgb()
+            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = false
+            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = false
+        }
     }
 
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+    MaterialTheme(
+        colorScheme = colorScheme,
+        typography = Typography(),
+        content = content
+    )
 }
+
+// Alias for compatibility
+@Composable
+fun MyApplicationTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    content: @Composable () -> Unit
+) = SashioTheme(darkTheme = darkTheme, content = content)
