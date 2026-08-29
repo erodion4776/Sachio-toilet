@@ -47,9 +47,9 @@ data class SupabaseCatalogItem(
     val is_active: Boolean = true
 )
 
-// The client-facing catalog UI (ProductDiscoveryTab) renders the local Room
-// CatalogItem shape. Admin-managed products (with images) live in Supabase,
-// so this maps a synced Supabase row into that same shape for display.
+/**
+ * Maps a remote Supabase catalog item into the UI/local model shape.
+ */
 fun SupabaseCatalogItem.toCatalogItem(): CatalogItem = CatalogItem(
     title = title,
     description = description,
@@ -84,6 +84,7 @@ data class NewSupabaseBooking(
     val venue_name: String,
     val event_type: String,
     val guest_count: Int,
+    val event_date: String? = null,
     val cleaning_support: Boolean,
     val on_site_attendant: Boolean,
     val waste_evacuation: Boolean,
@@ -163,18 +164,8 @@ data class SupabaseProfile(
 )
 
 object SupabaseProvider {
-    // Storage bucket that holds catalog product photos. Must be created in
-    // Supabase (see the storage bucket + RLS policy SQL provided alongside
-    // this app) before uploads will succeed.
     const val CATALOG_IMAGES_BUCKET = "catalog-images"
 
-    // Populated at build time from SUPABASE_URL / SUPABASE_ANON_KEY in .env
-    // via the Secrets Gradle Plugin. Set real values in a local .env file
-    // (git-ignored) - never commit real credentials to .env.example.
-    // Not private: SashioViewModel.loginWithEmail() checks SUPABASE_URL
-    // directly to decide whether to fall back to offline demo login when
-    // Supabase isn't configured yet. Safe to expose - anon key/URL are
-    // public-by-design credentials, not secrets.
     val SUPABASE_URL = BuildConfig.SUPABASE_URL
     val SUPABASE_ANON_KEY = BuildConfig.SUPABASE_ANON_KEY
 
@@ -183,26 +174,12 @@ object SupabaseProvider {
             supabaseUrl = SUPABASE_URL,
             supabaseKey = SUPABASE_ANON_KEY
         ) {
-            // supabase-kt defaults this to 10 seconds, which is too tight on
-            // slower/variable mobile connections and was causing genuine
-            // requests to fail with "Request timeout has expired" even
-            // though the request would have succeeded given a bit longer.
             requestTimeout = 30.seconds
             install(Auth) {
-                // Lets the SDK build the right redirect URL for
-                // resetPasswordForEmail() and recognize the incoming link
-                // in MainActivity.handleDeeplinks() - see AndroidManifest.xml
-                // for the matching intent filter.
                 scheme = "sachioexpress"
                 host = "reset-password"
             }
             install(Postgrest)
-            // Storage plugin intentionally NOT installed: the storage-kt
-            // module uses a non-standard Kotlin Multiplatform source-set
-            // hierarchy that fails to resolve its Android classes in this
-            // project's Gradle/Kotlin setup ("Unresolved reference 'Storage'").
-            // Catalog image uploads instead call the Supabase Storage REST
-            // API directly via OkHttp - see SashioViewModel.uploadCatalogImage().
         }
     }
 }
