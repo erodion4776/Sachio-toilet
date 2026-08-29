@@ -212,4 +212,296 @@ fun AppearanceSettingsSubScreen(
                     )
 
                     choices.forEach { (name, colorValue) ->
-                        val isSel 
+                        val isSel = accentColorVal == name
+                        Box(
+                            modifier = Modifier
+                                .size(46.dp)
+                                .clip(CircleShape)
+                                .background(colorValue)
+                                .border(
+                                    width = if (isSel) 3.dp else 0.dp,
+                                    color = if (isSel) Color.White else Color.Transparent,
+                                    shape = CircleShape
+                                )
+                                .clickable {
+                                    viewModel.updateAppearanceToggles(themePref, name, fontSizeVal, cardDensityVal, mapThemeVal, accessibilityVal)
+                                    Toast.makeText(context, "Accent set to $name", Toast.LENGTH_SHORT).show()
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (isSel) {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Text("FONT SCALE & INFORMATION DENSITY", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioTextMuted)
+            Spacer(modifier = Modifier.height(6.dp))
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(modifier = Modifier.padding(12.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    listOf("Compact", "Standard", "Expanded").forEach { fs ->
+                        val isSel = fontSizeVal == fs
+                        Button(
+                            onClick = {
+                                viewModel.updateAppearanceToggles(themePref, accentColorVal, fs, cardDensityVal, mapThemeVal, accessibilityVal)
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = if (isSel) currentAccent else Color.LightGray.copy(alpha = 0.2f),
+                                contentColor = if (isSel) Color.White else if (themePref == "dark") Color.White else SashioSlate
+                            ),
+                            modifier = Modifier.weight(1f).height(38.dp)
+                        ) {
+                            Text(fs, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Text("MAP THEME PREFERENCE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioTextMuted)
+            Spacer(modifier = Modifier.height(6.dp))
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf("Standard Map", "Satellite Map Theme", "Terrain Operations Map", "Dark Map").forEach { mt ->
+                        val isSel = mapThemeVal == mt
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    viewModel.updateAppearanceToggles(themePref, accentColorVal, fontSizeVal, cardDensityVal, mt, accessibilityVal)
+                                    Toast.makeText(context, "$mt layer activated.", Toast.LENGTH_SHORT).show()
+                                }
+                                .padding(vertical = 10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                mt,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (themePref == "dark") Color.White else SashioSlate
+                            )
+                            if (isSel) {
+                                Icon(Icons.Default.Check, contentDescription = null, tint = currentAccent, modifier = Modifier.size(16.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            "High Contrast Accessible Layout",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (themePref == "dark") Color.White else SashioSlate
+                        )
+                        Text("Improves screen readability ratios.", fontSize = 9.sp, color = SashioTextMuted)
+                    }
+                    Switch(
+                        checked = accessibilityVal,
+                        onCheckedChange = {
+                            viewModel.updateAppearanceToggles(themePref, accentColorVal, fontSizeVal, cardDensityVal, mapThemeVal, it)
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun PreferencesSettingsSubScreen(
+    viewModel: SashioViewModel,
+    currentAccent: Color,
+    themePref: String,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val storageUsedVal by viewModel.storageUsed.collectAsStateWithLifecycle()
+    val cacheSizeVal by viewModel.cacheManagementSize.collectAsStateWithLifecycle()
+    val autoRefreshVal by viewModel.autoRefresh.collectAsStateWithLifecycle()
+    val locServicesVal by viewModel.locationServicesEnabled.collectAsStateWithLifecycle()
+    val bgTrackingVal by viewModel.backgroundTrackingEnabled.collectAsStateWithLifecycle()
+    val offlineModeVal by viewModel.offlineModeEnabled.collectAsStateWithLifecycle()
+    val autoDownloadsVal by viewModel.automaticDownloads.collectAsStateWithLifecycle()
+
+    var isClearingCache by remember { mutableStateOf(false) }
+    var isClearingDls by remember { mutableStateOf(false) }
+    var isOptimizingDb by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isClearingCache) {
+        if (isClearingCache) {
+            delay(1200)
+            viewModel.clearCache()
+            isClearingCache = false
+            Toast.makeText(context, "Sashio system cache cleared successfully.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(isClearingDls) {
+        if (isClearingDls) {
+            delay(1200)
+            viewModel.clearDownloads()
+            isClearingDls = false
+            Toast.makeText(context, "Sashio local PDF downloads flushed.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(isOptimizingDb) {
+        if (isOptimizingDb) {
+            delay(1600)
+            viewModel.optimizeStorage()
+            isOptimizingDb = false
+            Toast.makeText(context, "Prestige local database defragmented and optimized.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LazyColumn(
+        verticalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.fillMaxSize()
+    ) {
+        item {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text("STORAGE PARAMETERS & METRICS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = currentAccent)
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("Active Storage Occupied:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (themePref == "dark") Color.White else SashioSlate)
+                        Text(storageUsedVal, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
+                    }
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("System Cache & Temp Storage:", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (themePref == "dark") Color.White else SashioSlate)
+                        Text(cacheSizeVal, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
+                    }
+
+                    HorizontalDivider(color = Color.LightGray.copy(alpha = 0.2f))
+
+                    if (isClearingCache) {
+                        CircularProgressIndicator(color = currentAccent, modifier = Modifier.align(Alignment.CenterHorizontally).size(24.dp))
+                    } else {
+                        Button(
+                            onClick = { isClearingCache = true },
+                            colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().height(38.dp)
+                        ) {
+                            Text("FLUSH SYSTEM APP CACHES", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    if (isClearingDls) {
+                        CircularProgressIndicator(color = currentAccent, modifier = Modifier.align(Alignment.CenterHorizontally).size(24.dp))
+                    } else {
+                        OutlinedButton(
+                            onClick = { isClearingDls = true },
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.fillMaxWidth().height(38.dp)
+                        ) {
+                            Text("CLEAR OFFLINE QUOTATION DOWNLOADS", fontSize = 10.sp, color = if (themePref == "dark") Color.White else SashioSlate)
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = if (themePref == "dark") Color.White.copy(alpha = 0.03f) else Color.White
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Text("DATA PREFERENCES CONFIGURATION", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = currentAccent)
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1.2f)) {
+                            Text("Auto-refresh Active Queues", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (themePref == "dark") Color.White else SashioSlate)
+                            Text("Updates dispatch queues automatically.", fontSize = 9.sp, color = SashioTextMuted)
+                        }
+                        Switch(
+                            checked = autoRefreshVal,
+                            onCheckedChange = { viewModel.updateAppPreferencesToggles(it, locServicesVal, bgTrackingVal, offlineModeVal, autoDownloadsVal) }
+                        )
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1.2f)) {
+                            Text("Enable GPS Coordinate Sensor", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (themePref == "dark") Color.White else SashioSlate)
+                            Text("Tethers device GPS for pinpoint drop accuracy.", fontSize = 9.sp, color = SashioTextMuted)
+                        }
+                        Switch(
+                            checked = locServicesVal,
+                            onCheckedChange = { viewModel.updateAppPreferencesToggles(autoRefreshVal, it, bgTrackingVal, offlineModeVal, autoDownloadsVal) }
+                        )
+                    }
+
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1.2f)) {
+                            Text("Preemptive Offline State Caching", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (themePref == "dark") Color.White else SashioSlate)
+                            Text("Caches catalog items locally for low connectivity.", fontSize = 9.sp, color = SashioTextMuted)
+                        }
+                        Switch(
+                            checked = offlineModeVal,
+                            onCheckedChange = { viewModel.updateAppPreferencesToggles(autoRefreshVal, locServicesVal, bgTrackingVal, it, autoDownloadsVal) }
+                        )
+                    }
+                }
+            }
+        }
+
+        item {
+            if (isOptimizingDb) {
+                LinearProgressIndicator(color = currentAccent, modifier = Modifier.fillMaxWidth())
+            } else {
+                Button(
+                    onClick = { isOptimizingDb = true },
+                    colors = ButtonDefaults.buttonColors(containerColor = currentAccent),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().height(44.dp)
+                ) {
+                    Text("DEFRAGMENT & OPTIMIZE LOCAL DATABASE", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.White)
+                }
+            }
+        }
+    }
+}
