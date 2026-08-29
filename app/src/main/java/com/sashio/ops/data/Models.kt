@@ -4,12 +4,7 @@ import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.TypeConverter
 import androidx.room.TypeConverters
-import kotlinx.serialization.Serializable
 
-// --- Room Type Converters ---
-// Room only stores primitive-compatible columns, so List<String> (used for
-// CatalogItem.imageUrls) needs an explicit converter. Registered on
-// SashioDatabase via @TypeConverters(Converters::class).
 class Converters {
     @TypeConverter
     fun fromStringList(list: List<String>?): String = list?.joinToString("|||") ?: ""
@@ -38,15 +33,13 @@ data class Booking(
     val clientEmail: String = "",
     val companyName: String = "",
     
-    // Service & Catalog
-    val serviceMode: String = "Rental", // "Rental" or "Purchase"
-    val serviceType: String, // Catalog category (e.g., "Presidential Luxury Mobile Restrooms")
-    val variantName: String = "VIP Luxury Cabin", // Selected product name
-    val modelNumber: String = "S-800 Elite", // Model number
+    val serviceMode: String = "Rental",
+    val serviceType: String,
+    val variantName: String = "VIP Luxury Cabin",
+    val modelNumber: String = "S-800 Elite",
     val quantity: Int = 1,
-    val duration: String = "1 Day", // "1 Day", "3 Days", "1 Week", "2 Weeks", "1 Month", "Custom"
+    val duration: String = "1 Day",
     
-    // Location Details
     val address: String,
     val latitude: Double,
     val longitude: Double,
@@ -55,33 +48,26 @@ data class Booking(
     val landmarks: String = "",
     val parkingInformation: String = "",
     
-    // Event Details
-    val eventType: String = "Wedding", // Wedding, Corporate, Government, etc.
+    val eventType: String = "Wedding",
     val guestCount: Int = 100,
     val eventDate: String = "",
     
-    // inclusions checklist
     val cleaningSupport: Boolean = false,
     val onSiteAttendant: Boolean = false,
     val wasteEvacuation: Boolean = false,
     val maintenanceSupport: Boolean = false,
-    
     val specialInstructions: String = "",
     
-    // Custom Admin pricing parameters (Quote generation)
     val quotedPrice: Double = 0.0,
     val logisticsCost: Double = 0.0,
     val vatAmount: Double = 0.0,
     val adminNotes: String = "",
     val quoteIssuedDate: Long = 0L,
     
-    // Status in workflow
-    // "Quotation Requested", "Under Review", "Quotation Generated", "Quotation Sent", "Client Accepted", "Awaiting Payment", "Payment Confirmed", "Booking Confirmed", "Service Delivered", "Completed"
     val status: String = "Quotation Requested",
-    
     val assignedStaffId: Long? = null,
     val assignedStaffName: String? = null,
-    val paymentStatus: String = "pending", // "pending", "success", "failed"
+    val paymentStatus: String = "pending",
     val paymentRef: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -92,7 +78,7 @@ data class Payment(
     val bookingId: Long,
     val amount: Double,
     val reference: String,
-    val status: String, // "pending", "success", "failed"
+    val status: String = "pending",
     val channel: String = "paystack",
     val paymentDate: Long = System.currentTimeMillis()
 )
@@ -104,9 +90,9 @@ data class Consultation(
     val clientName: String,
     val clientPhone: String = "",
     val clientEmail: String = "",
-    val type: String, // "Book Consultation", "Request Callback", "Schedule Site Inspection", "Request Product Demonstration", "Virtual Consultation"
+    val type: String = "Book Consultation",
     val preferredDate: String = "",
-    val status: String = "Pending", // Pending, Scheduled, Completed
+    val status: String = "Pending",
     val notes: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
@@ -115,11 +101,11 @@ data class Consultation(
 data class Review(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val userName: String,
-    val rating: Int, // 1 to 5
+    val rating: Int = 5,
     val comment: String,
-    val category: String, // e.g. "Presidential Luxury Mobile Restrooms"
+    val category: String = "Presidential Luxury Mobile Restrooms",
     val date: String = "",
-    val imageUrl: String = "", // Simulated uploaded photo
+    val imageUrl: String = "",
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -129,11 +115,11 @@ data class CatalogItem(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val title: String,
     val description: String,
-    val modelNumber: String,
-    val variantName: String,
-    val basePrice: Double = 0.0, // Admin reference price
-    val imageUrl: String = "", // Cover image (first of imageUrls, kept for backward compatibility)
-    val imageUrls: List<String> = emptyList(), // Full product photo gallery
+    val modelNumber: String = "",
+    val variantName: String = "",
+    val basePrice: Double = 0.0,
+    val imageUrl: String = "",
+    val imageUrls: List<String> = emptyList(),
     val videoUrl: String = "",
     val features: String = "",
     val specifications: String = "",
@@ -152,9 +138,9 @@ data class SimulatedPlace(
 data class FavoriteLocation(
     @PrimaryKey(autoGenerate = true) val id: Long = 0,
     val clientId: Long,
-    val name: String, // e.g., "Home", "Office", "Construction Site"
+    val name: String,
     val address: String,
     val latitude: Double,
     val longitude: Double,
-    val locationType: String // "Home", "Office", "Construction Site", "Church", "Event Center", "Government Facility", "Other"
+    val locationType: String = "Other"
 )
