@@ -18,7 +18,7 @@ interface SashioDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertProfile(profile: UserProfile): Long
 
-    @Query("SELECT * FROM user_profiles")
+    @Query("SELECT * FROM user_profiles ORDER BY id ASC")
     fun getAllProfilesFlow(): Flow<List<UserProfile>>
 
     // --- Bookings & Quotations ---
