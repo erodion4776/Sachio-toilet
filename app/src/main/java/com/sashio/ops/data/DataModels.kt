@@ -7,6 +7,8 @@ import androidx.room.TypeConverters
 import kotlinx.serialization.Serializable
 
 // --- Room Type Converters ---
+// Room stores primitive-compatible columns. List<String> (used for
+// CatalogItem.imageUrls) uses this converter, registered on SashioDatabase.
 class Converters {
     @TypeConverter
     fun fromStringList(list: List<String>?): String = list?.joinToString("|||") ?: ""
@@ -38,8 +40,8 @@ data class Booking(
     // Service & Catalog
     val serviceMode: String = "Rental", // "Rental" or "Purchase"
     val serviceType: String, // Catalog category (e.g., "Presidential Luxury Mobile Restrooms")
-    val variantName: String = "VIP Luxury Cabin", // Selected product name
-    val modelNumber: String = "S-800 Elite", // Model number
+    val variantName: String = "VIP Luxury Cabin",
+    val modelNumber: String = "S-800 Elite",
     val quantity: Int = 1,
     val duration: String = "1 Day",
     
@@ -78,7 +80,7 @@ data class Booking(
     val assignedStaffId: Long? = null,
     val assignedStaffName: String? = null,
     val paymentStatus: String = "pending", // "pending", "success", "failed"
-    val paymentRef: String = "",           // Added to match SashioDao query
+    val paymentRef: String = "",           // Required by SashioDao updateBookingPayment query
     val createdAt: Long = System.currentTimeMillis()
 )
 
@@ -116,7 +118,7 @@ data class Review(
     val category: String = "Presidential Luxury Mobile Restrooms",
     val date: String = "",
     val imageUrl: String = "",
-    val createdAt: Long = System.currentTimeMillis() // Added to match SashioDao query
+    val createdAt: Long = System.currentTimeMillis() // Required by SashioDao getAllReviewsFlow query
 )
 
 @Entity(tableName = "catalog_items")
