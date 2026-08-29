@@ -3,7 +3,6 @@ package com.sashio.ops.data
 import android.content.Context
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.flowOf
 
 class SashioRepository(
     private val context: Context,
@@ -16,14 +15,20 @@ class SashioRepository(
     val allProfiles: Flow<List<UserProfile>> = dao.getAllProfilesFlow()
     val staffProfiles: Flow<List<UserProfile>> = dao.getStaffProfiles()
 
-    suspend fun getProfileByEmail(email: String): UserProfile? = dao.getProfileByEmail(email)
+    suspend fun getProfileByEmail(email: String): UserProfile? = dao.getProfileByEmail(email.trim().lowercase())
     suspend fun getProfileById(id: Long): UserProfile? = dao.getProfileById(id)
     suspend fun insertProfile(profile: UserProfile): Long = dao.insertProfile(profile)
     suspend fun registerProfile(name: String, email: String, role: String, phone: String, company: String = ""): Long {
-        val existing = dao.getProfileByEmail(email)
+        val existing = dao.getProfileByEmail(email.trim().lowercase())
         if (existing != null) return existing.id
         return dao.insertProfile(
-            UserProfile(name = name, email = email, role = role, phoneNumber = phone, companyName = company)
+            UserProfile(
+                name = name.trim(),
+                email = email.trim().lowercase(),
+                role = role,
+                phoneNumber = phone.trim(),
+                companyName = company.trim()
+            )
         )
     }
 
@@ -50,9 +55,7 @@ class SashioRepository(
 
     // NOTE: bookingId here is the local Room Long id, stringified. The Edge
     // Function looks this up against the real public.bookings UUID in
-    // Supabase - until bookings themselves are migrated to Supabase (a
-    // separate, larger step), this call will succeed in reaching Paystack
-    // but fail the booking lookup for bookings that only exist locally.
+    // Supabase.
     suspend fun createPayment(bookingId: Long, email: String, amount: Double): CreatePaymentResponse? {
         return try {
             val req = CreatePaymentRequest(bookingId.toString(), email, amount)
@@ -62,9 +65,7 @@ class SashioRepository(
         }
     }
 
-    // For bookings that actually exist in Supabase (real uuid), unlike the
-    // Long-based overload above which stringifies a local Room id that
-    // never matches a real Supabase booking.
+    // For bookings that exist directly in Supabase (real UUID string).
     suspend fun createPaymentForRealBooking(bookingId: String, email: String, amount: Double): CreatePaymentResponse {
         val req = CreatePaymentRequest(bookingId, email, amount)
         return networkProvider.apiService.createPayment(req)
@@ -72,13 +73,7 @@ class SashioRepository(
 
     // Real status check against Supabase Postgrest - reflects whatever the
     // paystack-webhook Edge Function actually recorded after a genuine
-    // Paystack payment. There is no client-side "mark as paid" anymore:
-    // the only way a payment becomes "success" is Paystack calling the
-    // real webhook. Returns "not_found" if no row exists yet (e.g. the
-    // webhook hasn't landed), or "check_failed" if the request itself
-    // errored (network issue, RLS denial, etc.) - kept distinct from a
-    // real Paystack status so the UI can tell the client something
-    // instead of silently doing nothing either way.
+    // Paystack payment.
     suspend fun checkPaymentStatus(reference: String): String {
         return try {
             SupabaseProvider.client.postgrest.from("payments")
@@ -115,9 +110,7 @@ class SashioRepository(
     suspend fun deleteFavoriteLocation(id: Long) = dao.deleteFavoriteLocation(id)
 
     // --- Database Seeder ---
-    // Seeds only the real product catalog (the categories SACHIO actually sells).
-    // No placeholder accounts, bookings, payments, consultations, reviews, or
-    // favorite locations are created — all of that must come from real usage.
+    // Seeds the 12 authentic SACHIO product catalog categories.
     suspend fun seedDatabaseIfEmpty() {
         if (dao.getCatalogItemCount() > 0) return
 
@@ -142,16 +135,68 @@ class SashioRepository(
                 benefits = "Premium comfort, cooling inside, VIP experience.",
                 useCases = "Film sets, VIP banquets, Outdoor private weddings"
             ),
-            CatalogItem(title = "VIP Portable Toilets", description = "Ultra-high quality materials, integrated wash basins, luxury paper, deodorizers, and beautiful warm led lighting installations.", modelNumber = "V-400 Executive", variantName = "Premium VIP Flush Single"),
-            CatalogItem(title = "Presidential Luxury Mobile Restrooms", description = "Multicabin presidential restrooms equipped with air conditioning, surround sound audio systems, and high-end mahogany counter trims.", modelNumber = "S-1000 Sovereign", variantName = "Presidential Trailing Suite", features = "• Mahogany Trims\n• Surround Sound\n• Fully Air-Conditioned", useCases = "High-society weddings, Government functions"),
-            CatalogItem(title = "Mobile Shower Units", description = "Hot & cold hydro-pumping shower stalls. Excellent for mining layouts, military setups, and multi-day sports tournaments.", modelNumber = "MS-50 Shower", variantName = "Twin Restroom-Shower Suite"),
-            CatalogItem(title = "Accessible Toilets", description = "Fully ADA wheelchair compliant and spacious floor-grade entries equipped with heavy robust handrail grips.", modelNumber = "A-500 Accessible", variantName = "Safe Cabin Comfort"),
-            CatalogItem(title = "Event Sanitation Packages", description = "Complete modular packages: Standard + VIP units plus onsite standby pumpers and attendants for high scale gatherings.", modelNumber = "ESP-Multi", variantName = "Grand Wedding Special Package"),
-            CatalogItem(title = "Corporate Site Sanitation Solutions", description = "Tailored packages with scheduled weekly extraction logs, servicing standard corporate expansion bases.", modelNumber = "CSS-Corp", variantName = "Industrial Workspace Unit"),
-            CatalogItem(title = "Waste Evacuation Services", description = "High density quad-tank vacuum suction pump trucks for waste collection, transfer, and highly sanitized operations.", modelNumber = "WES-Truck", variantName = "4000L Quad-Tank Pumper-Truck"),
-            CatalogItem(title = "Cleaning & Maintenance Services", description = "Uniformed standby sanitization crew dispatched to sites on-shift to scrub, empty, and refresh interiors constantly.", modelNumber = "CMS-Daily", variantName = "Standby Attendant Shift Crew"),
-            CatalogItem(title = "Sachio Clean and Detergents", description = "Sachio-branded cleaning agents, disinfectants, and detergents used for on-site sanitation and available for direct purchase.", modelNumber = "SCD-100", variantName = "Sachio Detergent & Disinfectant Range"),
-            CatalogItem(title = "Sachio Clothing", description = "Sachio-branded workwear and apparel, including staff uniforms and site-safety clothing.", modelNumber = "SCW-100", variantName = "Sachio Uniform & Apparel Range")
+            CatalogItem(
+                title = "VIP Portable Toilets",
+                description = "Ultra-high quality materials, integrated wash basins, luxury paper, deodorizers, and beautiful warm led lighting installations.",
+                modelNumber = "V-400 Executive",
+                variantName = "Premium VIP Flush Single"
+            ),
+            CatalogItem(
+                title = "Presidential Luxury Mobile Restrooms",
+                description = "Multicabin presidential restrooms equipped with air conditioning, surround sound audio systems, and high-end mahogany counter trims.",
+                modelNumber = "S-1000 Sovereign",
+                variantName = "Presidential Trailing Suite",
+                features = "• Mahogany Trims\n• Surround Sound\n• Fully Air-Conditioned",
+                useCases = "High-society weddings, Government functions"
+            ),
+            CatalogItem(
+                title = "Mobile Shower Units",
+                description = "Hot & cold hydro-pumping shower stalls. Excellent for mining layouts, military setups, and multi-day sports tournaments.",
+                modelNumber = "MS-50 Shower",
+                variantName = "Twin Restroom-Shower Suite"
+            ),
+            CatalogItem(
+                title = "Accessible Toilets",
+                description = "Fully ADA wheelchair compliant and spacious floor-grade entries equipped with heavy robust handrail grips.",
+                modelNumber = "A-500 Accessible",
+                variantName = "Safe Cabin Comfort"
+            ),
+            CatalogItem(
+                title = "Event Sanitation Packages",
+                description = "Complete modular packages: Standard + VIP units plus onsite standby pumpers and attendants for high scale gatherings.",
+                modelNumber = "ESP-Multi",
+                variantName = "Grand Wedding Special Package"
+            ),
+            CatalogItem(
+                title = "Corporate Site Sanitation Solutions",
+                description = "Tailored packages with scheduled weekly extraction logs, servicing standard corporate expansion bases.",
+                modelNumber = "CSS-Corp",
+                variantName = "Industrial Workspace Unit"
+            ),
+            CatalogItem(
+                title = "Waste Evacuation Services",
+                description = "High density quad-tank vacuum suction pump trucks for waste collection, transfer, and highly sanitized operations.",
+                modelNumber = "WES-Truck",
+                variantName = "4000L Quad-Tank Pumper-Truck"
+            ),
+            CatalogItem(
+                title = "Cleaning & Maintenance Services",
+                description = "Uniformed standby sanitization crew dispatched to sites on-shift to scrub, empty, and refresh interiors constantly.",
+                modelNumber = "CMS-Daily",
+                variantName = "Standby Attendant Shift Crew"
+            ),
+            CatalogItem(
+                title = "Sachio Clean and Detergents",
+                description = "Sachio-branded cleaning agents, disinfectants, and detergents used for on-site sanitation and available for direct purchase.",
+                modelNumber = "SCD-100",
+                variantName = "Sachio Detergent & Disinfectant Range"
+            ),
+            CatalogItem(
+                title = "Sachio Clothing",
+                description = "Sachio-branded workwear and apparel, including staff uniforms and site-safety clothing.",
+                modelNumber = "SCW-100",
+                variantName = "Sachio Uniform & Apparel Range"
+            )
         )
         for (c in defaultCatalog) {
             dao.insertCatalogItem(c)
