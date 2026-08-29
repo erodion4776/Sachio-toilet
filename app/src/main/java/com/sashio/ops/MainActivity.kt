@@ -12,8 +12,6 @@ import com.sashio.ops.ui.SashioAppContent
 import com.sashio.ops.ui.theme.SashioTheme
 import java.net.URLDecoder
 
-// FragmentActivity (not plain ComponentActivity) is required to host a real
-// androidx.biometric.BiometricPrompt for Touch ID / Face ID.
 class MainActivity : FragmentActivity() {
     private val viewModel: SashioViewModel by viewModels()
 
@@ -28,9 +26,6 @@ class MainActivity : FragmentActivity() {
         handleDeepLink(intent)
     }
 
-    // launchMode="singleTask" (see AndroidManifest.xml) ensures the activity isn't
-    // recreated when a browser redirect returns to the app - Android delivers
-    // the new Intent here instead of going through onCreate.
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
@@ -46,9 +41,6 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    // Paystack redirects the browser to sachioexpress://payment-complete
-    // (configured via callback_url in initialize-payment), appending
-    // ?reference=...&trxref=... automatically.
     private fun handlePaymentDeepLink(uri: Uri) {
         val reference = uri.getQueryParameter("reference") ?: uri.getQueryParameter("trxref")
         if (!reference.isNullOrBlank()) {
@@ -56,9 +48,6 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    // Supabase's password recovery email links here (configured via
-    // redirectUrl in resetPasswordForEmail). It uses the implicit auth
-    // flow, appending session tokens after a # fragment.
     private fun handlePasswordResetDeepLink(uri: Uri) {
         val fragment = uri.fragment ?: uri.encodedQuery ?: return
         try {
@@ -74,7 +63,7 @@ class MainActivity : FragmentActivity() {
                 viewModel.beginPasswordRecoverySession(accessToken, refreshToken ?: "")
             }
         } catch (e: Exception) {
-            // Silently ignore malformed deep link fragments
+            // Ignore malformed token
         }
     }
 }
