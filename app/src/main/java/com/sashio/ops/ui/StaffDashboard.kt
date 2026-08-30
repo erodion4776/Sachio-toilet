@@ -37,12 +37,10 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
     val clockedIn by viewModel.isClockedIn.collectAsStateWithLifecycle()
     var workOfflineToggle by remember { mutableStateOf(false) }
 
-    // Dialog overlay triggers
     var showClockInDialog by remember { mutableStateOf(false) }
     var showEmergencyDialog by remember { mutableStateOf(false) }
     var showAddExpenseDialog by remember { mutableStateOf(false) }
 
-    // Initial synchronizations for real-time assigned jobs and chat board
     LaunchedEffect(Unit) {
         viewModel.loadMyAssignedBookings()
         viewModel.loadGeneralChats()
@@ -133,7 +131,6 @@ fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
         }
     }
 
-    // Modal Overlays
     if (showClockInDialog) {
         StaffClockInDialog(
             viewModel = viewModel,
@@ -163,7 +160,6 @@ fun StaffDashboardMapsTab(viewModel: SashioViewModel) {
         viewModel.loadMyAssignedBookings()
     }
 
-    // Support assigned jobs from Supabase or local Room cache
     val activeJob = assignedSupabaseBookings.firstOrNull { it.status == "IN TRANSIT" || it.status == "Staff Assigned" || it.status == "ARRIVED" }
         ?: localBookings.firstOrNull { it.status == "IN TRANSIT" || it.status == "ARRIVED" }
 
@@ -270,7 +266,6 @@ fun StaffDashboardMessagesTab(viewModel: SashioViewModel) {
         viewModel.loadGeneralChats()
     }
 
-    // Filter messages specifically for the staff member's view
     val filteredChats = remember(generalChats, messagingChannelSelect, myId) {
         generalChats.filter { msg ->
             val isFromMe = msg.sender_id == myId
