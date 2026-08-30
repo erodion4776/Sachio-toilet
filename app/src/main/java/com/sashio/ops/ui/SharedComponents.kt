@@ -230,7 +230,7 @@ fun PaystackCheckoutGatewayModal(
 
 /**
  * 100% FREE FOREVER OpenStreetMap Implementation for SACHIO
- * Supports interactive map gestures, custom pin drops, and vehicle route vectors.
+ * Supports interactive map gestures, tap-to-pin, auto-centering on typed/detected location, and live routing.
  */
 @Composable
 fun SashioCanvasMap(
@@ -245,6 +245,7 @@ fun SashioCanvasMap(
     showRoute: Boolean = false,
     label: String = ""
 ) {
+    val context = LocalContext.current
     val destLat = if (latitude != 0.0) latitude else 6.4531
     val destLng = if (longitude != 0.0) longitude else 3.3958
 
@@ -257,7 +258,7 @@ fun SashioCanvasMap(
                     isTilesScaledToDpi = true
 
                     val mapController = controller
-                    mapController.setZoom(14.5)
+                    mapController.setZoom(15.0)
                     mapController.setCenter(GeoPoint(destLat, destLng))
 
                     // Tap-to-pick pin drop gesture
@@ -276,15 +277,17 @@ fun SashioCanvasMap(
                 }
             },
             update = { mapView ->
+                // Clear old overlays (excluding the tap events overlay)
                 mapView.overlays.removeAll { it is Marker || it is Polyline }
 
                 val destPoint = GeoPoint(destLat, destLng)
 
-                // 1. Destination Marker (Event Venue)
+                // 1. Destination Marker (Event Venue Pin)
                 val destMarker = Marker(mapView).apply {
                     position = destPoint
                     setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    title = label.ifBlank { "Event Venue" }
+                    title = label.ifBlank { "Event Venue Location" }
+                    snippet = "GPS: %.4f, %.4f".format(destLat, destLng)
                 }
                 mapView.overlays.add(destMarker)
 
@@ -298,7 +301,7 @@ fun SashioCanvasMap(
                     }
                     mapView.overlays.add(vehMarker)
 
-                    // 3. Vector Route Polyline
+                    // 3. Vector Route Polyline connecting Vehicle -> Venue
                     if (showRoute) {
                         val routeLine = Polyline(mapView).apply {
                             outlinePaint.color = android.graphics.Color.rgb(210, 204, 70) // SachioMustard / Gold
@@ -311,6 +314,8 @@ fun SashioCanvasMap(
                     }
                 }
 
+                // Smoothly animate and re-center map to the current pin
+                mapView.controller.animateTo(destPoint)
                 mapView.invalidate()
             },
             modifier = Modifier.fillMaxSize()
