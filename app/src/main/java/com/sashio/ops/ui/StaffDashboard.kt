@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -160,47 +159,63 @@ fun StaffDashboardMapsTab(viewModel: SashioViewModel) {
         viewModel.loadMyAssignedBookings()
     }
 
-    val activeJob = assignedSupabaseBookings.firstOrNull { it.status == "IN TRANSIT" || it.status == "Staff Assigned" || it.status == "ARRIVED" }
-        ?: localBookings.firstOrNull { it.status == "IN TRANSIT" || it.status == "ARRIVED" }
+    // Pick active assigned job from Supabase or local Room cache
+    val activeJob = assignedSupabaseBookings.firstOrNull { 
+        it.status == "IN TRANSIT" || it.status == "Staff Assigned" || it.status == "ARRIVED" || it.status == "SETUP IN PROGRESS" 
+    } ?: assignedSupabaseBookings.firstOrNull() ?: localBookings.firstOrNull { it.status == "IN TRANSIT" || it.status == "ARRIVED" }
 
     if (activeJob == null) {
         Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A)), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(Icons.Default.LocationOff, contentDescription = null, tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(48.dp))
                 Spacer(modifier = Modifier.height(8.dp))
-                Text("No active in-transit haul job assigned to you.", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+                Text("No active dispatch job assigned to your profile.", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
             }
         }
     } else {
-        val lat = when (activeJob) {
-            is SupabaseBooking -> activeJob.latitude
-            is Booking -> activeJob.latitude
-            else -> 6.4282
+        val destLat = when (activeJob) {
+            is SupabaseBooking -> if (activeJob.latitude != 0.0) activeJob.latitude else 6.4531
+            is Booking -> if (activeJob.latitude != 0.0) activeJob.latitude else 6.4531
+            else -> 6.4531
         }
-        val lng = when (activeJob) {
-            is SupabaseBooking -> activeJob.longitude
-            is Booking -> activeJob.longitude
-            else -> 3.4211
+        val destLng = when (activeJob) {
+            is SupabaseBooking -> if (activeJob.longitude != 0.0) activeJob.longitude else 3.3958
+            is Booking -> if (activeJob.longitude != 0.0) activeJob.longitude else 3.3958
+            else -> 3.3958
         }
         val address = when (activeJob) {
-            is SupabaseBooking -> activeJob.address
-            is Booking -> activeJob.address
-            else -> "Assigned Venue Location"
+            is SupabaseBooking -> activeJob.address.ifBlank { "Client Venue Location" }
+            is Booking -> activeJob.address.ifBlank { "Client Venue Location" }
+            else -> "Client Venue Location"
         }
         val status = when (activeJob) {
             is SupabaseBooking -> activeJob.status
             is Booking -> activeJob.status
-            else -> ""
+            else -> "Staff Assigned"
+        }
+
+        // Live coordinates along the route
+        val vehicleLat = when (status) {
+            "Staff Assigned" -> 6.4282 // Victoria Island Central Yard
+            "IN TRANSIT" -> destLat - 0.015
+            else -> destLat
+        }
+        val vehicleLng = when (status) {
+            "Staff Assigned" -> 3.4211
+            "IN TRANSIT" -> destLng - 0.012
+            else -> destLng
         }
 
         Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A))) {
             SashioCanvasMap(
-                latitude = lat,
-                longitude = lng,
-                staffLat = lat - 0.015,
-                staffLng = lng - 0.012,
+                latitude = destLat,
+                longitude = destLng,
+                staffLat = vehicleLat,
+                staffLng = vehicleLng,
+                vehicleLat = vehicleLat,
+                vehicleLng = vehicleLng,
                 showRoute = true,
-                label = "Destination: $address"
+                label = "Event Venue: $address"
             )
 
             Card(
@@ -212,15 +227,21 @@ fun StaffDashboardMapsTab(viewModel: SashioViewModel) {
                     .align(Alignment.BottomCenter)
             ) {
                 Column(modifier = Modifier.padding(14.dp)) {
-                    Text("LIVE DISPATCH ROUTE NAVIGATION", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioGold)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("LIVE DISPATCH ROUTE NAVIGATION", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioGold)
+                        BookingStatusBadge(status = status)
+                    }
                     Spacer(modifier = Modifier.height(6.dp))
                     Text("Destination: $address", fontWeight = FontWeight.Medium, color = Color.White, fontSize = 13.sp)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Status: $status | Rig Secured & Coupled", color = Color.LightGray, fontSize = 11.sp)
+                    if (activeJob is SupabaseBooking) {
+                        Text("Client: ${activeJob.client_name} (${activeJob.client_phone})", color = Color.LightGray, fontSize = 11.sp)
+                    }
+                    Text("Rig Status: Coupled & Secured", color = SashioTeal, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = { Toast.makeText(localCtx, "GPS location locked accurately.", Toast.LENGTH_SHORT).show() },
+                            onClick = { Toast.makeText(localCtx, "GPS location coordinates locked.", Toast.LENGTH_SHORT).show() },
                             colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
                             modifier = Modifier.weight(1f).height(36.dp)
                         ) {
@@ -230,7 +251,7 @@ fun StaffDashboardMapsTab(viewModel: SashioViewModel) {
                         Button(
                             onClick = {
                                 if (activeJob is SupabaseBooking) {
-                                    val nextStatus = when (activeJob.status) {
+                                    val nextStatus = when (status) {
                                         "Staff Assigned" -> "IN TRANSIT"
                                         "IN TRANSIT" -> "ARRIVED"
                                         "ARRIVED" -> "SETUP IN PROGRESS"
