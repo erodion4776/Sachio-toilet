@@ -123,6 +123,9 @@ dependencies {
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 
+  // 100% Free Forever OpenStreetMap Engine (No API Key or Billing Required)
+  implementation("org.osmdroid:osmdroid-android:6.1.18")
+
   // Supabase, Ktor and Kotlinx Serialization
   implementation(platform(libs.supabase.bom))
   implementation(libs.supabase.postgrest)
