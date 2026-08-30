@@ -1,7 +1,9 @@
 package com.sashio.ops.data
 
 import android.app.Application
+import android.location.Geocoder
 import android.net.Uri
+import android.os.Build
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import io.github.jan.supabase.auth.auth
@@ -194,6 +196,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentScreen = MutableStateFlow("splash")
     val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
 
+    // Core Listings
     val allBookings: StateFlow<List<Booking>> = repository.allBookings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -769,7 +772,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 _roleManagementError.value = null
                 onComplete(true)
             } catch (e: Exception) {
-                // Fallback: assign staff without altering status if check constraint blocks "Staff Assigned"
                 try {
                     SupabaseProvider.client.postgrest.from("bookings").update(
                         buildJsonObject {
@@ -1231,30 +1233,95 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Address Lookup Autocomplete ---
+    // --- Live Geocoding & Address Suggestions ---
     fun updateAddressSearch(query: String) {
         _addressSearchQuery.value = query
-        if (query.length < 3) {
+        if (query.trim().length < 3) {
             _addressSuggestions.value = emptyList()
             return
         }
 
-        val lagosBase = "Lagos, Nigeria"
-        val places = listOf(
-            SimulatedPlace("Allen Avenue, Ikeja, $lagosBase", 6.5982, 3.3541),
-            SimulatedPlace("Broad Street, Marina, $lagosBase", 6.4531, 3.3958),
-            SimulatedPlace("Eko Atlantic Promenade, Victoria Island, $lagosBase", 6.4253, 3.4243),
-            SimulatedPlace("Lekki Phase 1 Gatehouse, Lekki, $lagosBase", 6.4381, 3.4823),
-            SimulatedPlace("Adetokunbo Ademola Crescent, Wuse II, Abuja, Nigeria", 9.0778, 7.4812),
-            SimulatedPlace("Garki Area 11 Shopping Complex, Abuja, Nigeria", 9.0321, 7.4891),
-            SimulatedPlace("Trans Amadi Industrial Estate, Port Harcourt, Nigeria", 4.8152, 7.0392),
-            SimulatedPlace("GRA Phase 2 Recreation Hub, Port Harcourt, Nigeria", 4.8211, 7.0084),
-            SimulatedPlace("Bompai Industrial Area, Kano, Nigeria", 12.0123, 8.5432),
-            SimulatedPlace("Murtala Muhammed Way, Benin City, Edo, Nigeria", 6.3312, 5.6261)
-        )
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>().applicationContext
+                val geocoder = Geocoder(context, Locale.getDefault())
 
-        _addressSuggestions.value = places.filter {
-            it.address.contains(query, ignoreCase = true)
+                val addresses = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                    try {
+                        var resultList: List<android.location.Address> = emptyList()
+                        geocoder.getFromLocationName(query, 5) { addresses ->
+                            resultList = addresses
+                        }
+                        resultList
+                    } catch (e: Exception) {
+                        geocoder.getFromLocationName(query, 5) ?: emptyList()
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    geocoder.getFromLocationName(query, 5) ?: emptyList()
+                }
+
+                if (!addresses.isNullOrEmpty()) {
+                    val places = addresses.map { addr ->
+                        val formatted = (0..addr.maxAddressLineIndex).mapNotNull { addr.getAddressLine(it) }.joinToString(", ")
+                        SimulatedPlace(
+                            address = formatted.ifBlank { "${addr.featureName ?: query}, ${addr.locality ?: "Nigeria"}" },
+                            lat = addr.latitude,
+                            lng = addr.longitude
+                        )
+                    }
+                    _addressSuggestions.value = places
+                    return@launch
+                }
+            } catch (e: Exception) {
+                // Fall through to pre-indexed landmarks
+            }
+
+            val lagosBase = "Lagos, Nigeria"
+            val defaultPlaces = listOf(
+                SimulatedPlace("Admiralty Way, Lekki Phase 1, $lagosBase", 6.4381, 3.4823),
+                SimulatedPlace("Eko Atlantic City, Victoria Island, $lagosBase", 6.4253, 3.4243),
+                SimulatedPlace("Allen Avenue, Ikeja, $lagosBase", 6.5982, 3.3541),
+                SimulatedPlace("Broad Street, Marina, Lagos Island, $lagosBase", 6.4531, 3.3958),
+                SimulatedPlace("Ozumba Mbadiwe Avenue, Victoria Island, $lagosBase", 6.4342, 3.4285),
+                SimulatedPlace("Bourdillon Road, Ikoyi, $lagosBase", 6.4510, 3.4412),
+                SimulatedPlace("Isaac John Street, GRA Ikeja, $lagosBase", 6.5891, 3.3592),
+                SimulatedPlace("Ajose Adeogun Street, Victoria Island, $lagosBase", 6.4298, 3.4265),
+                SimulatedPlace("Adetokunbo Ademola Crescent, Wuse II, Abuja, Nigeria", 9.0778, 7.4812),
+                SimulatedPlace("Garki Area 11 Shopping Complex, Abuja, Nigeria", 9.0321, 7.4891),
+                SimulatedPlace("Trans Amadi Industrial Estate, Port Harcourt, Rivers, Nigeria", 4.8152, 7.0392),
+                SimulatedPlace("GRA Phase 2 Recreation Hub, Port Harcourt, Rivers, Nigeria", 4.8211, 7.0084),
+                SimulatedPlace("Murtala Muhammed Way, Benin City, Edo, Nigeria", 6.3312, 5.6261),
+                SimulatedPlace("Bompai Industrial Area, Kano, Nigeria", 12.0123, 8.5432)
+            )
+
+            _addressSuggestions.value = defaultPlaces.filter {
+                it.address.contains(query, ignoreCase = true)
+            }
+        }
+    }
+
+    fun reverseGeocodeLocation(lat: Double, lng: Double, onResult: (String) -> Unit) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val context = getApplication<Application>().applicationContext
+                val geocoder = Geocoder(context, Locale.getDefault())
+
+                @Suppress("DEPRECATION")
+                val addresses = geocoder.getFromLocation(lat, lng, 1)
+                if (!addresses.isNullOrEmpty()) {
+                    val addr = addresses[0]
+                    val formatted = (0..addr.maxAddressLineIndex).mapNotNull { addr.getAddressLine(it) }.joinToString(", ")
+                    val finalAddr = formatted.ifBlank { "${addr.featureName ?: "Pinned Venue"}, ${addr.locality ?: "Lagos"}" }
+                    withContext(Dispatchers.Main) { onResult(finalAddr) }
+                    return@launch
+                }
+            } catch (e: Exception) {
+                // Fallback
+            }
+            withContext(Dispatchers.Main) {
+                onResult("Pinned Venue (%.4f, %.4f)".format(lat, lng))
+            }
         }
     }
 
@@ -1302,6 +1369,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Favorite Locations ---
     fun saveFavoriteLocation(name: String, address: String, lat: Double, lng: Double, type: String) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1341,6 +1409,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Live Dispatch Tracking Simulation & Chat ---
     fun addActivityLog(bookingId: Long, title: String, description: String) {
         _activeLiveTrackers.update { currentMap ->
             val tracker = currentMap[bookingId] ?: return@update currentMap
@@ -1949,6 +2018,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     }
 }
 
+// --- Local Data Models for Attendance & Logs ---
 data class StaffExpense(
     val id: String,
     val amount: Double,
