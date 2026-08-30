@@ -772,6 +772,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 _roleManagementError.value = null
                 onComplete(true)
             } catch (e: Exception) {
+                // Fallback: assign staff without altering status if check constraint blocks "Staff Assigned"
                 try {
                     SupabaseProvider.client.postgrest.from("bookings").update(
                         buildJsonObject {
@@ -1183,7 +1184,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    // --- Paystack Payments & Webhook ---
+    // --- Paystack Payments & Webhook Status ---
     fun triggerPaystackPayment(bookingId: Long, totalAmount: Double) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1225,10 +1226,30 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         _activePaystackTransaction.value = null
     }
 
+    // Handles user cancellation on Paystack checkout
+    fun handlePaymentCancelled() {
+        _activePaystackTransaction.value = null
+        _lastPaymentStatus.value = "cancelled"
+        loadClientSupabaseBookings()
+    }
+
+    // Handles Paystack completion with smart polling for webhook landing
     fun simWebpayComplete(ref: String) {
         _activePaystackTransaction.value = null
         viewModelScope.launch {
-            _lastPaymentStatus.value = repository.checkPaymentStatus(ref)
+            var status = repository.checkPaymentStatus(ref)
+            
+            if (status == "not_found" || status == "pending") {
+                delay(1500)
+                status = repository.checkPaymentStatus(ref)
+            }
+            
+            if (status == "not_found" || status == "pending") {
+                delay(2000)
+                status = repository.checkPaymentStatus(ref)
+            }
+
+            _lastPaymentStatus.value = status
             loadClientSupabaseBookings()
         }
     }
