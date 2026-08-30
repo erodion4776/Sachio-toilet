@@ -189,6 +189,28 @@ data class SupabaseExpense(
     val created_at: String? = null
 )
 
+@Serializable
+data class NewSupabaseAttendance(
+    val staff_id: String? = null,
+    val staff_name: String,
+    val clock_in_time: String,
+    val clock_out_time: String? = null,
+    val location_verified: String = "",
+    val is_verified: Boolean = true
+)
+
+@Serializable
+data class SupabaseAttendance(
+    val id: String = "",
+    val staff_id: String? = null,
+    val staff_name: String = "",
+    val clock_in_time: String = "",
+    val clock_out_time: String? = null,
+    val location_verified: String? = null,
+    val is_verified: Boolean = true,
+    val created_at: String = ""
+)
+
 object SupabaseProvider {
     const val CATALOG_IMAGES_BUCKET = "catalog-images"
 
