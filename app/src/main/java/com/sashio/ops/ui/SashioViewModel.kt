@@ -194,7 +194,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentScreen = MutableStateFlow("splash")
     val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
 
-    // Core Listings
     val allBookings: StateFlow<List<Booking>> = repository.allBookings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -231,6 +230,10 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     // Live Supabase Expenses Stream
     private val _supabaseExpenses = MutableStateFlow<List<SupabaseExpense>>(emptyList())
     val supabaseExpenses: StateFlow<List<SupabaseExpense>> = _supabaseExpenses.asStateFlow()
+
+    // Live Supabase Attendance Stream
+    private val _supabaseAttendance = MutableStateFlow<List<SupabaseAttendance>>(emptyList())
+    val supabaseAttendance: StateFlow<List<SupabaseAttendance>> = _supabaseAttendance.asStateFlow()
 
     // Role-Filtered Bookings
     val clientBookings: StateFlow<List<Booking>> = _currentUser
@@ -629,7 +632,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         _currentScreen.value = "login"
     }
 
-    // --- Supabase Profiles Management ---
     fun loadSupabaseProfiles() {
         viewModelScope.launch {
             try {
@@ -767,8 +769,23 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 _roleManagementError.value = null
                 onComplete(true)
             } catch (e: Exception) {
-                _roleManagementError.value = "Could not assign staff: ${e.message}"
-                onComplete(false)
+                // Fallback: assign staff without altering status if check constraint blocks "Staff Assigned"
+                try {
+                    SupabaseProvider.client.postgrest.from("bookings").update(
+                        buildJsonObject {
+                            put("assigned_staff_id", staffId)
+                            put("assigned_staff_name", staffName)
+                        }
+                    ) {
+                        filter { eq("id", bookingId) }
+                    }
+                    loadSupabaseBookings()
+                    _roleManagementError.value = null
+                    onComplete(true)
+                } catch (fallbackError: Exception) {
+                    _roleManagementError.value = "Could not assign staff: ${fallbackError.message}"
+                    onComplete(false)
+                }
             }
         }
     }
@@ -1671,7 +1688,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                 loadSupabaseExpenses()
                 onComplete()
             } catch (e: Exception) {
-                // Local in-memory fallback
                 val newExp = StaffExpense(
                     id = "EXP-${Random().nextInt(9000) + 1000}",
                     amount = amount,
@@ -1739,31 +1755,95 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
-    fun clockInStaff(location: String) {
-        _isClockedIn.value = true
-        val nowStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
-        val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
-        val newLog = AttendanceLog(
-            id = "ATT-${Random().nextInt(900) + 100}",
-            clockInTime = nowStr,
-            clockOutTime = null,
-            date = dateStr,
-            location = location,
-            status = "Checked In"
-        )
-        _attendanceHistory.update { listOf(newLog) + it }
+    // --- Supabase-Backed Staff Attendance ---
+    fun loadSupabaseAttendance() {
+        viewModelScope.launch {
+            try {
+                val rows = SupabaseProvider.client.postgrest.from("staff_attendance")
+                    .select {
+                        order("created_at", Order.DESCENDING)
+                    }
+                    .decodeList<SupabaseAttendance>()
+                _supabaseAttendance.value = rows
+                _roleManagementError.value = null
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not load attendance: ${e.message}"
+            }
+        }
     }
 
-    fun clockOutStaff() {
+    fun clockInStaff(location: String, onComplete: () -> Unit = {}) {
+        _isClockedIn.value = true
+        val nowIso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).format(Date())
+        viewModelScope.launch {
+            try {
+                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
+                val staffName = _currentUser.value?.name ?: supaUser?.email ?: "Field Operative"
+                val staffId = supaUser?.id ?: _currentUser.value?.id?.toString()
+
+                SupabaseProvider.client.postgrest.from("staff_attendance").insert(
+                    NewSupabaseAttendance(
+                        staff_id = staffId,
+                        staff_name = staffName,
+                        clock_in_time = nowIso,
+                        location_verified = location,
+                        is_verified = true
+                    )
+                )
+                loadSupabaseAttendance()
+                onComplete()
+            } catch (e: Exception) {
+                val nowStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+                val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                val newLog = AttendanceLog(
+                    id = "ATT-${Random().nextInt(900) + 100}",
+                    clockInTime = nowStr,
+                    clockOutTime = null,
+                    date = dateStr,
+                    location = location,
+                    status = "Checked In"
+                )
+                _attendanceHistory.update { listOf(newLog) + it }
+                onComplete()
+            }
+        }
+    }
+
+    fun clockOutStaff(onComplete: () -> Unit = {}) {
         _isClockedIn.value = false
-        val nowStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
-        _attendanceHistory.update { list ->
-            list.mapIndexed { idx, log ->
-                if (idx == 0 && log.clockOutTime == null) {
-                    log.copy(clockOutTime = nowStr, status = "Completed")
-                } else {
-                    log
+        val nowIso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).format(Date())
+        viewModelScope.launch {
+            try {
+                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
+                val staffId = supaUser?.id ?: _currentUser.value?.id?.toString()
+
+                if (staffId != null) {
+                    val openRecords = _supabaseAttendance.value.filter { 
+                        it.staff_id == staffId && it.clock_out_time.isNullOrBlank() 
+                    }
+                    val latest = openRecords.firstOrNull()
+                    if (latest != null) {
+                        SupabaseProvider.client.postgrest.from("staff_attendance").update(
+                            buildJsonObject { put("clock_out_time", nowIso) }
+                        ) {
+                            filter { eq("id", latest.id) }
+                        }
+                    }
                 }
+                loadSupabaseAttendance()
+                onComplete()
+            } catch (e: Exception) {
+                val nowStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
+                _attendanceHistory.update { list ->
+                    list.mapIndexed { idx, log ->
+                        if (idx == 0 && log.clockOutTime == null) {
+                            log.copy(clockOutTime = nowStr, status = "Completed")
+                        } else {
+                            log
+                        }
+                    }
+                }
+                onComplete()
             }
         }
     }
@@ -1869,7 +1949,6 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     }
 }
 
-// --- Local Data Models for Attendance & Logs ---
 data class StaffExpense(
     val id: String,
     val amount: Double,
