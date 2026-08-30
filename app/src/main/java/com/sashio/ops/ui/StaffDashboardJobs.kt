@@ -33,7 +33,6 @@ fun StaffDashboardJobsTab(
     workOfflineToggle: Boolean
 ) {
     val myAssignedBookings by viewModel.myAssignedBookings.collectAsStateWithLifecycle()
-    val localBookings by viewModel.staffBookings.collectAsStateWithLifecycle()
     var selectedJobDetailsId by remember { mutableStateOf<String?>(null) }
     var selectedFilterTab by remember { mutableStateOf("Assigned") }
     val context = LocalContext.current
@@ -42,7 +41,6 @@ fun StaffDashboardJobsTab(
         viewModel.loadMyAssignedBookings()
     }
 
-    // Job Details Internal Checklist & Form States
     var activeChecklistBeforeDeparture by remember { mutableStateOf(setOf<String>()) }
     var activeChecklistUponArrival by remember { mutableStateOf(setOf<String>()) }
     var activeChecklistServiceActivities by remember { mutableStateOf(setOf<String>()) }
@@ -136,6 +134,21 @@ fun StaffDashboardJobsTab(
                                 color = SashioGold,
                                 fontWeight = FontWeight.SemiBold
                             )
+                            Spacer(modifier = Modifier.height(12.dp))
+
+                            Button(
+                                onClick = {
+                                    val lat = if (b.latitude != 0.0) b.latitude else 6.4531
+                                    val lng = if (b.longitude != 0.0) b.longitude else 3.3958
+                                    launchExternalGpsNavigation(context, lat, lng, b.address)
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
+                                modifier = Modifier.fillMaxWidth().height(38.dp)
+                            ) {
+                                Icon(Icons.Default.Directions, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("OPEN IN GPS MAPS / WAZE", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 11.sp)
+                            }
                         }
                     }
                 }
@@ -443,14 +456,30 @@ fun StaffDashboardJobsTab(
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     Button(
                                         onClick = { selectedJobDetailsId = b.id },
                                         colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
-                                        modifier = Modifier.weight(1f).height(36.dp)
+                                        modifier = Modifier.weight(0.9f).height(36.dp),
+                                        contentPadding = PaddingValues(0.dp)
                                     ) {
                                         Text("DETAILS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                    }
+
+                                    Button(
+                                        onClick = {
+                                            val lat = if (b.latitude != 0.0) b.latitude else 6.4531
+                                            val lng = if (b.longitude != 0.0) b.longitude else 3.3958
+                                            launchExternalGpsNavigation(context, lat, lng, b.address)
+                                        },
+                                        colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
+                                        modifier = Modifier.weight(1.1f).height(36.dp),
+                                        contentPadding = PaddingValues(0.dp)
+                                    ) {
+                                        Icon(Icons.Default.Directions, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        Text("GPS MAPS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                                     }
 
                                     when (b.status) {
@@ -462,11 +491,10 @@ fun StaffDashboardJobsTab(
                                                     }
                                                 },
                                                 colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
-                                                modifier = Modifier.weight(1.3f).height(36.dp)
+                                                modifier = Modifier.weight(1.2f).height(36.dp),
+                                                contentPadding = PaddingValues(0.dp)
                                             ) {
-                                                Icon(Icons.Default.DirectionsCar, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
-                                                Text("START SHIFT", fontWeight = FontWeight.ExtraBold, color = Color.Black, fontSize = 10.sp)
+                                                Text("START SHIFT", fontWeight = FontWeight.ExtraBold, color = Color.Black, fontSize = 9.sp)
                                             }
                                         }
                                         "IN TRANSIT" -> {
@@ -476,11 +504,10 @@ fun StaffDashboardJobsTab(
                                                         Toast.makeText(context, "Marked as Arrived at venue.", Toast.LENGTH_SHORT).show()
                                                     }
                                                 },
-                                                colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
-                                                modifier = Modifier.weight(1.3f).height(36.dp)
+                                                colors = ButtonDefaults.buttonColors(containerColor = SashioTealDark),
+                                                modifier = Modifier.weight(1.2f).height(36.dp),
+                                                contentPadding = PaddingValues(0.dp)
                                             ) {
-                                                Icon(Icons.Default.Place, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
                                                 Text("ARRIVED", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 10.sp)
                                             }
                                         }
@@ -492,7 +519,8 @@ fun StaffDashboardJobsTab(
                                                     }
                                                 },
                                                 colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
-                                                modifier = Modifier.weight(1.3f).height(36.dp)
+                                                modifier = Modifier.weight(1.2f).height(36.dp),
+                                                contentPadding = PaddingValues(0.dp)
                                             ) {
                                                 Text("SETUP", fontWeight = FontWeight.Bold, color = Color.Black, fontSize = 10.sp)
                                             }
@@ -505,19 +533,18 @@ fun StaffDashboardJobsTab(
                                                     }
                                                 },
                                                 colors = ButtonDefaults.buttonColors(containerColor = SashioGreen),
-                                                modifier = Modifier.weight(1.3f).height(36.dp)
+                                                modifier = Modifier.weight(1.2f).height(36.dp),
+                                                contentPadding = PaddingValues(0.dp)
                                             ) {
-                                                Icon(Icons.Default.CheckCircle, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                                Spacer(modifier = Modifier.width(4.dp))
                                                 Text("COMPLETE", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 10.sp)
                                             }
                                         }
                                         else -> {
                                             Box(
-                                                modifier = Modifier.weight(1.3f).height(36.dp),
+                                                modifier = Modifier.weight(1.2f).height(36.dp),
                                                 contentAlignment = Alignment.Center
                                             ) {
-                                                Text("COMPLETED", color = SashioGreen, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                Text("COMPLETED", color = SashioGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                                             }
                                         }
                                     }
