@@ -10,6 +10,7 @@ import androidx.fragment.app.FragmentActivity
 import com.sashio.ops.data.SashioViewModel
 import com.sashio.ops.ui.SashioAppContent
 import com.sashio.ops.ui.theme.SashioTheme
+import org.osmdroid.config.Configuration
 import java.net.URLDecoder
 
 class MainActivity : FragmentActivity() {
@@ -17,6 +18,10 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Initialize 100% Free OpenStreetMap Engine
+        Configuration.getInstance().userAgentValue = applicationContext.packageName
+
         enableEdgeToEdge()
         setContent {
             SashioTheme {
