@@ -31,8 +31,8 @@ data class AdminIncident(
     val id: String,
     val title: String,
     val reporter: String,
-    val priority: String,
-    val status: String,
+    val priority: String, // "Low", "Medium", "High", "Critical"
+    val status: String, // "Open", "Investigating", "Resolved"
     val date: String,
     val details: String
 )
@@ -50,10 +50,10 @@ data class AdminStaffAttendance(
 data class AdminExpenseClaim(
     val id: String,
     val staffName: String,
-    val category: String,
+    val category: String, // "Fuel Costs", "Maintenance Costs", "Staff Expenses"
     val amount: Double,
     val details: String,
-    val status: String,
+    val status: String, // "Pending Approval", "Approved", "Rejected"
     val date: String
 )
 
@@ -66,6 +66,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentUser = MutableStateFlow<UserProfile?>(null)
     val currentUser: StateFlow<UserProfile?> = _currentUser.asStateFlow()
 
+    // --- Extra Profile Fields for Settings ---
     private val _userAltPhone = MutableStateFlow("")
     val userAltPhone = _userAltPhone.asStateFlow()
 
@@ -81,6 +82,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _userLocation = MutableStateFlow("Victoria Island, Lagos, Nigeria")
     val userLocation = _userLocation.asStateFlow()
 
+    // --- Settings Preferences ---
     private val _themePreference = MutableStateFlow("dark")
     val themePreference = _themePreference.asStateFlow()
 
@@ -120,6 +122,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _storageUsed = MutableStateFlow("118 MB")
     val storageUsed = _storageUsed.asStateFlow()
 
+    // Notifications Toggles
     private val _pushNotifications = MutableStateFlow(true)
     val pushNotifications = _pushNotifications.asStateFlow()
 
@@ -147,6 +150,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _pushSound = MutableStateFlow("Premium Chime")
     val pushSound = _pushSound.asStateFlow()
 
+    // Privacy Controls
     private val _privacyProfilePicVisible = MutableStateFlow("Public")
     val privacyProfilePicVisible = _privacyProfilePicVisible.asStateFlow()
 
@@ -162,6 +166,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _privacyAnalyticsAllowed = MutableStateFlow(true)
     val privacyAnalyticsAllowed = _privacyAnalyticsAllowed.asStateFlow()
 
+    // Security Settings
     private val _securityBiometricsEnabled = MutableStateFlow(true)
     val securityBiometricsEnabled = _securityBiometricsEnabled.asStateFlow()
 
@@ -171,12 +176,15 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _securityScore = MutableStateFlow("Excellent")
     val securityScore = _securityScore.asStateFlow()
 
+    // Languages
     private val _selectedLanguage = MutableStateFlow("English")
     val selectedLanguage = _selectedLanguage.asStateFlow()
 
+    // Support Request lists
     private val _ticketHistory = MutableStateFlow<List<SupportTicket>>(emptyList())
     val ticketHistory = _ticketHistory.asStateFlow()
 
+    // Error and Screen Flow
     private val _loginError = MutableStateFlow<String?>(null)
     val loginError: StateFlow<String?> = _loginError.asStateFlow()
 
@@ -186,6 +194,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _currentScreen = MutableStateFlow("splash")
     val currentScreen: StateFlow<String> = _currentScreen.asStateFlow()
 
+    // Core Listings
     val allBookings: StateFlow<List<Booking>> = repository.allBookings
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -219,6 +228,11 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _expenseLogs = MutableStateFlow<List<AdminExpenseClaim>>(emptyList())
     val expenseLogs: StateFlow<List<AdminExpenseClaim>> = _expenseLogs.asStateFlow()
 
+    // Live Supabase Expenses Stream
+    private val _supabaseExpenses = MutableStateFlow<List<SupabaseExpense>>(emptyList())
+    val supabaseExpenses: StateFlow<List<SupabaseExpense>> = _supabaseExpenses.asStateFlow()
+
+    // Role-Filtered Bookings
     val clientBookings: StateFlow<List<Booking>> = _currentUser
         .flatMapLatest { user ->
             if (user != null && user.role == "client") {
@@ -239,6 +253,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Active Live Dispatch Trackers
     private val _activeLiveTrackers = MutableStateFlow<Map<Long, LiveTrackingState>>(emptyMap())
     val activeLiveTrackers: StateFlow<Map<Long, LiveTrackingState>> = _activeLiveTrackers.asStateFlow()
 
@@ -252,12 +267,14 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Places Autocomplete
     private val _addressSearchQuery = MutableStateFlow("")
     val addressSearchQuery: StateFlow<String> = _addressSearchQuery.asStateFlow()
 
     private val _addressSuggestions = MutableStateFlow<List<SimulatedPlace>>(emptyList())
     val addressSuggestions: StateFlow<List<SimulatedPlace>> = _addressSuggestions.asStateFlow()
 
+    // Real Supabase User Management
     private val _supabaseProfiles = MutableStateFlow<List<AdminProfileRow>>(emptyList())
     val supabaseProfiles: StateFlow<List<AdminProfileRow>> = _supabaseProfiles.asStateFlow()
 
@@ -268,12 +285,15 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         .map { rows -> rows.filter { it.role == "staff" } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Staff Live Assigned Bookings (Supabase)
     private val _myAssignedBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
     val myAssignedBookings: StateFlow<List<SupabaseBooking>> = _myAssignedBookings.asStateFlow()
 
+    // Admin Supabase Bookings
     private val _supabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
     val supabaseBookings: StateFlow<List<SupabaseBooking>> = _supabaseBookings.asStateFlow()
 
+    // Catalog Image Upload
     private val _supabaseCatalogItems = MutableStateFlow<List<SupabaseCatalogItem>>(emptyList())
     val supabaseCatalogItems: StateFlow<List<SupabaseCatalogItem>> = _supabaseCatalogItems.asStateFlow()
 
@@ -292,6 +312,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         .map { rows -> rows.filter { it.is_active }.map { it.toCatalogItem() } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    // Password Reset
     private val _passwordResetError = MutableStateFlow<String?>(null)
     val passwordResetError: StateFlow<String?> = _passwordResetError.asStateFlow()
 
@@ -307,6 +328,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _bookingSyncMessage = MutableStateFlow<String?>(null)
     val bookingSyncMessage: StateFlow<String?> = _bookingSyncMessage.asStateFlow()
 
+    // Paystack Payments
     private val _activePaystackTransaction = MutableStateFlow<CreatePaymentResponse?>(null)
     val activePaystackTransaction: StateFlow<CreatePaymentResponse?> = _activePaystackTransaction.asStateFlow()
 
@@ -316,6 +338,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _lastPaymentStatus = MutableStateFlow<String?>(null)
     val lastPaymentStatus: StateFlow<String?> = _lastPaymentStatus.asStateFlow()
 
+    // Staff Portal Specifics
     private val _staffExpenses = MutableStateFlow<List<StaffExpense>>(emptyList())
     val staffExpenses: StateFlow<List<StaffExpense>> = _staffExpenses.asStateFlow()
 
@@ -349,6 +372,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         _signUpError.value = null
     }
 
+    // --- Authentication ---
     fun loginWithEmail(email: String, requiredRole: String? = null, password: String = "") {
         viewModelScope.launch {
             _loginError.value = null
@@ -605,6 +629,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         _currentScreen.value = "login"
     }
 
+    // --- Supabase Profiles Management ---
     fun loadSupabaseProfiles() {
         viewModelScope.launch {
             try {
@@ -663,6 +688,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Bookings & Quotation Workflows ---
     fun loadSupabaseBookings() {
         viewModelScope.launch {
             try {
@@ -890,6 +916,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Supabase Catalog Items ---
     fun loadSupabaseCatalogItems() {
         viewModelScope.launch {
             try {
@@ -1051,6 +1078,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Password Reset & Recovery ---
     fun resetPassword(email: String) {
         if (email.isBlank() || !email.contains("@")) {
             _passwordResetError.value = "Enter a valid email address."
@@ -1100,6 +1128,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Consultations & Reviews ---
     fun bookConsultation(type: String, preferredDate: String, notes: String, onComplete: () -> Unit) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1135,6 +1164,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Paystack Payments & Webhook ---
     fun triggerPaystackPayment(bookingId: Long, totalAmount: Double) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
@@ -1184,6 +1214,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         }
     }
 
+    // --- Address Lookup Autocomplete ---
     fun updateAddressSearch(query: String) {
         _addressSearchQuery.value = query
         if (query.length < 3) {
@@ -1602,22 +1633,109 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         )
     }
 
-    fun submitStaffExpense(amount: Double, category: String, notes: String, date: String) {
-        val newExp = StaffExpense(
-            id = "EXP-${Random().nextInt(9000) + 1000}",
-            amount = amount,
-            date = date,
-            category = category,
-            notes = notes,
-            imageUri = "https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?w=500&auto=format&fit=crop",
-            status = "Pending Approval"
-        )
-        _staffExpenses.update { listOf(newExp) + it }
+    // --- Supabase-Backed Expense Management ---
+    fun loadSupabaseExpenses() {
+        viewModelScope.launch {
+            try {
+                val rows = SupabaseProvider.client.postgrest.from("expenses")
+                    .select {
+                        order("created_at", Order.DESCENDING)
+                    }
+                    .decodeList<SupabaseExpense>()
+                _supabaseExpenses.value = rows
+                _roleManagementError.value = null
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not load expenses: ${e.message}"
+            }
+        }
     }
 
-    fun approveStaffExpense(id: String) {
-        _staffExpenses.update { list ->
-            list.map { if (it.id == id) it.copy(status = "Approved") else it }
+    fun submitStaffExpense(amount: Double, category: String, notes: String, date: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
+                val staffName = _currentUser.value?.name ?: supaUser?.email ?: "Field Operative"
+                val staffId = supaUser?.id ?: _currentUser.value?.id?.toString()
+
+                SupabaseProvider.client.postgrest.from("expenses").insert(
+                    NewSupabaseExpense(
+                        staff_id = staffId,
+                        staff_name = staffName,
+                        category = category,
+                        amount = amount,
+                        details = notes,
+                        status = "Pending Approval",
+                        expense_date = date
+                    )
+                )
+                loadSupabaseExpenses()
+                onComplete()
+            } catch (e: Exception) {
+                // Local in-memory fallback
+                val newExp = StaffExpense(
+                    id = "EXP-${Random().nextInt(9000) + 1000}",
+                    amount = amount,
+                    date = date,
+                    category = category,
+                    notes = notes,
+                    imageUri = "",
+                    status = "Pending Approval"
+                )
+                _staffExpenses.update { listOf(newExp) + it }
+                onComplete()
+            }
+        }
+    }
+
+    fun submitExpenseFromAdmin(staffName: String, category: String, amount: Double, details: String, onComplete: () -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val dateStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                SupabaseProvider.client.postgrest.from("expenses").insert(
+                    NewSupabaseExpense(
+                        staff_name = staffName,
+                        category = category,
+                        amount = amount,
+                        details = details,
+                        status = "Approved",
+                        expense_date = dateStr
+                    )
+                )
+                loadSupabaseExpenses()
+                onComplete()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not submit expense: ${e.message}"
+            }
+        }
+    }
+
+    fun approveExpenseClaim(id: String) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("expenses").update(
+                    buildJsonObject { put("status", "Approved") }
+                ) {
+                    filter { eq("id", id) }
+                }
+                loadSupabaseExpenses()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not approve expense: ${e.message}"
+            }
+        }
+    }
+
+    fun rejectExpenseClaim(id: String) {
+        viewModelScope.launch {
+            try {
+                SupabaseProvider.client.postgrest.from("expenses").update(
+                    buildJsonObject { put("status", "Rejected") }
+                ) {
+                    filter { eq("id", id) }
+                }
+                loadSupabaseExpenses()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not reject expense: ${e.message}"
+            }
         }
     }
 
@@ -1749,28 +1867,9 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             listOf(AdminIncident(newId, title, reporter, priority, "Open", dateStr, details)) + list
         }
     }
-
-    fun approveExpenseClaim(id: String) {
-        _expenseLogs.update { list ->
-            list.map { if (it.id == id) it.copy(status = "Approved") else it }
-        }
-    }
-
-    fun rejectExpenseClaim(id: String) {
-        _expenseLogs.update { list ->
-            list.map { if (it.id == id) it.copy(status = "Rejected") else it }
-        }
-    }
-
-    fun submitExpenseFromAdmin(staffName: String, category: String, amount: Double, details: String) {
-        _expenseLogs.update { list ->
-            val newId = "EXP-${900 + list.size + 1}"
-            val dateStr = SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date())
-            listOf(AdminExpenseClaim(newId, staffName, category, amount, details, "Approved", dateStr)) + list
-        }
-    }
 }
 
+// --- Local Data Models for Attendance & Logs ---
 data class StaffExpense(
     val id: String,
     val amount: Double,
