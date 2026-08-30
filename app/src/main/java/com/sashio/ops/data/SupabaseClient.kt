@@ -48,7 +48,7 @@ data class SupabaseCatalogItem(
 )
 
 /**
- * Maps a remote Supabase catalog item into the UI/local model shape.
+ * Maps a remote Supabase catalog item into the local UI/Room model shape.
  */
 fun SupabaseCatalogItem.toCatalogItem(): CatalogItem = CatalogItem(
     title = title,
