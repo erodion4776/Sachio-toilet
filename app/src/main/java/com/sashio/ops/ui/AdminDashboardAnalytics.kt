@@ -35,7 +35,12 @@ fun AdminRevenueView(
     onOpenLogExpense: () -> Unit
 ) {
     val payments by viewModel.allPayments.collectAsStateWithLifecycle()
-    val expenseLogs by viewModel.expenseLogs.collectAsStateWithLifecycle()
+    val supabaseExpenses by viewModel.supabaseExpenses.collectAsStateWithLifecycle()
+    val localContext = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.loadSupabaseExpenses()
+    }
 
     Column(
         modifier = Modifier
@@ -45,18 +50,17 @@ fun AdminRevenueView(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text("REVENUE TRENDS & EXPENSES ANALYTICS", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        
+
         Card(
             colors = CardDefaults.cardColors(containerColor = SashioSlate),
             shape = RoundedCornerShape(16.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text("REVENUE GROWTH LOGISTICAL MATRIX", color = SashioGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                Spacer(modifier = Modifier.height(10.dp))
-                
-                val successfulPayments = payments.filter { it.status == "success" }
-                    .sortedBy { it.paymentDate }
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("REVENUE GROWTH LOGISTICAL MATRIX", color = SashioGold, fontSize = 10.sp, fontWeight = FontWeight.Bold, letterSpacing = 1.sp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val successfulPayments = payments.filter { it.status == "success" }.sortedBy { it.paymentDate }
 
                 Canvas(modifier = Modifier.fillMaxWidth().height(120.dp)) {
                     var running = 0f
@@ -68,72 +72,125 @@ fun AdminRevenueView(
                     val maxVal = (points.maxOrNull() ?: 1f).coerceAtLeast(1f)
                     val widthSpacing = if (points.size > 1) size.width / (points.size - 1) else size.width
                     val graphPath = Path()
-                    
+
                     points.forEachIndexed { idx, value ->
                         val x = idx * widthSpacing
-                        val y = size.height - (value / maxVal * size.height)
+                        val y = size.height - (value / maxVal * (size.height - 20f)) - 10f
                         if (idx == 0) graphPath.moveTo(x, y) else graphPath.lineTo(x, y)
                     }
-                    drawPath(graphPath, color = SashioGold, style = strokeWidthLimit(3f))
+
+                    drawPath(
+                        path = graphPath,
+                        color = SashioGold,
+                        style = Stroke(width = 3.dp.toPx())
+                    )
+
                     points.forEachIndexed { idx, value ->
                         val x = idx * widthSpacing
-                        val y = size.height - (value / maxVal * size.height)
+                        val y = size.height - (value / maxVal * (size.height - 20f)) - 10f
                         drawCircle(color = SashioGold, radius = 4.dp.toPx(), center = Offset(x, y))
                         drawCircle(color = Color.White, radius = 1.5.dp.toPx(), center = Offset(x, y))
                     }
                 }
-                
+
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    if (successfulPayments.isNotEmpty()) "Cumulative revenue across ${successfulPayments.size} confirmed payment(s)" else "No confirmed payments yet",
-                    color = Color.White,
-                    fontSize = 8.sp
+                    if (successfulPayments.isNotEmpty()) "Cumulative revenue across ${successfulPayments.size} confirmed payment(s)" else "No confirmed payments yet.",
+                    color = Color.White.copy(alpha = 0.7f),
+                    fontSize = 9.sp
                 )
             }
         }
 
-        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-            Text("EXPENSES CLAIMS CENTER", fontWeight = FontWeight.Bold)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text("STAFF ESCROW CLAIMS (${supabaseExpenses.size})", fontWeight = FontWeight.Bold)
             Button(
                 onClick = onOpenLogExpense,
                 colors = ButtonDefaults.buttonColors(containerColor = SashioTealDark),
-                modifier = Modifier.height(28.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp)
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.height(30.dp),
+                contentPadding = PaddingValues(horizontal = 10.dp)
             ) {
-                Text("Log Expense", fontSize = 9.sp, color = Color.White)
+                Text("Log Expense", fontSize = 10.sp, color = Color.White)
             }
         }
 
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            expenseLogs.forEach { exp ->
-                Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-                    Column(modifier = Modifier.padding(10.dp)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(exp.category, fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SashioSlate)
-                            Text("₦%,.0f".format(exp.amount), fontWeight = FontWeight.ExtraBold, color = SashioRed, fontSize = 11.sp)
-                        }
-                        Text("Staff: ${exp.staffName} | Details: ${exp.details}", fontSize = 9.sp, color = SashioTextMuted)
-                        
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text("STATUS: ${exp.status}", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = if (exp.status == "Approved") SashioGreen else SashioGold)
-                            if (exp.status == "Pending Approval") {
-                                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    TextButton(
-                                        onClick = { viewModel.approveExpenseClaim(exp.id) },
-                                        modifier = Modifier.height(24.dp),
-                                        contentPadding = PaddingValues(0.dp)
-                                    ) {
-                                        Text("Approve", fontSize = 9.sp, color = SashioGreen)
-                                    }
-                                    TextButton(
-                                        onClick = { viewModel.rejectExpenseClaim(exp.id) },
-                                        modifier = Modifier.height(24.dp),
-                                        contentPadding = PaddingValues(0.dp)
-                                    ) {
-                                        Text("Reject", fontSize = 9.sp, color = SashioRed)
+        if (supabaseExpenses.isEmpty()) {
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(modifier = Modifier.padding(20.dp), contentAlignment = Alignment.Center) {
+                    Text("No expense claims found in database.", color = SashioTextMuted, fontSize = 11.sp)
+                }
+            }
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                supabaseExpenses.forEach { exp ->
+                    Card(
+                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(exp.category, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioSlate)
+                                Text("₦%,.2f".format(exp.amount), fontWeight = FontWeight.ExtraBold, color = SashioRed, fontSize = 12.sp)
+                            }
+                            Text("Staff: ${exp.staff_name} | Notes: ${exp.details.ifBlank { "N/A" }}", fontSize = 10.sp, color = SashioTextMuted)
+                            Text("Date: ${exp.expense_date ?: "Today"}", fontSize = 9.sp, color = SashioTextMuted)
+
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(top = 6.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                val statusColor = when (exp.status) {
+                                    "Approved" -> SashioGreen
+                                    "Rejected" -> SashioRed
+                                    else -> SashioGold
+                                }
+                                Text(
+                                    "STATUS: ${exp.status.uppercase()}",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = statusColor
+                                )
+
+                                if (exp.status == "Pending Approval") {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        Button(
+                                            onClick = {
+                                                viewModel.approveExpenseClaim(exp.id)
+                                                Toast.makeText(localContext, "Approved claim of ₦%,.0f".format(exp.amount), Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = SashioGreen),
+                                            shape = RoundedCornerShape(6.dp),
+                                            modifier = Modifier.height(28.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp)
+                                        ) {
+                                            Text("Approve", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                viewModel.rejectExpenseClaim(exp.id)
+                                                Toast.makeText(localContext, "Rejected claim", Toast.LENGTH_SHORT).show()
+                                            },
+                                            colors = ButtonDefaults.buttonColors(containerColor = SashioRed),
+                                            shape = RoundedCornerShape(6.dp),
+                                            modifier = Modifier.height(28.dp),
+                                            contentPadding = PaddingValues(horizontal = 8.dp)
+                                        ) {
+                                            Text("Reject", fontSize = 10.sp, color = Color.White, fontWeight = FontWeight.Bold)
+                                        }
                                     }
                                 }
                             }
@@ -155,30 +212,34 @@ fun AdminReportsView(viewModel: SashioViewModel) {
 
     Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
         Text("REPORTS & ANALYTICS EXPORT HUB", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text("Generate official logistical auditing reports in standard PDF, CSV, or Microsoft Excel sheets with dynamic database mapping.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
+        Text("Generate official logistical auditing reports in standard PDF, CSV, or Microsoft Excel formats.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
         Spacer(modifier = Modifier.height(14.dp))
 
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("SELECT REPORT TYPE", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                listOf("Revenue Report", "Booking Report", "Client Log", "Staff Operations").forEach { cat ->
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("SELECT REPORT CATEGORY", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                listOf("Revenue Report", "Booking Report", "Client Directory Log", "Staff Operations Matrix").forEach { cat ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable { exportReportCategory = cat }
-                            .background(if (exportReportCategory == cat) SashioGold.copy(alpha = 0.1f) else Color.Transparent)
+                            .background(if (exportReportCategory == cat) SashioGold.copy(alpha = 0.1f) else Color.Transparent, RoundedCornerShape(8.dp))
                             .padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         RadioButton(selected = exportReportCategory == cat, onClick = { exportReportCategory = cat })
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(cat, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        Text(cat, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(4.dp))
                 Text("EXPORT FILE FORMAT", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     listOf("PDF", "CSV", "Excel").forEach { format ->
                         FilterChip(
                             selected = exportFormatType == format,
@@ -188,9 +249,14 @@ fun AdminReportsView(viewModel: SashioViewModel) {
                     }
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(8.dp))
                 if (exportProgressPercent > 0f) {
-                    LinearProgressIndicator(progress = exportProgressPercent, modifier = Modifier.fillMaxWidth(), color = SashioGold)
+                    LinearProgressIndicator(
+                        progress = { exportProgressPercent },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = SashioGold
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text("Assembling records data structures & signatures... ${(exportProgressPercent * 100).toInt()}%", fontSize = 10.sp, color = SashioTextMuted)
                 }
 
@@ -199,7 +265,7 @@ fun AdminReportsView(viewModel: SashioViewModel) {
                         exportProgressPercent = 0.1f
                         coroutineScope.launch {
                             for (p in 2..10) {
-                                delay(200)
+                                delay(180)
                                 exportProgressPercent = p * 0.1f
                             }
                             Toast.makeText(localContext, "Exported $exportReportCategory successfully as $exportFormatType file", Toast.LENGTH_LONG).show()
@@ -207,11 +273,12 @@ fun AdminReportsView(viewModel: SashioViewModel) {
                         }
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
-                    modifier = Modifier.fillMaxWidth()
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().height(44.dp)
                 ) {
-                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp))
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text("COMPILE REPORT", fontWeight = FontWeight.Bold, color = Color.White)
+                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("COMPILE & DISPATCH REPORT", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 11.sp)
                 }
             }
         }
@@ -223,27 +290,41 @@ fun AdminSettingsView(viewModel: SashioViewModel) {
     var enforceBiometricsAdmin by remember { mutableStateOf(true) }
     var adminActiveLanguage by remember { mutableStateOf("English") }
 
-    Column(modifier = Modifier.fillMaxSize().padding(14.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Text("SYSTEM SECURITY & CONTROLS AUDITS", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("Operational Variables", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Text("SYSTEM SECURITY & CONTROLS AUDIT", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("Operational Variables", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioSlate)
+
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Enforce Biometric Locks (Admin Gate)", fontSize = 11.sp, fontWeight = FontWeight.Medium)
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Enforce Biometric Gate (Admin)", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                        Text("Require biometric confirmation for root admin actions.", fontSize = 9.sp, color = SashioTextMuted)
+                    }
                     Switch(checked = enforceBiometricsAdmin, onCheckedChange = { enforceBiometricsAdmin = it })
                 }
 
+                HorizontalDivider(color = Color.LightGray.copy(alpha = 0.2f))
+
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                    Text("Preferred System Language", fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                    Row {
+                    Text("System Language", fontSize = 12.sp, fontWeight = FontWeight.Medium)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         listOf("English", "Yoruba", "Hausa").forEach { lang ->
                             FilterChip(
                                 selected = adminActiveLanguage == lang,
                                 onClick = { adminActiveLanguage = lang },
-                                label = { Text(lang, fontSize = 9.sp) },
-                                modifier = Modifier.padding(horizontal = 2.dp)
+                                label = { Text(lang, fontSize = 9.sp) }
                             )
                         }
                     }
@@ -251,18 +332,29 @@ fun AdminSettingsView(viewModel: SashioViewModel) {
             }
         }
 
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White)) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text("ACTIVE SECURITY SYSTEM SIGNALS", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                Spacer(modifier = Modifier.height(6.dp))
-                
+        Card(
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            shape = RoundedCornerShape(14.dp),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text("ACTIVE SECURITY AUDIT SIGNALS", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioSlate)
+                Spacer(modifier = Modifier.height(8.dp))
+
                 val logs = listOf(
-                    "SYS: Session token #AK99-Z verified at UTC 2026-06-12",
-                    "AUTH: Biometric Node face_anchor_A validated success",
-                    "DB: Defragment routine complete. Sandbox size: 4.8MB"
+                    "SYS: Session token #AK99-Z verified at UTC 2026-06-15",
+                    "AUTH: Biometric node validated successfully",
+                    "DB: Defragment routine complete. Cache status: Nominal",
+                    "GATEWAY: Paystack Edge Function connection: Active 200 OK"
                 )
                 logs.forEach { log ->
-                    Text(log, fontSize = 9.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.padding(vertical = 2.dp), color = SashioTextMuted)
+                    Text(
+                        text = log,
+                        fontSize = 9.sp,
+                        fontFamily = FontFamily.Monospace,
+                        color = SashioTextMuted,
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
                 }
             }
         }
