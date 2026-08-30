@@ -163,6 +163,32 @@ data class SupabaseProfile(
     val company_name: String? = null
 )
 
+@Serializable
+data class NewSupabaseExpense(
+    val staff_id: String? = null,
+    val staff_name: String,
+    val category: String,
+    val amount: Double,
+    val details: String = "",
+    val status: String = "Pending Approval",
+    val receipt_url: String? = null,
+    val expense_date: String? = null
+)
+
+@Serializable
+data class SupabaseExpense(
+    val id: String = "",
+    val staff_id: String? = null,
+    val staff_name: String = "",
+    val category: String = "Fuel Costs",
+    val amount: Double = 0.0,
+    val details: String = "",
+    val status: String = "Pending Approval",
+    val receipt_url: String? = null,
+    val expense_date: String? = null,
+    val created_at: String? = null
+)
+
 object SupabaseProvider {
     const val CATALOG_IMAGES_BUCKET = "catalog-images"
 
