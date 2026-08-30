@@ -241,6 +241,7 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
     val supabaseBookings by viewModel.supabaseBookings.collectAsStateWithLifecycle()
     val activeTrackers by viewModel.activeLiveTrackers.collectAsStateWithLifecycle()
     val supabaseAttendance by viewModel.supabaseAttendance.collectAsStateWithLifecycle()
+    val localContext = LocalContext.current
 
     var selectedTrackBookingId by remember { mutableStateOf<String?>(null) }
     var currentMapLayer by remember { mutableStateOf("Standard") }
@@ -325,7 +326,7 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
                         )
 
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.8f)),
+                            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.85f)),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.align(Alignment.BottomStart).padding(10.dp)
                         ) {
@@ -340,6 +341,22 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text("Status: ${focusBooking.status}", color = SashioGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+
+                                Spacer(modifier = Modifier.height(6.dp))
+
+                                Button(
+                                    onClick = {
+                                        launchExternalGpsNavigation(localContext, targetLat, targetLng, focusBooking.address)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
+                                    shape = RoundedCornerShape(6.dp),
+                                    modifier = Modifier.fillMaxWidth().height(28.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Icon(Icons.Default.Directions, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("OPEN IN GOOGLE MAPS / WAZE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
                             }
                         }
                     } else {
