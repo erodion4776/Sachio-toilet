@@ -33,7 +33,12 @@ fun StaffDashboardProfileTab(
     onWorkOfflineChange: (Boolean) -> Unit,
     onAddExpenseClick: () -> Unit
 ) {
-    val expenses by viewModel.staffExpenses.collectAsStateWithLifecycle()
+    val supabaseExpenses by viewModel.supabaseExpenses.collectAsStateWithLifecycle()
+
+    // Automatically load live expenses from Supabase on opening tab
+    LaunchedEffect(Unit) {
+        viewModel.loadSupabaseExpenses()
+    }
 
     LazyColumn(
         modifier = Modifier
@@ -193,7 +198,7 @@ fun StaffDashboardProfileTab(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
-                if (expenses.isEmpty()) {
+                if (supabaseExpenses.isEmpty()) {
                     Card(
                         colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.15f)),
                         border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
@@ -206,7 +211,12 @@ fun StaffDashboardProfileTab(
                             contentAlignment = Alignment.Center
                         ) {
                             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Icon(Icons.Default.Receipt, contentDescription = null, tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(36.dp))
+                                Icon(
+                                    Icons.Default.Receipt,
+                                    contentDescription = null,
+                                    tint = Color.White.copy(alpha = 0.3f),
+                                    modifier = Modifier.size(36.dp)
+                                )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text("No expense claims submitted yet.", color = Color.White.copy(alpha = 0.5f), fontSize = 12.sp)
                             }
@@ -214,7 +224,7 @@ fun StaffDashboardProfileTab(
                     }
                 } else {
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        expenses.forEach { exp ->
+                        supabaseExpenses.forEach { exp ->
                             Card(
                                 colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.3f)),
                                 border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
@@ -234,24 +244,27 @@ fun StaffDashboardProfileTab(
                                             color = SashioGold,
                                             fontSize = 12.sp
                                         )
-                                        if (exp.notes.isNotBlank()) {
-                                            Text(exp.notes, fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f))
+                                        if (exp.details.isNotBlank()) {
+                                            Text(exp.details, fontSize = 11.sp, color = Color.White.copy(alpha = 0.85f))
                                         }
-                                        Text(exp.date, fontSize = 9.sp, color = Color.LightGray)
+                                        Text(exp.expense_date ?: "Today", fontSize = 9.sp, color = Color.LightGray)
                                     }
 
                                     Column(horizontalAlignment = Alignment.End) {
                                         Text("₦%,.2f".format(exp.amount), fontWeight = FontWeight.Bold, color = Color.White, fontSize = 13.sp)
                                         Spacer(modifier = Modifier.height(2.dp))
+                                        val statusColor = when (exp.status) {
+                                            "Approved" -> SashioGreen
+                                            "Rejected" -> SashioRed
+                                            else -> SashioGold
+                                        }
                                         Card(
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = if (exp.status == "Approved") SashioGreen.copy(alpha = 0.15f) else SashioGold.copy(alpha = 0.15f)
-                                            ),
+                                            colors = CardDefaults.cardColors(containerColor = statusColor.copy(alpha = 0.15f)),
                                             shape = RoundedCornerShape(4.dp)
                                         ) {
                                             Text(
                                                 text = exp.status.uppercase(),
-                                                color = if (exp.status == "Approved") SashioGreen else SashioGold,
+                                                color = statusColor,
                                                 fontSize = 9.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
