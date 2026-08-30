@@ -47,10 +47,11 @@ fun SashioAppContent(viewModel: SashioViewModel) {
     LaunchedEffect(lastPaymentStatus) {
         when (lastPaymentStatus) {
             "success" -> showPaymentConfirmedDialog = true
-            "pending" -> Toast.makeText(context, "Payment still pending - Paystack hasn't confirmed it yet. Try again shortly.", Toast.LENGTH_LONG).show()
-            "failed" -> Toast.makeText(context, "Payment failed. Please try again.", Toast.LENGTH_LONG).show()
+            "cancelled" -> Toast.makeText(context, "Payment was cancelled. You can complete it anytime.", Toast.LENGTH_LONG).show()
+            "pending" -> Toast.makeText(context, "Payment is processing. We will confirm your booking shortly.", Toast.LENGTH_LONG).show()
+            "failed" -> Toast.makeText(context, "Payment failed. Please check your card and try again.", Toast.LENGTH_LONG).show()
             "not_found" -> Toast.makeText(context, "We haven't received confirmation from Paystack yet. If you just paid, wait a few seconds and tap \"I've Paid - Check Status\" again.", Toast.LENGTH_LONG).show()
-            "check_failed" -> Toast.makeText(context, "Couldn't reach the server to check your payment status. Check your connection and try again.", Toast.LENGTH_LONG).show()
+            "check_failed" -> Toast.makeText(context, "Couldn't reach the server to check payment status. Check your connection.", Toast.LENGTH_LONG).show()
             null -> {}
             else -> Toast.makeText(context, "Status: $lastPaymentStatus", Toast.LENGTH_LONG).show()
         }
@@ -85,7 +86,7 @@ fun SashioAppContent(viewModel: SashioViewModel) {
                     colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Done", fontWeight = FontWeight.Bold)
+                    Text("Done", fontWeight = FontWeight.Bold, color = Color.Black)
                 }
             },
             shape = RoundedCornerShape(20.dp)
