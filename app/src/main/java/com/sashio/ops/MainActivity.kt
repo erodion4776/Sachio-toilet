@@ -18,8 +18,6 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Initialize 100% Free OpenStreetMap Engine
         Configuration.getInstance().userAgentValue = applicationContext.packageName
 
         enableEdgeToEdge()
@@ -41,7 +39,8 @@ class MainActivity : FragmentActivity() {
         val uri = intent?.data ?: return
         if (uri.scheme != "sachioexpress") return
         when (uri.host) {
-            "payment-complete" -> handlePaymentDeepLink(uri)
+            "payment-complete", "payment-callback" -> handlePaymentDeepLink(uri)
+            "payment-cancel", "payment-cancelled" -> handlePaymentCancelled()
             "reset-password" -> handlePasswordResetDeepLink(uri)
         }
     }
@@ -50,7 +49,13 @@ class MainActivity : FragmentActivity() {
         val reference = uri.getQueryParameter("reference") ?: uri.getQueryParameter("trxref")
         if (!reference.isNullOrBlank()) {
             viewModel.simWebpayComplete(reference)
+        } else {
+            viewModel.handlePaymentCancelled()
         }
+    }
+
+    private fun handlePaymentCancelled() {
+        viewModel.handlePaymentCancelled()
     }
 
     private fun handlePasswordResetDeepLink(uri: Uri) {
@@ -68,7 +73,7 @@ class MainActivity : FragmentActivity() {
                 viewModel.beginPasswordRecoverySession(accessToken, refreshToken ?: "")
             }
         } catch (e: Exception) {
-            // Ignore malformed token
+            // Silently ignore malformed deep links
         }
     }
 }
