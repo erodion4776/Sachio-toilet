@@ -2,16 +2,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- Network permissions for Supabase, Paystack, and OpenStreetMap tile servers -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-
-    <!-- Location permissions for GPS Route Navigation & Staff Attendance Geofencing -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-
-    <!-- Biometric sensor permissions for Touch ID / Face ID sign-in -->
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
 
     <application
@@ -36,22 +31,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep link intent filters:
-                 1. Paystack payment gateway callback:  sachioexpress://payment-complete
-                 2. Supabase password reset link:        sachioexpress://reset-password -->
+            <!-- Deep link filters for Paystack Payment Completion and Cancellation -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
-
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
 
-                <data
-                    android:scheme="sachioexpress"
-                    android:host="payment-complete" />
-
-                <data
-                    android:scheme="sachioexpress"
-                    android:host="reset-password" />
+                <data android:scheme="sachioexpress" android:host="payment-complete" />
+                <data android:scheme="sachioexpress" android:host="payment-callback" />
+                <data android:scheme="sachioexpress" android:host="payment-cancel" />
+                <data android:scheme="sachioexpress" android:host="payment-cancelled" />
+                <data android:scheme="sachioexpress" android:host="reset-password" />
             </intent-filter>
         </activity>
     </application>
