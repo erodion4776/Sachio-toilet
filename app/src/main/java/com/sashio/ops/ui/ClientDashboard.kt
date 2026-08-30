@@ -308,7 +308,9 @@ fun BookingFormSheet(
 ) {
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val favorites by viewModel.clientFavoriteLocations.collectAsStateWithLifecycle()
+    val suggestions by viewModel.addressSuggestions.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val focusManager = LocalFocusManager.current
 
     var serviceMode by remember { mutableStateOf("Rental") }
     var selectedCategory by remember { mutableStateOf(initialCategory) }
@@ -319,7 +321,7 @@ fun BookingFormSheet(
 
     var addressQuery by remember { mutableStateOf("") }
     var selectedAddressText by remember { mutableStateOf("") }
-    var currentCoords by remember { mutableStateOf(Pair(6.4531, 3.3958)) }
+    var currentCoords by remember { mutableStateOf(Pair(6.4351, 3.4219)) } // Victoria Island Default Coordinates
 
     var eventType by remember { mutableStateOf("Wedding") }
     var guestCount by remember { mutableStateOf("100") }
@@ -331,9 +333,6 @@ fun BookingFormSheet(
     var maintenanceSupport by remember { mutableStateOf(false) }
 
     var specialInstructions by remember { mutableStateOf("") }
-
-    val suggestions by viewModel.addressSuggestions.collectAsStateWithLifecycle()
-    val focusManager = LocalFocusManager.current
 
     Column(
         modifier = Modifier
@@ -425,49 +424,64 @@ fun BookingFormSheet(
         OutlinedTextField(
             value = duration,
             onValueChange = { duration = it },
-            label = { Text("Event Duration Select") },
+            label = { Text("Event Duration") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
         )
 
         Spacer(modifier = Modifier.height(10.dp))
-        Text("3. Delivery Address Setup", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioGold)
-        Spacer(modifier = Modifier.height(4.dp))
+        Text("3. Delivery Address & Map Pin Drop", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioGold)
+        Text("Type location or tap anywhere on the map to pin your exact event venue.", fontSize = 10.sp, color = SashioTextMuted)
+        Spacer(modifier = Modifier.height(6.dp))
 
         OutlinedTextField(
-            value = addressQuery,
+            value = if (selectedAddressText.isNotBlank()) selectedAddressText else addressQuery,
             onValueChange = {
+                selectedAddressText = ""
                 addressQuery = it
                 viewModel.updateAddressSearch(it)
             },
             label = { Text("Search Street / Site Location...") },
-            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null, tint = SashioGold) },
+            trailingIcon = {
+                if (selectedAddressText.isNotBlank() || addressQuery.isNotBlank()) {
+                    IconButton(onClick = {
+                        selectedAddressText = ""
+                        addressQuery = ""
+                    }) {
+                        Icon(Icons.Default.Clear, contentDescription = "Clear")
+                    }
+                }
+            },
             singleLine = true,
             modifier = Modifier.fillMaxWidth()
         )
 
+        // Address Autocomplete Suggestions Dropdown
         if (suggestions.isNotEmpty() && selectedAddressText.isEmpty()) {
             Card(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                modifier = Modifier.fillMaxWidth().heightIn(max = 180.dp).border(1.dp, Color.LightGray)
+                shape = RoundedCornerShape(8.dp),
+                elevation = CardDefaults.cardElevation(4.dp),
+                modifier = Modifier.fillMaxWidth().heightIn(max = 200.dp).border(1.dp, Color.LightGray.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
             ) {
-                LazyColumn(modifier = Modifier.padding(8.dp)) {
+                LazyColumn(modifier = Modifier.padding(6.dp)) {
                     items(suggestions) { place ->
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clickable {
                                     selectedAddressText = place.address
-                                    currentCoords = Pair(place.lat, place.lng)
                                     addressQuery = place.address
+                                    currentCoords = Pair(place.lat, place.lng)
                                     focusManager.clearFocus()
+                                    Toast.makeText(context, "Location pinned on map!", Toast.LENGTH_SHORT).show()
                                 }
-                                .padding(10.dp)
-                                .testTag("suggestion_${place.lat}"),
+                                .padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(Icons.Default.LocationOn, contentDescription = null, tint = SashioGold, modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(6.dp))
+                            Spacer(modifier = Modifier.width(8.dp))
                             Text(place.address, fontSize = 11.sp, modifier = Modifier.weight(1f))
                         }
                     }
@@ -478,17 +492,17 @@ fun BookingFormSheet(
         val metrics = viewModel.calculateLogisticsMetrics(currentCoords.first, currentCoords.second)
 
         if (favorites.isNotEmpty()) {
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(8.dp))
             Text("Select Saved Favorite Location:", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
             Spacer(modifier = Modifier.height(4.dp))
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp)) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 items(favorites) { fav ->
                     AssistChip(
                         onClick = {
                             selectedAddressText = fav.address
-                            currentCoords = Pair(fav.latitude, fav.longitude)
                             addressQuery = fav.address
-                            Toast.makeText(context, "Loaded saved location: ${fav.name}", Toast.LENGTH_SHORT).show()
+                            currentCoords = Pair(fav.latitude, fav.longitude)
+                            Toast.makeText(context, "Loaded: ${fav.name}", Toast.LENGTH_SHORT).show()
                         },
                         label = { Text("${fav.locationType.uppercase()}: ${fav.name}", fontSize = 10.sp, maxLines = 1) },
                         leadingIcon = {
@@ -499,12 +513,13 @@ fun BookingFormSheet(
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
+        // OpenStreetMap Interactive Pin Drop Map
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(130.dp)
+                .height(180.dp)
                 .clip(RoundedCornerShape(12.dp))
                 .border(1.dp, Color.LightGray)
         ) {
@@ -513,12 +528,16 @@ fun BookingFormSheet(
                 longitude = currentCoords.second,
                 onMarkerChanged = { newLat, newLng ->
                     currentCoords = Pair(newLat, newLng)
+                    viewModel.reverseGeocodeLocation(newLat, newLng) { reverseAddr ->
+                        selectedAddressText = reverseAddr
+                        addressQuery = reverseAddr
+                    }
                 },
                 mapStyle = "Standard",
-                label = "Delivery Pin Drop"
+                label = "Pinned Event Location"
             )
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.65f)),
+                colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.75f)),
                 modifier = Modifier.align(Alignment.BottomEnd).padding(6.dp)
             ) {
                 Text(
@@ -530,43 +549,45 @@ fun BookingFormSheet(
             }
         }
 
-        Spacer(modifier = Modifier.height(6.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(
                 onClick = {
                     val sampleLat = 6.4351
                     val sampleLng = 3.4219
-                    selectedAddressText = "Plot 24, SACHIO Central Plaza Arena, Victoria Island, Lagos"
+                    val locText = "Plot 24, SACHIO Central Plaza Arena, Victoria Island, Lagos"
+                    selectedAddressText = locText
+                    addressQuery = locText
                     currentCoords = Pair(sampleLat, sampleLng)
-                    addressQuery = "Plot 24, SACHIO Central Plaza Arena, Victoria Island, Lagos"
-                    Toast.makeText(context, "GPS Location Detected: Plot 24, SACHIO Central Plaza Arena", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, "GPS Detected & Pinned!", Toast.LENGTH_SHORT).show()
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = SashioSlate, contentColor = Color.White),
-                modifier = Modifier.weight(1.2f).height(36.dp)
+                modifier = Modifier.weight(1.2f).height(38.dp)
             ) {
                 Icon(Icons.Default.MyLocation, contentDescription = null, modifier = Modifier.size(14.dp), tint = SashioGold)
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("Use Current Location", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text("Detect Location", fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
-            
+
             Button(
                 onClick = {
-                    if (selectedAddressText.isNotBlank()) {
+                    val finalAddr = if (selectedAddressText.isNotBlank()) selectedAddressText else addressQuery
+                    if (finalAddr.isNotBlank()) {
                         viewModel.saveFavoriteLocation(
-                            name = "Delivery Site Location",
-                            address = selectedAddressText,
+                            name = "Event Location",
+                            address = finalAddr,
                             lat = currentCoords.first,
                             lng = currentCoords.second,
-                            type = "Other"
+                            type = "Venue"
                         )
-                        Toast.makeText(context, "Address successfully saved to favorites!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "Saved to favorites!", Toast.LENGTH_SHORT).show()
                     } else {
                         Toast.makeText(context, "Please set or pick an address first!", Toast.LENGTH_SHORT).show()
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = SashioTeal, contentColor = Color.White),
-                modifier = Modifier.weight(1f).height(36.dp)
+                modifier = Modifier.weight(1f).height(38.dp)
             ) {
                 Icon(Icons.Default.Favorite, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
                 Spacer(modifier = Modifier.width(4.dp))
@@ -581,23 +602,21 @@ fun BookingFormSheet(
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(10.dp)) {
-                Text("AUTOMATIC LOGISTICS INSIGHT", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SashioSlate)
+                Text("AUTOMATIC LOGISTICS MATRIX", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = SashioSlate)
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("Operational Zone: ${metrics.logisticsZone}", fontSize = 10.sp, color = SashioSlate)
-                Text("Distance from Depot: %.2f km".format(metrics.distanceKm), fontSize = 10.sp, color = SashioSlate)
-                Text("Estimated Travel Time: ${metrics.travelTimeMinutes} minutes", fontSize = 10.sp, color = SashioSlate)
-                Text("Simulated Fuel Factor: %.1f Liters Diesel".format(metrics.estimatedFuelLitres), fontSize = 10.sp, color = SashioSlate)
-                Text("Recommended Transport Logistics Fee: ₦%,.2f".format(metrics.recommendedLogisticsCost), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioGreen)
+                Text("Logistics Zone: ${metrics.logisticsZone}", fontSize = 10.sp, color = SashioSlate)
+                Text("Distance from Depot: %.2f km | Travel Time: ${metrics.travelTimeMinutes} mins".format(metrics.distanceKm), fontSize = 10.sp, color = SashioSlate)
+                Text("Recommended Transport Fee: ₦%,.2f".format(metrics.recommendedLogisticsCost), fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioGreen)
             }
         }
 
         Spacer(modifier = Modifier.height(14.dp))
         Text("4. Gathering & Event Specs", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioGold)
-        
+
         OutlinedTextField(
             value = eventType,
             onValueChange = { eventType = it },
-            label = { Text("Gathering Event Type (e.g., Wedding)") },
+            label = { Text("Event Type (e.g., Wedding, Banquet)") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
         )
@@ -605,7 +624,7 @@ fun BookingFormSheet(
         OutlinedTextField(
             value = guestCount,
             onValueChange = { guestCount = it },
-            label = { Text("Projected Guest Capacity count") },
+            label = { Text("Projected Guest Capacity") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
         )
@@ -613,7 +632,7 @@ fun BookingFormSheet(
         OutlinedTextField(
             value = eventDate,
             onValueChange = { eventDate = it },
-            label = { Text("Target Event Setup Date") },
+            label = { Text("Target Event Date") },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
         )
@@ -636,7 +655,7 @@ fun BookingFormSheet(
         ) {
             Checkbox(checked = onSiteAttendant, onCheckedChange = { onSiteAttendant = it })
             Spacer(modifier = Modifier.width(6.dp))
-            Text("Standby Servicing Uniformed Crew Attendant", fontSize = 12.sp)
+            Text("Standby Servicing Uniformed Attendant", fontSize = 12.sp)
         }
 
         Row(
@@ -645,7 +664,7 @@ fun BookingFormSheet(
         ) {
             Checkbox(checked = wasteEvacuation, onCheckedChange = { wasteEvacuation = it })
             Spacer(modifier = Modifier.width(6.dp))
-            Text("Scheduled Waste Quad Evacuation services", fontSize = 12.sp)
+            Text("Scheduled Waste Evacuation Services", fontSize = 12.sp)
         }
 
         Row(
@@ -654,7 +673,7 @@ fun BookingFormSheet(
         ) {
             Checkbox(checked = maintenanceSupport, onCheckedChange = { maintenanceSupport = it })
             Spacer(modifier = Modifier.width(6.dp))
-            Text("Active Plumber / Mechanical standby support", fontSize = 12.sp)
+            Text("Active Standby Plumber / Mechanical Support", fontSize = 12.sp)
         }
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -662,7 +681,7 @@ fun BookingFormSheet(
         OutlinedTextField(
             value = specialInstructions,
             onValueChange = { specialInstructions = it },
-            label = { Text("Specific Instructions (Hardware, fragrance details...)") },
+            label = { Text("Specific Instructions (Fragrance, hardware notes...)") },
             maxLines = 3,
             modifier = Modifier.fillMaxWidth()
         )
