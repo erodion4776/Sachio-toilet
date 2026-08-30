@@ -1,13 +1,13 @@
 package com.sashio.ops.ui
 
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -15,187 +15,117 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.window.Dialog
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.sashio.ops.data.AdminProfileRow
 import com.sashio.ops.data.SashioViewModel
-import com.sashio.ops.data.UserProfile
 import com.sashio.ops.ui.theme.*
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.net.URLEncoder
 
 @Composable
-fun StaffDashboardHomeTab(
+fun AdminHomeRouteHandler(
     viewModel: SashioViewModel,
-    staff: UserProfile?,
-    clockedIn: Boolean,
-    workOfflineToggle: Boolean,
-    onClockInClick: () -> Unit,
-    onSosClick: () -> Unit,
-    onTabNavigate: (String) -> Unit
+    homeSubScreen: String,
+    onSubScreenChange: (String) -> Unit,
+    onOpenAddStaff: () -> Unit,
+    onOpenAddCatalog: () -> Unit,
+    onOpenLogExpense: () -> Unit,
+    onLaunchQuotationEngine: (String) -> Unit
 ) {
-    val myAssignedBookings by viewModel.myAssignedBookings.collectAsStateWithLifecycle()
-    var checkedBeforeDeparture by remember { 
-        mutableStateOf(setOf("Vehicle fluid metrics verified", "Restroom trailer towing lock pinned", "Fresh bio-blue fluid topped up")) 
+    when (homeSubScreen) {
+        "dashboard" -> AdminDashboardHomeView(viewModel, onSubScreenChange)
+        "clients" -> AdminClientsCrmView(viewModel)
+        "staff" -> AdminStaffView(viewModel, onOpenAddStaff)
+        "manage_roles" -> ManageUserRolesPanel(viewModel)
+        "quotations" -> AdminQuotationsView(viewModel, onLaunchQuotationEngine)
+        "products" -> AdminProductsView(viewModel, onOpenAddCatalog)
+        "payments" -> AdminPaymentsView(viewModel)
+        "revenue" -> AdminRevenueView(viewModel, onOpenLogExpense)
+        "reports" -> AdminReportsView(viewModel)
+        "settings" -> AdminSettingsView(viewModel)
     }
-    var expandedSopIndex by remember { mutableStateOf<Int?>(0) }
+}
 
-    LaunchedEffect(Unit) {
-        viewModel.loadMyAssignedBookings()
-    }
-
-    val activeCount = myAssignedBookings.count { 
-        it.status == "Staff Assigned" || it.status == "IN TRANSIT" || it.status == "ARRIVED" || it.status == "SETUP IN PROGRESS" 
-    }
-    val completedCount = myAssignedBookings.count { 
-        it.status == "SERVICE DELIVERED" || it.status == "COMPLETED" || it.status == "Completed" 
-    }
+@Composable
+fun AdminDashboardHomeView(
+    viewModel: SashioViewModel,
+    onSubScreenChange: (String) -> Unit
+) {
+    val bookings by viewModel.allBookings.collectAsStateWithLifecycle()
+    val supabaseBookings by viewModel.supabaseBookings.collectAsStateWithLifecycle()
+    val staffList by viewModel.staffProfiles.collectAsStateWithLifecycle()
+    val realStaffProfiles by viewModel.realStaffProfiles.collectAsStateWithLifecycle()
+    val profiles by viewModel.allProfiles.collectAsStateWithLifecycle()
+    val supabaseProfiles by viewModel.supabaseProfiles.collectAsStateWithLifecycle()
+    val payments by viewModel.allPayments.collectAsStateWithLifecycle()
 
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .background(Color(0xFF0F172A))
-            .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        if (workOfflineToggle) {
-            item {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = SashioGold.copy(alpha = 0.15f)),
-                    border = BorderStroke(1.dp, SashioGold),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.OfflineBolt, contentDescription = null, tint = SashioGold)
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Column {
-                            Text("Offline Workspace Active", fontWeight = FontWeight.Bold, color = SashioGold, fontSize = 12.sp)
-                            Text("Submissions are cached locally until synchronisation.", color = Color.White.copy(alpha = 0.8f), fontSize = 11.sp)
-                        }
-                    }
-                }
-            }
+        item {
+            Text("SACHIO CORPORATE COMMAND CENTER", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SashioSlate)
+            Text("Real-time metadata, logistics control matrices, and commercial quotation compliance.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
         }
 
         item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.4f)),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .clip(CircleShape)
-                                    .background(if (clockedIn) SashioGreen else SashioGold)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (clockedIn) "ON DUTY ACTIVE SHIFT" else "OFF-DUTY STANDBY",
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 11.sp,
-                                color = if (clockedIn) SashioGreen else SashioGold,
-                                letterSpacing = 1.sp
-                            )
+            val activeRentals = supabaseBookings.count { 
+                it.status == "Booking Confirmed" || it.status == "SERVICE DELIVERED" || it.status == "IN TRANSIT" || it.status == "Staff Assigned" 
+            } + bookings.count { it.status == "Booking Confirmed" || it.status == "SERVICE DELIVERED" || it.status == "IN TRANSIT" }
+
+            val outstandingQuotes = supabaseBookings.count { 
+                it.status == "Quotation Requested" || it.status == "Under Review" 
+            }
+
+            val totalRevenue = payments.filter { it.status == "success" }.sumOf { it.amount } + 
+                supabaseBookings.filter { it.payment_status == "success" }.sumOf { it.quoted_price + it.logistics_cost + it.vat_amount }
+
+            val outstandingInvoicesVal = supabaseBookings.filter { 
+                it.status == "Quotation Generated" || it.status == "Client Accepted" || it.status == "Quotation Sent" 
+            }.sumOf { it.quoted_price + it.logistics_cost + it.vat_amount }
+
+            val totalClients = supabaseProfiles.count { it.role == "client" }.coerceAtLeast(profiles.count { it.role == "client" })
+            val totalStaff = realStaffProfiles.size.coerceAtLeast(staffList.size)
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Card(colors = CardDefaults.cardColors(containerColor = SashioSlate), modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("SETTLED REVENUE", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SashioGold)
+                            Text("₦%,.0f".format(totalRevenue), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Text("Paystack Confirmed", fontSize = 9.sp, color = Color.White.copy(alpha = 0.6f))
                         }
-                        Text(
-                            text = if (clockedIn) "Status: Shift Active" else "No active shift",
-                            color = Color.White.copy(alpha = 0.6f),
-                            fontSize = 11.sp
-                        )
                     }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(
-                        text = if (clockedIn) "Shift is currently running smoothly" else "Ready to commence daily sanitation schedules",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Medium
-                    )
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    if (!clockedIn) {
-                        Button(
-                            onClick = onClockInClick,
-                            colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
-                            modifier = Modifier.fillMaxWidth().height(42.dp)
-                        ) {
-                            Icon(Icons.Default.CheckCircle, contentDescription = null, modifier = Modifier.size(18.dp), tint = Color.Black)
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text("LOCK IN ATTENDANCE / CLOCK IN", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.Black)
-                        }
-                    } else {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            OutlinedButton(
-                                onClick = { viewModel.clockOutStaff() },
-                                border = BorderStroke(1.dp, SashioRed.copy(alpha = 0.5f)),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = SashioRed),
-                                modifier = Modifier.weight(1f).height(42.dp)
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("CLOCK OUT", fontWeight = FontWeight.Bold, fontSize = 11.sp)
-                            }
-
-                            Button(
-                                onClick = onSosClick,
-                                colors = ButtonDefaults.buttonColors(containerColor = SashioRed),
-                                modifier = Modifier.weight(1f).height(42.dp)
-                            ) {
-                                Icon(Icons.Default.Warning, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("EMERGENCY (SOS)", fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, color = Color.White)
-                            }
+                    Card(colors = CardDefaults.cardColors(containerColor = SashioTealDark), modifier = Modifier.weight(1f)) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Text("OUTSTANDING BILLS", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = SashioGold)
+                            Text("₦%,.0f".format(outstandingInvoicesVal), fontSize = 16.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                            Text("Pending Settlement", fontSize = 9.sp, color = Color.White.copy(alpha = 0.6f))
                         }
                     }
                 }
-            }
-        }
 
-        // Real-time Scorecard
-        item {
-            Column {
-                Text("Performance Metrics Scorecard".uppercase(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = SashioGold, letterSpacing = 1.sp)
-                Spacer(modifier = Modifier.height(10.dp))
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     listOf(
-                        Triple("Total Assigned", "${myAssignedBookings.size}", SashioGold),
-                        Triple("Active Jobs", "$activeCount", SashioTeal),
-                        Triple("Completed", "$completedCount", SashioGreen)
-                    ).forEach { (title, count, col) ->
+                        Triple("$totalClients Total", "👤 Clients", SashioBlue),
+                        Triple("$activeRentals Live", "🚚 Bookings", SashioGreen),
+                        Triple("$outstandingQuotes Open", "📄 Pending Quotes", SashioGold),
+                        Triple("$totalStaff Crew", "👷 Active Staff", SashioSlate)
+                    ).forEach { (count, title, color) ->
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.3f)),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
+                            colors = CardDefaults.cardColors(containerColor = color.copy(alpha = 0.08f)),
                             modifier = Modifier.weight(1f)
                         ) {
-                            Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text(title, fontSize = 10.sp, color = Color.White.copy(alpha = 0.5f), maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(count, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = col)
+                            Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(title, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = color)
+                                Text(count, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SashioSlate)
                             }
                         }
                     }
@@ -203,381 +133,394 @@ fun StaffDashboardHomeTab(
             }
         }
 
-        // Live Assigned Jobs Preview on Home
-        if (myAssignedBookings.isNotEmpty()) {
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text("MY ASSIGNED DISPATCHES", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SashioGold, letterSpacing = 1.sp)
-                    TextButton(onClick = { onTabNavigate("jobs") }) {
-                        Text("View All (${myAssignedBookings.size})", color = SashioGold, fontSize = 10.sp)
+        item {
+            Text("EXECUTIVE COMMAND GRID", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, modifier = Modifier.padding(vertical = 4.dp))
+        }
+
+        item {
+            val menuItems = listOf(
+                Triple("clients", "👥 Clients Management", "Manage profiles, customer invoices, history"),
+                Triple("staff", "👷 Staff & Field Crews", "Performance trackers, add members, dispatch logs"),
+                Triple("quotations", "📄 Quotations Console", "Automated smart price calculations & metrics"),
+                Triple("products", "🚽 Product Catalog", "Configure mobile units, specifications & images"),
+                Triple("payments", "💳 Paystack Payments", "Settlement journals, transaction verification"),
+                Triple("revenue", "📈 Business Analytics", "Revenue growth charts with expense reports"),
+                Triple("reports", "📊 Reports Export Hub", "PDF, CSV, Excel document dispatcher"),
+                Triple("manage_roles", "🔑 User Roles (Live)", "Promote or demote live Supabase accounts"),
+                Triple("settings", "⚙ Operational Settings", "System configurations, activity audits logs")
+            )
+
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (i in menuItems.indices step 2) {
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        for (j in 0..1) {
+                            if (i + j < menuItems.size) {
+                                val item = menuItems[i + j]
+                                Card(
+                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    shape = RoundedCornerShape(12.dp),
+                                    border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clickable { onSubScreenChange(item.first) }
+                                        .testTag("admin_grid_${item.first}")
+                                ) {
+                                    Column(modifier = Modifier.padding(12.dp)) {
+                                        Text(item.second, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioSlate)
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(item.third, fontSize = 9.sp, color = SashioTextMuted, lineHeight = 12.sp)
+                                    }
+                                }
+                            } else {
+                                Spacer(modifier = Modifier.weight(1f))
+                            }
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
-                myAssignedBookings.take(3).forEach { job ->
+            }
+        }
+    }
+}
+
+@Composable
+fun AdminClientsCrmView(viewModel: SashioViewModel) {
+    val supabaseProfiles by viewModel.supabaseProfiles.collectAsStateWithLifecycle()
+    var clientSearchQuery by remember { mutableStateOf("") }
+    var clientCategoryFilter by remember { mutableStateOf("All") }
+    val localContext = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.loadSupabaseProfiles()
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
+        Text("CUSTOMER RELATIONSHIP MANAGEMENT (CRM) - LIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SashioSlate)
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = clientSearchQuery,
+            onValueChange = { clientSearchQuery = it },
+            label = { Text("Search client by name or company...") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth()
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            listOf("All", "Corporate", "Individual").forEach { cat ->
+                FilterChip(
+                    selected = clientCategoryFilter == cat,
+                    onClick = { clientCategoryFilter = cat },
+                    label = { Text(cat) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        val filteredClients = supabaseProfiles.filter {
+            it.role == "client" &&
+            ((it.full_name ?: "").contains(clientSearchQuery, ignoreCase = true) || (it.company_name ?: "").contains(clientSearchQuery, ignoreCase = true) || it.email.contains(clientSearchQuery, ignoreCase = true)) &&
+            (clientCategoryFilter == "All" ||
+             (clientCategoryFilter == "Corporate" && !it.company_name.isNullOrBlank()) ||
+             (clientCategoryFilter == "Individual" && it.company_name.isNullOrBlank()))
+        }
+
+        if (filteredClients.isEmpty()) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.People, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("No Client Profiles found matching constraints", color = Color.Gray, fontSize = 12.sp)
+                }
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(filteredClients) { c ->
+                    val isSuspended = c.suspended
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.4f)),
-                        border = BorderStroke(1.dp, SashioGold.copy(alpha = 0.3f)),
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
+                        colors = CardDefaults.cardColors(containerColor = if (isSuspended) Color(0xFFFEE2E2) else Color.White),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(job.service_type, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                                BookingStatusBadge(status = job.status)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(c.full_name?.takeIf { it.isNotBlank() } ?: c.email, fontWeight = FontWeight.Bold)
+                                    Text(if (!c.company_name.isNullOrBlank()) "Corporate: ${c.company_name}" else "Individual Account", fontSize = 10.sp, color = SashioGold, fontWeight = FontWeight.Bold)
+                                }
+                                Text(if (isSuspended) "SUSPENDED" else "ACTIVE", color = if (isSuspended) SashioRed else SashioGreen, fontWeight = FontWeight.Bold, fontSize = 10.sp)
                             }
-                            Text("Client: ${job.client_name} | Event: ${job.event_type}", color = Color.White.copy(alpha = 0.7f), fontSize = 10.sp)
-                            Text("Address: ${job.address}", color = Color.LightGray, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        }
-                    }
-                }
-            }
-        }
+                            Text("Email: ${c.email} | Phone: ${c.phone_number ?: "N/A"}", fontSize = 10.sp, color = SashioTextMuted)
 
-        item {
-            Column {
-                Text("Quick Action Workspace".uppercase(), fontSize = 10.sp, fontWeight = FontWeight.ExtraBold, color = SashioGold, letterSpacing = 1.sp)
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(
-                        Triple("Assigned Jobs", Icons.Default.Assignment, "jobs"),
-                        Triple("Route Maps", Icons.Default.Map, "maps"),
-                        Triple("Message Boards", Icons.Default.Chat, "messages")
-                    ).forEach { (label, icon, tabTarget) ->
-                        Card(
-                            colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.2f)),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
-                            onClick = { onTabNavigate(tabTarget) },
-                            modifier = Modifier.weight(1f)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(12.dp).fillMaxWidth(),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Icon(icon, contentDescription = null, tint = SashioGold, modifier = Modifier.size(24.dp))
-                                Spacer(modifier = Modifier.height(6.dp))
-                                Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, textAlign = TextAlign.Center)
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { viewModel.adminSetProfileSuspended(c.id, !isSuspended) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (isSuspended) SashioGreen else SashioRed),
+                                    modifier = Modifier.weight(1f).height(32.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text(if (isSuspended) "Activate Profile" else "Suspend Profile", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                                Button(
+                                    onClick = {
+                                        val whatsappText = "Hello ${c.full_name ?: "Valued Client"}, this is SACHIO Customer Service regarding your event sanitation arrangements."
+                                        val encodedText = URLEncoder.encode(whatsappText, "UTF-8")
+                                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://api.whatsapp.com/send?phone=${c.phone_number ?: ""}&text=$encodedText"))
+                                        localContext.startActivity(intent)
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                                    modifier = Modifier.weight(1f).height(32.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text("WhatsApp Direct", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                }
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
 
-        item {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.25f)),
-                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.07f)),
-                modifier = Modifier.fillMaxWidth()
+@Composable
+fun AdminStaffView(
+    viewModel: SashioViewModel,
+    onOpenAddStaff: () -> Unit
+) {
+    val realStaffProfiles by viewModel.realStaffProfiles.collectAsStateWithLifecycle()
+    val supabaseBookings by viewModel.supabaseBookings.collectAsStateWithLifecycle()
+    var staffSearchQuery by remember { mutableStateOf("") }
+    val localContext = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.loadSupabaseProfiles()
+        viewModel.loadSupabaseBookings()
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("STAFF & DISPATCH CREWS", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Button(
+                onClick = onOpenAddStaff,
+                colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
+                shape = RoundedCornerShape(8.dp)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
-                    Text("DISPATCH CHECKLIST PARAMETERS", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SashioGold, letterSpacing = 1.sp)
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    listOf(
-                        "Confirm pre-departure fluid balance indicators",
-                        "Log vehicle diesel status",
-                        "Ensure tow-coupling safety steel pins locked",
-                        "Synchronise offline client databases"
-                    ).forEach { task ->
-                        val isChecked = checkedBeforeDeparture.contains(task)
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = isChecked,
-                                onCheckedChange = {
-                                    checkedBeforeDeparture = if (isChecked) checkedBeforeDeparture - task else checkedBeforeDeparture + task
-                                },
-                                colors = CheckboxDefaults.colors(checkedColor = SashioGold)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(task, color = if (isChecked) Color.LightGray.copy(alpha = 0.5f) else Color.White, fontSize = 12.sp)
-                        }
-                    }
-                }
+                Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Register Staff", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black)
             }
         }
 
-        item {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text("SACHIO STAFF SOP", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SashioGold, letterSpacing = 1.2.sp)
-                Text("Prestige in Every Service", fontSize = 10.sp, fontStyle = FontStyle.Italic, color = Color.White.copy(alpha = 0.5f))
-                Spacer(modifier = Modifier.height(10.dp))
+        OutlinedTextField(
+            value = staffSearchQuery,
+            onValueChange = { staffSearchQuery = it },
+            label = { Text("Search crews by name or email...") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp)
+        )
 
-                val sopList = listOf(
-                    Triple("1. Be Ready", Icons.Default.AccessTime, listOf("Report on time.", "Wear full Sachio uniform.", "Be alert, fit, and ready for duty.")),
-                    Triple("2. Respect the Brand", Icons.Default.Star, listOf("Be professional at all times.", "Treat clients, colleagues, and the public with respect.", "Protect the reputation of Sachio.")),
-                    Triple("3. Before Leaving the Yard", Icons.Default.DirectionsCar, listOf("Inspect vehicle.", "Inspect toilets.", "Confirm job details.", "Ensure cleaning supplies and tools are available.")),
-                    Triple("4. At the Client's Location", Icons.Default.Place, listOf("Greet the client professionally.", "Confirm setup location.", "Position toilets properly and safely.", "Take photos after setup.")),
-                    Triple("5. Cleanliness First", Icons.Default.CheckCircle, listOf("Keep toilets clean and odor-free.", "Refill tissue, water, sanitizer, and chemicals.", "Never leave a dirty unit at a client site.")),
-                    Triple("6. No Begging Policy", Icons.Default.Block, listOf("Salary is your entitlement.", "Tips, gifts, or support from Sachio are discretionary and not guaranteed.", "Never request money from clients.")),
-                    Triple("7. Team Responsibility", Icons.Default.People, listOf("Follow instructions.", "Communicate issues immediately.", "Support team members when needed.")),
-                    Triple("8. Safety", Icons.Default.Security, listOf("Handle equipment carefully.", "Report accidents, damage, or leaks immediately.", "Follow all safety procedures.")),
-                    Triple("9. End of Duty", Icons.Default.DoneAll, listOf("Return all tools.", "Clean vehicle and equipment.", "Submit job report and photos.")),
-                    Triple("10. The Sachio Standard", Icons.Default.Star, listOf("Every job must reflect:", "✅ Cleanliness", "✅ Professionalism", "✅ Reliability", "✅ Accountability", "✅ Respect"))
-                )
+        val filteredStaff = realStaffProfiles.filter {
+            (it.full_name ?: "").contains(staffSearchQuery, ignoreCase = true) || it.email.contains(staffSearchQuery, ignoreCase = true)
+        }
 
-                sopList.forEachIndexed { index, (title, icon, details) ->
-                    val isExpanded = expandedSopIndex == index
+        if (filteredStaff.isEmpty()) {
+            Card(colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+                Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(Icons.Default.Badge, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("No staff accounts found. Promote users in 'User Roles'.", color = Color.Gray, fontSize = 12.sp)
+                }
+            }
+        } else {
+            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                items(filteredStaff) { s ->
+                    val isSuspended = s.suspended
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = if (isExpanded) SashioSlate.copy(alpha = 0.35f) else SashioSlate.copy(alpha = 0.15f)),
-                        border = BorderStroke(1.dp, if (isExpanded) SashioGold.copy(alpha = 0.4f) else Color.White.copy(alpha = 0.05f)),
-                        onClick = { expandedSopIndex = if (isExpanded) null else index },
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                        colors = CardDefaults.cardColors(containerColor = if (isSuspended) Color(0xFFFEE2E2) else Color.White),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(imageVector = icon, contentDescription = null, tint = if (isExpanded) SashioGold else Color.White.copy(alpha = 0.6f), modifier = Modifier.size(18.dp))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    Text(text = title, fontWeight = FontWeight.Bold, color = if (isExpanded) SashioGold else Color.White, fontSize = 12.sp)
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(s.full_name?.takeIf { it.isNotBlank() } ?: s.email, fontWeight = FontWeight.Bold)
+                                    Text("ROLE: FIELD OPERATIVE", fontSize = 9.sp, color = SashioGold, fontWeight = FontWeight.Bold)
                                 }
-                                Icon(imageVector = if (isExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown, contentDescription = null, tint = if (isExpanded) SashioGold else Color.White.copy(alpha = 0.4f), modifier = Modifier.size(18.dp))
+                                Text(if (isSuspended) "SUSPENDED" else "ACTIVE", color = if (isSuspended) SashioRed else SashioGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
                             }
+                            Text("Phone: ${s.phone_number ?: "N/A"} | Email: ${s.email}", fontSize = 10.sp, color = SashioTextMuted)
 
-                            if (isExpanded) {
-                                Spacer(modifier = Modifier.height(8.dp))
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    details.forEach { detail ->
-                                        Row(verticalAlignment = Alignment.Top) {
-                                            if (!detail.startsWith("Every job must") && !detail.startsWith("✅")) {
-                                                Text("• ", color = SashioGold, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            val countJob = supabaseBookings.count { it.assigned_staff_id == s.id }
+                            Text("Active Dispatches: $countJob", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
+
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Button(
+                                    onClick = { viewModel.adminSetProfileSuspended(s.id, !isSuspended) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = if (isSuspended) SashioGreen else SashioRed),
+                                    modifier = Modifier.weight(1f).height(30.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text(if (isSuspended) "Activate Crew" else "Suspend Crew", fontSize = 9.sp, color = Color.White)
+                                }
+                                Button(
+                                    onClick = {
+                                        Toast.makeText(localContext, "Ping alert dispatched to ${s.full_name ?: s.email}'s device.", Toast.LENGTH_SHORT).show()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                                    modifier = Modifier.weight(1f).height(30.dp),
+                                    contentPadding = PaddingValues(0.dp)
+                                ) {
+                                    Text("Ping Device", fontSize = 9.sp, color = Color.White)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun ManageUserRolesPanel(viewModel: SashioViewModel) {
+    val profiles by viewModel.supabaseProfiles.collectAsStateWithLifecycle()
+    val error by viewModel.roleManagementError.collectAsStateWithLifecycle()
+    val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
+    var searchQuery by remember { mutableStateOf("") }
+    var profilePendingDelete by remember { mutableStateOf<AdminProfileRow?>(null) }
+    val localContext = LocalContext.current
+
+    LaunchedEffect(Unit) {
+        viewModel.loadSupabaseProfiles()
+    }
+
+    Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
+        Text("LIVE USER ROLES (SUPABASE)", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+        Text(
+            "Promote or demote real Supabase accounts. Changes take effect on next login.",
+            style = MaterialTheme.typography.bodySmall,
+            color = SashioTextMuted
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = { searchQuery = it },
+            label = { Text("Search by name or email...") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp).testTag("manage_roles_search")
+        )
+
+        error?.let { err ->
+            Text(err, color = SashioRed, fontSize = 11.sp, fontWeight = FontWeight.Bold, modifier = Modifier.padding(vertical = 4.dp))
+        }
+
+        val filtered = profiles.filter {
+            (it.full_name ?: "").contains(searchQuery, ignoreCase = true) ||
+            it.email.contains(searchQuery, ignoreCase = true)
+        }
+
+        LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(filtered) { p ->
+                var roleMenuOpen by remember(p.id) { mutableStateOf(false) }
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(p.full_name?.takeIf { it.isNotBlank() } ?: p.email, fontWeight = FontWeight.Bold)
+                                Text(p.email, fontSize = 10.sp, color = SashioTextMuted)
+                            }
+                            Text(
+                                p.role.uppercase(),
+                                color = when (p.role) {
+                                    "admin" -> SashioRed
+                                    "staff" -> SashioGold
+                                    else -> SashioGreen
+                                },
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedButton(
+                                    onClick = { roleMenuOpen = true },
+                                    modifier = Modifier.fillMaxWidth().height(36.dp).testTag("manage_role_trigger_${p.id}")
+                                ) {
+                                    Text("Change Role (${p.role.uppercase()})", fontSize = 11.sp)
+                                }
+                                DropdownMenu(
+                                    expanded = roleMenuOpen,
+                                    onDismissRequest = { roleMenuOpen = false }
+                                ) {
+                                    listOf("client", "staff", "admin").forEach { roleOption ->
+                                        DropdownMenuItem(
+                                            text = { Text(roleOption.uppercase()) },
+                                            onClick = {
+                                                roleMenuOpen = false
+                                                if (roleOption != p.role) {
+                                                    viewModel.adminSetUserRole(p.id, roleOption)
+                                                    Toast.makeText(localContext, "Updated ${p.email} to $roleOption", Toast.LENGTH_SHORT).show()
+                                                }
                                             }
-                                            Text(text = detail, color = Color.White.copy(alpha = 0.85f), fontSize = 11.sp, lineHeight = 14.sp)
-                                        }
+                                        )
                                     }
                                 }
                             }
+
+                            val isSelf = currentUser?.email?.equals(p.email, ignoreCase = true) == true
+                            OutlinedButton(
+                                onClick = { profilePendingDelete = p },
+                                enabled = !isSelf,
+                                colors = ButtonDefaults.outlinedButtonColors(contentColor = SashioRed),
+                                border = BorderStroke(1.dp, if (isSelf) Color.LightGray else SashioRed),
+                                modifier = Modifier.height(36.dp).testTag("delete_profile_${p.id}")
+                            ) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete user", tint = if (isSelf) Color.LightGray else SashioRed, modifier = Modifier.size(16.dp))
+                            }
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Card(colors = CardDefaults.cardColors(containerColor = SashioGold.copy(alpha = 0.05f)), border = BorderStroke(1.dp, SashioGold.copy(alpha = 0.2f)), modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(text = "SACHIO STAFF MOTTO", fontSize = 9.sp, fontWeight = FontWeight.ExtraBold, color = SashioGold, letterSpacing = 1.sp)
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(text = "\"Prestige in Every Service\"", style = MaterialTheme.typography.titleMedium, color = Color.White, fontWeight = FontWeight.Light, fontStyle = FontStyle.Italic, textAlign = TextAlign.Center)
-                    }
-                }
             }
         }
-    }
-}
 
-@Composable
-fun StaffClockInDialog(
-    viewModel: SashioViewModel,
-    onDismiss: () -> Unit
-) {
-    var clockInWorkplace by remember { mutableStateOf("SACHIO Victoria Island Depot") }
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFE111827)),
-            shape = RoundedCornerShape(24.dp),
-            modifier = Modifier.padding(16.dp).border(1.dp, SashioGold.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
-        ) {
-            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Place, contentDescription = null, modifier = Modifier.size(48.dp), tint = SashioGold)
-                Spacer(modifier = Modifier.height(16.dp))
-                Text("LOCK SHIFT ATTENDANCE", fontWeight = FontWeight.Bold, color = SashioGold, fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Select your reporting depot location to verify GPS checkout logs.", textAlign = TextAlign.Center, fontSize = 12.sp, color = Color.LightGray)
-                Spacer(modifier = Modifier.height(12.dp))
-
-                listOf("SACHIO Victoria Island Depot", "SACHIO Lekki Main Yard", "SACHIO Ikeja Depot Hub").forEach { depot ->
-                    val isSel = clockInWorkplace == depot
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = if (isSel) SashioGold.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.05f)),
-                        border = BorderStroke(1.dp, if (isSel) SashioGold else Color.White.copy(alpha = 0.2f)),
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        onClick = { clockInWorkplace = depot }
-                    ) {
-                        Text(depot, modifier = Modifier.padding(12.dp), color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                        Text("DISMISS", color = Color.White.copy(alpha = 0.5f))
-                    }
-
+        profilePendingDelete?.let { toDelete ->
+            AlertDialog(
+                onDismissRequest = { profilePendingDelete = null },
+                title = { Text("Delete User Profile?") },
+                text = {
+                    Text(
+                        "This permanently removes ${toDelete.full_name?.takeIf { it.isNotBlank() } ?: toDelete.email} " +
+                        "(${toDelete.email}) from the app database. This cannot be undone."
+                    )
+                },
+                confirmButton = {
                     Button(
                         onClick = {
-                            viewModel.clockInStaff(clockInWorkplace)
-                            onDismiss()
+                            viewModel.adminDeleteUserProfile(toDelete.id)
+                            profilePendingDelete = null
+                            Toast.makeText(localContext, "User profile deleted.", Toast.LENGTH_SHORT).show()
                         },
-                        colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
-                        modifier = Modifier.weight(1.2f)
-                    ) {
-                        Text("CLOCK IN", color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
+                        colors = ButtonDefaults.buttonColors(containerColor = SashioRed)
+                    ) { Text("Delete", color = Color.White) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { profilePendingDelete = null }) { Text("Cancel") }
                 }
-            }
-        }
-    }
-}
-
-@Composable
-fun StaffEmergencyDialog(onDismiss: () -> Unit) {
-    var emergencyComments by remember { mutableStateOf("") }
-    val localCtx = LocalContext.current
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFE1C0D0D)),
-            shape = RoundedCornerShape(24.dp),
-            modifier = Modifier.padding(16.dp).border(1.dp, SashioRed.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
-        ) {
-            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.Warning, contentDescription = null, modifier = Modifier.size(48.dp), tint = SashioRed)
-                Spacer(modifier = Modifier.height(14.dp))
-                Text("EMERGENCY SECURE DIAL", fontWeight = FontWeight.Bold, color = SashioRed, fontSize = 16.sp)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text("Immediately broadcast active location coordinates & alert central logistics.", textAlign = TextAlign.Center, fontSize = 12.sp, color = Color.LightGray)
-                Spacer(modifier = Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = emergencyComments,
-                    onValueChange = { emergencyComments = it },
-                    label = { Text("Describe road incident or blockage", color = Color.LightGray) },
-                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = SashioRed, unfocusedBorderColor = Color.White.copy(alpha = 0.2f)),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                        Text("CANCEL", color = Color.White.copy(alpha = 0.5f))
-                    }
-
-                    Button(
-                        onClick = {
-                            Toast.makeText(localCtx, "Emergency SOS alert dispatched to central cockpit!", Toast.LENGTH_SHORT).show()
-                            onDismiss()
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SashioRed),
-                        modifier = Modifier.weight(1.5f)
-                    ) {
-                        Text("SOS REPORT", color = Color.White, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun StaffAddExpenseDialog(
-    viewModel: SashioViewModel,
-    onDismiss: () -> Unit
-) {
-    var expenseAmountInput by remember { mutableStateOf("") }
-    var expenseCategorySelect by remember { mutableStateOf("Fuel Costs") }
-    var expenseNotesInput by remember { mutableStateOf("") }
-    val localCtx = LocalContext.current
-
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color(0xFE111827)),
-            shape = RoundedCornerShape(24.dp),
-            modifier = Modifier.padding(16.dp).border(1.dp, SashioGold.copy(alpha = 0.4f), RoundedCornerShape(24.dp))
-        ) {
-            Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(Icons.Default.ReceiptLong, contentDescription = null, modifier = Modifier.size(42.dp), tint = SashioGold)
-                Spacer(modifier = Modifier.height(12.dp))
-                Text("REGISTER EXPENSE SLIP", fontWeight = FontWeight.Bold, color = SashioGold, fontSize = 14.sp)
-                Spacer(modifier = Modifier.height(14.dp))
-
-                OutlinedTextField(
-                    value = expenseAmountInput,
-                    onValueChange = { expenseAmountInput = it },
-                    label = { Text("Expense Amount (₦)") },
-                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = SashioGold,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                        focusedLabelColor = SashioGold
-                    ),
-                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    listOf("Fuel Costs", "Toll", "Parking", "Maintenance").forEach { cat ->
-                        val isSel = expenseCategorySelect == cat
-                        FilterChip(
-                            selected = isSel,
-                            onClick = { expenseCategorySelect = cat },
-                            label = { Text(cat, fontSize = 10.sp, color = if (isSel) Color.Black else Color.White) },
-                            colors = FilterChipDefaults.filterChipColors(selectedContainerColor = SashioGold, selectedLabelColor = Color.Black)
-                        )
-                    }
-                }
-
-                OutlinedTextField(
-                    value = expenseNotesInput,
-                    onValueChange = { expenseNotesInput = it },
-                    label = { Text("Spent Reason / Receipt Notes") },
-                    textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = SashioGold,
-                        unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                        focusedLabelColor = SashioGold
-                    ),
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TextButton(onClick = onDismiss, modifier = Modifier.weight(1f)) {
-                        Text("DISMISS", color = Color.White.copy(alpha = 0.5f))
-                    }
-
-                    Button(
-                        onClick = {
-                            val amtNum = expenseAmountInput.toDoubleOrNull() ?: 0.0
-                            if (amtNum > 0.0) {
-                                val dateSdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-                                viewModel.submitStaffExpense(
-                                    amount = amtNum,
-                                    category = expenseCategorySelect,
-                                    notes = expenseNotesInput,
-                                    date = dateSdf.format(Date())
-                                ) {
-                                    Toast.makeText(localCtx, "Expense claim submitted to Admin for approval!", Toast.LENGTH_SHORT).show()
-                                }
-                                onDismiss()
-                            } else {
-                                Toast.makeText(localCtx, "Please enter a valid expense amount.", Toast.LENGTH_SHORT).show()
-                            }
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
-                        modifier = Modifier.weight(1.3f)
-                    ) {
-                        Text("TRANSMIT CLAIM", color = Color.Black, fontWeight = FontWeight.Bold)
-                    }
-                }
-            }
+            )
         }
     }
 }
