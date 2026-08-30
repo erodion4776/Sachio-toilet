@@ -740,9 +740,9 @@ fun AssignedCrewTab(
                         colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
                         modifier = Modifier.weight(1f).height(36.dp)
                     ) {
-                        Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(14.dp))
+                        Icon(Icons.Default.Phone, contentDescription = null, modifier = Modifier.size(14.dp), tint = Color.White)
                         Spacer(modifier = Modifier.width(4.dp))
-                        Text("Call Crew", fontSize = 10.sp)
+                        Text("Call Crew", fontSize = 10.sp, color = Color.White)
                     }
                     OutlinedButton(
                         onClick = {
