@@ -1,5 +1,8 @@
 package com.sashio.ops.ui
 
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -17,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -27,6 +31,17 @@ import com.sashio.ops.data.SashioViewModel
 import com.sashio.ops.data.SupabaseBooking
 import com.sashio.ops.data.UserProfile
 import com.sashio.ops.ui.theme.*
+
+fun launchExternalGpsNavigation(context: Context, latitude: Double, longitude: Double, label: String) {
+    try {
+        val gmmIntentUri = Uri.parse("geo:$latitude,$longitude?q=$latitude,$longitude(${Uri.encode(label)})")
+        val mapIntent = Intent(Intent.ACTION_VIEW, gmmIntentUri)
+        context.startActivity(mapIntent)
+    } catch (e: Exception) {
+        val browserUri = Uri.parse("https://www.google.com/maps/search/?api=1&query=$latitude,$longitude")
+        context.startActivity(Intent(Intent.ACTION_VIEW, browserUri))
+    }
+}
 
 @Composable
 fun StaffDashboard(viewModel: SashioViewModel, staff: UserProfile?) {
@@ -159,7 +174,6 @@ fun StaffDashboardMapsTab(viewModel: SashioViewModel) {
         viewModel.loadMyAssignedBookings()
     }
 
-    // Pick active assigned job from Supabase or local Room cache
     val activeJob = assignedSupabaseBookings.firstOrNull { 
         it.status == "IN TRANSIT" || it.status == "Staff Assigned" || it.status == "ARRIVED" || it.status == "SETUP IN PROGRESS" 
     } ?: assignedSupabaseBookings.firstOrNull() ?: localBookings.firstOrNull { it.status == "IN TRANSIT" || it.status == "ARRIVED" }
@@ -194,9 +208,8 @@ fun StaffDashboardMapsTab(viewModel: SashioViewModel) {
             else -> "Staff Assigned"
         }
 
-        // Live coordinates along the route
         val vehicleLat = when (status) {
-            "Staff Assigned" -> 6.4282 // Victoria Island Central Yard
+            "Staff Assigned" -> 6.4282
             "IN TRANSIT" -> destLat - 0.015
             else -> destLat
         }
@@ -241,11 +254,15 @@ fun StaffDashboardMapsTab(viewModel: SashioViewModel) {
                     Spacer(modifier = Modifier.height(10.dp))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Button(
-                            onClick = { Toast.makeText(localCtx, "GPS location coordinates locked.", Toast.LENGTH_SHORT).show() },
-                            colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                            onClick = { 
+                                launchExternalGpsNavigation(localCtx, destLat, destLng, address)
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
                             modifier = Modifier.weight(1f).height(36.dp)
                         ) {
-                            Text("GPS LOCK", fontSize = 10.sp, color = Color.White)
+                            Icon(Icons.Default.Directions, contentDescription = null, tint = Color.White, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("NAVIGATE (GPS)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
                         }
 
                         Button(
