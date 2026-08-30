@@ -1,10 +1,9 @@
 package com.sashio.ops.ui
 
 import android.content.Intent
+import android.graphics.Paint
 import android.net.Uri
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -13,23 +12,27 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.AsyncImage
 import com.sashio.ops.R
 import com.sashio.ops.data.CreatePaymentResponse
 import com.sashio.ops.data.UserProfile
 import com.sashio.ops.ui.theme.*
+import org.osmdroid.events.MapEventsReceiver
+import org.osmdroid.tileprovider.tilesource.TileSourceFactory
+import org.osmdroid.util.GeoPoint
+import org.osmdroid.views.MapView
+import org.osmdroid.views.overlay.MapEventsOverlay
+import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 import java.text.SimpleDateFormat
 import java.time.Instant
 import java.time.ZoneId
@@ -225,6 +228,10 @@ fun PaystackCheckoutGatewayModal(
     )
 }
 
+/**
+ * 100% FREE FOREVER OpenStreetMap Implementation for SACHIO
+ * Supports interactive map gestures, custom pin drops, and vehicle route vectors.
+ */
 @Composable
 fun SashioCanvasMap(
     latitude: Double,
@@ -238,134 +245,111 @@ fun SashioCanvasMap(
     showRoute: Boolean = false,
     label: String = ""
 ) {
-    val mapColor = when (mapStyle) {
-        "Satellite" -> Color(0xFF0F172A)
-        "Traffic" -> Color(0xFF1E293B)
-        "Operations" -> Color(0xFF111827)
-        else -> Color(0xFF1E293B)
-    }
+    val destLat = if (latitude != 0.0) latitude else 6.4531
+    val destLng = if (longitude != 0.0) longitude else 3.3958
 
     Box(modifier = Modifier.fillMaxSize()) {
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(mapColor)
-                .pointerInput(onMarkerChanged) {
+        AndroidView(
+            factory = { ctx ->
+                MapView(ctx).apply {
+                    setTileSource(TileSourceFactory.MAPNIK)
+                    setMultiTouchControls(true)
+                    isTilesScaledToDpi = true
+
+                    val mapController = controller
+                    mapController.setZoom(14.5)
+                    mapController.setCenter(GeoPoint(destLat, destLng))
+
+                    // Tap-to-pick pin drop gesture
                     if (onMarkerChanged != null) {
-                        detectTapGestures { offset ->
-                            val outLat = 6.4 + (offset.y / 25000)
-                            val outLng = 3.3 + (offset.x / 25000)
-                            onMarkerChanged(outLat, outLng)
-                        }
+                        val eventsOverlay = MapEventsOverlay(object : MapEventsReceiver {
+                            override fun singleTapConfirmedHelper(p: GeoPoint?): Boolean {
+                                p?.let {
+                                    onMarkerChanged(it.latitude, it.longitude)
+                                }
+                                return true
+                            }
+                            override fun longPressHelper(p: GeoPoint?): Boolean = false
+                        })
+                        overlays.add(eventsOverlay)
                     }
                 }
-        ) {
-            val width = size.width
-            val height = size.height
+            },
+            update = { mapView ->
+                mapView.overlays.removeAll { it is Marker || it is Polyline }
 
-            for (i in 1..8) {
-                val progressX = width * (i.toFloat() / 9f)
-                drawLine(
-                    color = Color.White.copy(alpha = 0.08f),
-                    start = Offset(progressX, 0f),
-                    end = Offset(progressX, height),
-                    strokeWidth = 1f
-                )
-            }
-            for (i in 1..5) {
-                val progressY = height * (i.toFloat() / 6f)
-                drawLine(
-                    color = Color.White.copy(alpha = 0.08f),
-                    start = Offset(0f, progressY),
-                    end = Offset(width, progressY),
-                    strokeWidth = 1f
-                )
-            }
+                val destPoint = GeoPoint(destLat, destLng)
 
-            if (mapStyle == "Traffic") {
-                drawLine(color = Color(0xFFEF4444), start = Offset(0f, height * 0.35f), end = Offset(width, height * 0.35f), strokeWidth = 3f)
-                drawLine(color = Color(0xFF22C55E), start = Offset(0f, height * 0.45f), end = Offset(width, height * 0.45f), strokeWidth = 4f)
-                drawLine(color = Color(0xFFF59E0B), start = Offset(width * 0.4f, 0f), end = Offset(width * 0.4f, height), strokeWidth = 2f)
-            } else if (mapStyle == "Operations") {
-                drawCircle(color = SashioGold.copy(alpha = 0.05f), center = Offset(width / 2, height / 2), radius = 50.dp.toPx(), style = Stroke(width = 1.dp.toPx()))
-                drawCircle(color = SashioGold.copy(alpha = 0.03f), center = Offset(width / 2, height / 2), radius = 100.dp.toPx(), style = Stroke(width = 1.dp.toPx()))
-                drawCircle(color = SashioGold.copy(alpha = 0.02f), center = Offset(width / 2, height / 2), radius = 150.dp.toPx(), style = Stroke(width = 1.dp.toPx()))
-            }
+                // 1. Destination Marker (Event Venue)
+                val destMarker = Marker(mapView).apply {
+                    position = destPoint
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                    title = label.ifBlank { "Event Venue" }
+                }
+                mapView.overlays.add(destMarker)
 
-            drawLine(color = Color.DarkGray, start = Offset(0f, height * 0.4f), end = Offset(width, height * 0.45f), strokeWidth = 10f)
-            drawCircle(color = SashioTeal.copy(alpha = 0.13f), center = Offset(width * 0.2f, height * 0.8f), radius = 35.dp.toPx())
+                // 2. Vehicle / Dispatch Hauler Marker
+                if (vehicleLat != null && vehicleLng != null) {
+                    val vehPoint = GeoPoint(vehicleLat, vehicleLng)
+                    val vehMarker = Marker(mapView).apply {
+                        position = vehPoint
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_CENTER)
+                        title = "SACHIO VIP Hauler"
+                    }
+                    mapView.overlays.add(vehMarker)
 
-            val markerX = (((longitude - 3.3) * 25000).toFloat()).coerceIn(30f, width - 30f)
-            val markerY = (((latitude - 6.4) * 25000).toFloat()).coerceIn(30f, height - 30f)
+                    // 3. Vector Route Polyline
+                    if (showRoute) {
+                        val routeLine = Polyline(mapView).apply {
+                            outlinePaint.color = android.graphics.Color.rgb(210, 204, 70) // SachioMustard / Gold
+                            outlinePaint.strokeWidth = 10f
+                            outlinePaint.strokeCap = Paint.Cap.ROUND
+                            addPoint(vehPoint)
+                            addPoint(destPoint)
+                        }
+                        mapView.overlays.add(routeLine)
+                    }
+                }
 
-            val vX = vehicleLat?.let { (((vehicleLng ?: 3.3) - 3.3) * 25000).toFloat().coerceIn(30f, width - 30f) }
-            val vY = vehicleLat?.let { (((vehicleLat) - 6.4) * 25000).toFloat().coerceIn(30f, height - 30f) }
-
-            val sX = staffLat?.let { (((staffLng ?: 3.3) - 3.3) * 25000).toFloat().coerceIn(30f, width - 30f) }
-            val sY = staffLat?.let { (((staffLat) - 6.4) * 25000).toFloat().coerceIn(30f, height - 30f) }
-
-            if (showRoute && vX != null && vY != null) {
-                drawLine(
-                    color = SashioGold,
-                    start = Offset(vX, vY),
-                    end = Offset(markerX, markerY),
-                    strokeWidth = 3f,
-                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 10f), 0f)
-                )
-            }
-
-            drawCircle(color = SashioGold.copy(alpha = 0.25f), center = Offset(markerX, markerY), radius = 18.dp.toPx())
-            drawCircle(color = SashioGold, center = Offset(markerX, markerY), radius = 6.dp.toPx())
-            drawCircle(color = Color.White, center = Offset(markerX, markerY), radius = 2.dp.toPx())
-
-            if (vX != null && vY != null) {
-                drawCircle(color = SashioTeal.copy(alpha = 0.3f), center = Offset(vX, vY), radius = 15.dp.toPx())
-                drawCircle(color = SashioTeal, center = Offset(vX, vY), radius = 7.dp.toPx())
-                drawRect(color = Color.White, topLeft = Offset(vX - 3.dp.toPx(), vY - 3.dp.toPx()), size = Size(6.dp.toPx(), 6.dp.toPx()))
-            }
-
-            if (sX != null && sY != null) {
-                drawCircle(color = Color.White.copy(alpha = 0.4f), center = Offset(sX, sY), radius = 10.dp.toPx())
-                drawCircle(color = SashioGreen, center = Offset(sX, sY), radius = 4.dp.toPx())
-            }
-        }
+                mapView.invalidate()
+            },
+            modifier = Modifier.fillMaxSize()
+        )
 
         if (label.isNotBlank()) {
-            Box(
+            Card(
+                colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.75f)),
+                shape = RoundedCornerShape(6.dp),
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .padding(8.dp)
-                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
-                    .padding(horizontal = 6.dp, vertical = 2.dp)
             ) {
-                Text(label, color = Color.White, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Text(
+                    text = label,
+                    color = Color.White,
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
             }
         }
     }
 }
 
-fun strokeWidthLimit(width: Float): Stroke {
-    return Stroke(width = width)
-}
+fun strokeWidthLimit(width: Float): Stroke = Stroke(width = width)
 
 fun formatMessageTimestamp(timestampOrIso: String): String {
     if (timestampOrIso.isBlank()) return ""
     return try {
-        // If it's a numeric millisecond timestamp
         val millis = timestampOrIso.toLongOrNull()
         if (millis != null) {
             SimpleDateFormat("h:mm a", Locale.getDefault()).format(Date(millis))
         } else {
-            // ISO-8601 string parse with API fallback
-            try {
-                val instant = Instant.parse(
-                    if (timestampOrIso.contains("+") || timestampOrIso.endsWith("Z")) timestampOrIso
-                    else "${timestampOrIso}Z"
-                )
-                DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault()).format(instant)
-            } catch (e: Throwable) {
-                timestampOrIso
-            }
+            val instant = Instant.parse(
+                if (timestampOrIso.contains("+") || timestampOrIso.endsWith("Z")) timestampOrIso
+                else "${timestampOrIso}Z"
+            )
+            DateTimeFormatter.ofPattern("h:mm a").withZone(ZoneId.systemDefault()).format(instant)
         }
     } catch (e: Exception) {
         timestampOrIso
