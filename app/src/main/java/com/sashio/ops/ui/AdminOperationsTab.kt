@@ -21,6 +21,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -28,6 +29,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sashio.ops.data.Booking
 import com.sashio.ops.data.SashioViewModel
+import com.sashio.ops.data.SupabaseAttendance
 import com.sashio.ops.data.SupabaseBooking
 import com.sashio.ops.data.UserProfile
 import com.sashio.ops.ui.theme.*
@@ -236,14 +238,27 @@ fun AdminOperationsTab(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AdminTrackingTab(viewModel: SashioViewModel) {
-    val bookings by viewModel.allBookings.collectAsStateWithLifecycle()
     val supabaseBookings by viewModel.supabaseBookings.collectAsStateWithLifecycle()
     val activeTrackers by viewModel.activeLiveTrackers.collectAsStateWithLifecycle()
-    val attendanceLogs by viewModel.attendanceLogs.collectAsStateWithLifecycle()
+    val supabaseAttendance by viewModel.supabaseAttendance.collectAsStateWithLifecycle()
 
-    var selectedTrackBooking by remember { mutableStateOf<Booking?>(bookings.firstOrNull()) }
+    var selectedTrackBookingId by remember { mutableStateOf<String?>(null) }
     var currentMapLayer by remember { mutableStateOf("Standard") }
     var trackSelectedTab by remember { mutableStateOf("Live Map") }
+
+    LaunchedEffect(Unit) {
+        viewModel.loadSupabaseBookings()
+        viewModel.loadSupabaseAttendance()
+        viewModel.loadSupabaseProfiles()
+    }
+
+    val activeBookings = remember(supabaseBookings) {
+        supabaseBookings.filter { it.latitude != 0.0 && it.longitude != 0.0 }
+    }
+    
+    val focusBooking = remember(activeBookings, selectedTrackBookingId) {
+        activeBookings.find { it.id == selectedTrackBookingId } ?: activeBookings.firstOrNull()
+    }
 
     Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
         Text("LIVE ROUTE CONTROL & ATTENDANCE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -251,7 +266,14 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
             listOf("Live Map", "Attendance Logs").forEach { tTab ->
                 FilterChip(
                     selected = trackSelectedTab == tTab,
-                    onClick = { trackSelectedTab = tTab },
+                    onClick = { 
+                        trackSelectedTab = tTab 
+                        if (tTab == "Attendance Logs") {
+                            viewModel.loadSupabaseAttendance()
+                        } else {
+                            viewModel.loadSupabaseBookings()
+                        }
+                    },
                     label = { Text(tTab) }
                 )
             }
@@ -264,7 +286,7 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text("Map Layer:", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                listOf("Standard", "Traffic", "Satellite").forEach { lStyle ->
+                listOf("Standard", "Traffic", "Satellite", "Operations").forEach { lStyle ->
                     FilterChip(
                         selected = currentMapLayer == lStyle,
                         onClick = { currentMapLayer = lStyle },
@@ -273,7 +295,6 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
                 }
             }
 
-            val focusBooking = selectedTrackBooking ?: bookings.firstOrNull()
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
                 shape = RoundedCornerShape(12.dp),
@@ -281,91 +302,138 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (focusBooking != null) {
-                        val tracker = activeTrackers[focusBooking.id]
+                        val numericId = focusBooking.id.hashCode().toLong()
+                        val tracker = activeTrackers[numericId]
+
+                        val targetLat = focusBooking.latitude
+                        val targetLng = focusBooking.longitude
+                        val staffLat = tracker?.staffLat ?: (targetLat - 0.025)
+                        val staffLng = tracker?.staffLng ?: (targetLng - 0.02)
+                        val vehicleLat = tracker?.vehicleLat ?: (targetLat - 0.028)
+                        val vehicleLng = tracker?.vehicleLng ?: (targetLng - 0.022)
+
                         SashioCanvasMap(
-                            latitude = focusBooking.latitude,
-                            longitude = focusBooking.longitude,
-                            staffLat = tracker?.staffLat ?: (focusBooking.latitude - 0.025),
-                            staffLng = tracker?.staffLng ?: (focusBooking.longitude - 0.02),
-                            vehicleLat = tracker?.vehicleLat ?: (focusBooking.latitude - 0.028),
-                            vehicleLng = tracker?.vehicleLng ?: (focusBooking.longitude - 0.022),
+                            latitude = targetLat,
+                            longitude = targetLng,
+                            staffLat = staffLat,
+                            staffLng = staffLng,
+                            vehicleLat = vehicleLat,
+                            vehicleLng = vehicleLng,
                             mapStyle = currentMapLayer,
                             showRoute = true,
-                            label = "${focusBooking.clientName} @ ${focusBooking.eventType}"
+                            label = "${focusBooking.client_name} (${focusBooking.service_type})"
                         )
 
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.75f)),
+                            colors = CardDefaults.cardColors(containerColor = Color.Black.copy(alpha = 0.8f)),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.align(Alignment.BottomStart).padding(10.dp)
                         ) {
                             Column(modifier = Modifier.padding(10.dp)) {
-                                Text("Dispatch Target: #QR-${focusBooking.id}", color = SashioGold, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                Text("Address: ${focusBooking.address}", color = Color.White, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (tracker != null) {
-                                    Text("ETA: ${tracker.etaMinutes} mins | Dist: %.1f km".format(tracker.distanceRemainingKm), color = Color.White, fontSize = 9.sp)
-                                } else {
-                                    Text("Live routing transit ready", color = Color.White, fontSize = 9.sp)
-                                }
+                                Text("Dispatch: #QR-${focusBooking.id.take(8)}", color = SashioGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("Client: ${focusBooking.client_name} | ${focusBooking.event_type}", color = Color.White, fontSize = 9.sp)
+                                Text("Address: ${focusBooking.address}", color = Color.LightGray, fontSize = 9.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                                Text(
+                                    text = if (focusBooking.assigned_staff_name != null) "Crew: ${focusBooking.assigned_staff_name}" else "Crew: Unassigned",
+                                    color = if (focusBooking.assigned_staff_name != null) SashioTeal else SashioGold,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text("Status: ${focusBooking.status}", color = SashioGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
                             }
                         }
                     } else {
-                        SashioCanvasMap(latitude = 6.4282, longitude = 3.4211, mapStyle = currentMapLayer, label = "Lagos headquarters depot")
+                        SashioCanvasMap(
+                            latitude = 6.4282, 
+                            longitude = 3.4211, 
+                            mapStyle = currentMapLayer, 
+                            label = "SACHIO Victoria Island Central Depot"
+                        )
+                        Box(modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp)).padding(12.dp)) {
+                            Text("No active event bookings to track. Create or assign jobs to view live routes.", color = Color.White, fontSize = 11.sp)
+                        }
                     }
                 }
             }
 
-            Text("Select booking destination to track:", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().height(60.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(bookings) { b ->
-                    val isFocused = selectedTrackBooking?.id == b.id
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = if (isFocused) SashioSlate else Color.White),
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.width(160.dp).clickable { selectedTrackBooking = b }
-                    ) {
-                        Column(modifier = Modifier.padding(8.dp)) {
-                            Text(b.clientName, fontWeight = FontWeight.Bold, fontSize = 10.sp, color = if (isFocused) Color.White else SashioSlate, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                            Text("#QR-${b.id} | ${b.status}", fontSize = 8.sp, color = if (isFocused) SashioGold else SashioTextMuted)
+            if (activeBookings.isNotEmpty()) {
+                Text("Select destination to focus radar:", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(4.dp))
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().height(64.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(activeBookings) { b ->
+                        val isFocused = focusBooking?.id == b.id
+                        Card(
+                            colors = CardDefaults.cardColors(containerColor = if (isFocused) SashioSlate else Color.White),
+                            border = BorderStroke(1.dp, if (isFocused) SashioGold else Color.LightGray.copy(alpha = 0.4f)),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.width(160.dp).clickable { selectedTrackBookingId = b.id }
+                        ) {
+                            Column(modifier = Modifier.padding(8.dp)) {
+                                Text(
+                                    b.client_name, 
+                                    fontWeight = FontWeight.Bold, 
+                                    fontSize = 10.sp, 
+                                    color = if (isFocused) Color.White else SashioSlate, 
+                                    maxLines = 1, 
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "${b.service_type} - ${b.status}", 
+                                    fontSize = 8.sp, 
+                                    color = if (isFocused) SashioGold else SashioTextMuted,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
                         }
                     }
                 }
             }
         } else {
-            Text("GEO-FENCED ATTENDANCE LOGS", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
-            Text("Verify clock-in durations and geofence anchors of field personnel.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
+            Text("GEO-FENCED ATTENDANCE LOGS (LIVE)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall)
+            Text("Verify clock-in durations, timestamps, and reporting depots of field personnel.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
             Spacer(modifier = Modifier.height(10.dp))
 
-            if (attendanceLogs.isEmpty()) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Text("No attendance records logged for today.", color = SashioTextMuted, fontSize = 12.sp)
+            if (supabaseAttendance.isEmpty()) {
+                Card(colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(36.dp))
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text("No staff attendance records logged in database yet.", color = SashioTextMuted, fontSize = 12.sp)
+                        }
+                    }
                 }
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
-                    items(attendanceLogs) { att ->
+                    items(supabaseAttendance) { att ->
                         Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(10.dp)) {
                             Row(
                                 modifier = Modifier.padding(12.dp).fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column {
-                                    Text(att.staffName, fontWeight = FontWeight.Bold)
-                                    Text("Clock In: ${att.clockInTime} | Clock Out: ${att.clockOutTime}", fontSize = 10.sp, color = SashioTextMuted)
-                                    Text("Verified Anchor: ${att.locationVerified}", fontSize = 9.sp, color = SashioTeal, fontWeight = FontWeight.SemiBold)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(att.staff_name, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioSlate)
+                                    val clockInFormatted = formatMessageTimestamp(att.clock_in_time)
+                                    val clockOutFormatted = if (!att.clock_out_time.isNullOrBlank()) formatMessageTimestamp(att.clock_out_time) else "On Duty (Active)"
+                                    Text("In: $clockInFormatted | Out: $clockOutFormatted", fontSize = 10.sp, color = SashioTextMuted)
+                                    Text("Reporting Depot: ${att.location_verified ?: "Central Yard"}", fontSize = 9.sp, color = SashioTeal, fontWeight = FontWeight.SemiBold)
                                 }
                                 Card(
-                                    colors = CardDefaults.cardColors(containerColor = if (att.isVerified) SashioGreen.copy(alpha = 0.12f) else SashioGold.copy(alpha = 0.12f)),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (att.is_verified) SashioGreen.copy(alpha = 0.12f) else SashioGold.copy(alpha = 0.12f)
+                                    ),
                                     shape = RoundedCornerShape(4.dp)
                                 ) {
                                     Text(
-                                        if (att.isVerified) "VERIFIED" else "PENDING",
+                                        if (att.clock_out_time.isNullOrBlank()) "ACTIVE ON SHIFT" else "COMPLETED",
                                         fontSize = 8.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (att.isVerified) SashioGreen else SashioGold,
+                                        color = if (att.clock_out_time.isNullOrBlank()) SashioGold else SashioGreen,
                                         modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
                                     )
                                 }
@@ -800,9 +868,10 @@ fun AdminLogExpenseDialog(
                             category = expenseFormCategory,
                             amount = amt,
                             details = expenseFormDetails
-                        )
-                        Toast.makeText(localContext, "Corporate expense logged.", Toast.LENGTH_SHORT).show()
-                        onDismiss()
+                        ) {
+                            Toast.makeText(localContext, "Corporate expense logged.", Toast.LENGTH_SHORT).show()
+                            onDismiss()
+                        }
                     }
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = SashioSlate)
