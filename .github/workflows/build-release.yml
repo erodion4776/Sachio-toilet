@@ -16,55 +16,126 @@ jobs:
       KEYSTORE_PATH: ${{ github.workspace }}/my-upload-key.jks
 
     steps:
+      # ============================================================
+      # 1. CHECKOUT SOURCE
+      # ============================================================
       - name: Checkout source
         uses: actions/checkout@v4
 
+      # ============================================================
+      # 2. SET UP JAVA
+      # ============================================================
       - name: Set up JDK 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '21'
           cache: gradle
 
+      # ============================================================
+      # 3. RESTORE RELEASE KEYSTORE
+      # ============================================================
       - name: Restore release keystore
         env:
           KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
         run: |
-          echo "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+          set -e
+
+          echo "Restoring release keystore..."
+
+          # Remove whitespace/newlines from the Base64 secret.
+          CLEAN_BASE64="$(printf '%s' "$KEYSTORE_BASE64" | tr -d '[:space:]')"
+
+          # Make sure the secret is not empty.
+          if [ -z "$CLEAN_BASE64" ]; then
+            echo "ERROR: KEYSTORE_BASE64 is empty."
+            exit 1
+          fi
+
+          # Decode the Base64 keystore.
+          printf '%s' "$CLEAN_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+
           chmod 600 "$KEYSTORE_PATH"
 
+          echo "Keystore file restored."
+
+      # ============================================================
+      # 4. VERIFY RELEASE KEYSTORE
+      # ============================================================
       - name: Verify release keystore
         run: |
-          test -f "$KEYSTORE_PATH"
+          set -e
+
+          if [ ! -f "$KEYSTORE_PATH" ]; then
+            echo "ERROR: Keystore file was not created."
+            exit 1
+          fi
+
           keytool -list \
             -keystore "$KEYSTORE_PATH" \
             -storepass "$STORE_PASSWORD" \
             -alias upload \
             >/dev/null
-          echo "Release keystore verified."
 
+          echo "Release keystore verified successfully."
+
+      # ============================================================
+      # 5. CREATE APPLICATION .ENV
+      #
+      # Sachio does NOT use Gemini or Google Maps,
+      # so those keys are intentionally NOT included.
+      # ============================================================
       - name: Create application .env
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
           PAYSTACK_PUBLIC_KEY: ${{ secrets.PAYSTACK_PUBLIC_KEY }}
-          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: |
+          set -e
+
           {
-            echo "GEMINI_API_KEY=$GEMINI_API_KEY"
             echo "SUPABASE_URL=$SUPABASE_URL"
             echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY"
             echo "PAYSTACK_PUBLIC_KEY=$PAYSTACK_PUBLIC_KEY"
-            echo "MAPS_API_KEY=$MAPS_API_KEY"
           } > .env
 
+          echo "Application environment file created."
+
+      # ============================================================
+      # 6. MAKE GRADLE EXECUTABLE
+      # ============================================================
       - name: Make Gradle executable
         run: chmod +x ./gradlew
 
+      # ============================================================
+      # 7. BUILD SIGNED RELEASE AAB
+      # ============================================================
       - name: Build signed release AAB
         run: ./gradlew bundleRelease --stacktrace
 
+      # ============================================================
+      # 8. VERIFY AAB EXISTS
+      # ============================================================
+      - name: Verify release AAB
+        run: |
+          set -e
+
+          AAB_PATH="app/build/outputs/bundle/release"
+
+          echo "Checking release AAB..."
+
+          ls -lh "$AAB_PATH"
+
+          if ! ls "$AAB_PATH"/*.aab >/dev/null 2>&1; then
+            echo "ERROR: No release AAB was generated."
+            exit 1
+          fi
+
+          echo "Release AAB generated successfully."
+
+      # ============================================================
+      # 9. UPLOAD SIGNED AAB AS GITHUB ARTIFACT
+      # ============================================================
       - name: Upload signed AAB
         uses: actions/upload-artifact@v4
         with:
@@ -73,7 +144,13 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-      - name: Clean up keystore
+      # ============================================================
+      # 10. CLEAN UP SECRETS / KEYSTORE
+      # ============================================================
+      - name: Clean up
         if: always()
         run: |
           rm -f "$KEYSTORE_PATH"
+          rm -f .env
+
+          echo "Temporary signing files cleaned up."
