@@ -12,7 +12,7 @@ android {
   compileSdk = 35
 
   defaultConfig {
-    applicationId = "com.sashio.ops"
+    applicationId = "com.sashio.express"
     minSdk = 24
     targetSdk = 35
     versionCode = 1
@@ -23,12 +23,15 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+      val keystorePath = System.getenv("KEYSTORE_PATH")
+        ?: "${rootDir}/my-upload-key.jks"
+
       storeFile = file(keystorePath)
       storePassword = System.getenv("STORE_PASSWORD")
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
     }
+
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
       storePassword = "android"
@@ -41,22 +44,35 @@ android {
     release {
       isCrunchPngs = false
       isMinifyEnabled = false
-      proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+
+      proguardFiles(
+        getDefaultProguardFile("proguard-android-optimize.txt"),
+        "proguard-rules.pro"
+      )
+
       signingConfig = signingConfigs.getByName("release")
     }
+
     debug {
       signingConfig = signingConfigs.getByName("debugConfig")
     }
   }
+
   compileOptions {
     sourceCompatibility = JavaVersion.VERSION_11
     targetCompatibility = JavaVersion.VERSION_11
   }
+
   buildFeatures {
     compose = true
     buildConfig = true
   }
-  testOptions { unitTests { isIncludeAndroidResources = true } }
+
+  testOptions {
+    unitTests {
+      isIncludeAndroidResources = true
+    }
+  }
 }
 
 // Configure the Secrets Gradle Plugin to use .env and .env.example files
@@ -71,39 +87,54 @@ secrets {
 dependencies {
   implementation(platform(libs.androidx.compose.bom))
   implementation(platform(libs.firebase.bom))
+
   implementation(libs.androidx.biometric)
   implementation(libs.androidx.security.crypto)
   implementation(libs.androidx.fragment.ktx)
+
   // implementation(libs.accompanist.permissions)
+
   implementation(libs.androidx.activity.compose)
+
   // implementation(libs.androidx.camera.camera2)
   // implementation(libs.androidx.camera.core)
   // implementation(libs.androidx.camera.lifecycle)
   // implementation(libs.androidx.camera.view)
+
   implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons.extended)
   implementation(libs.androidx.compose.material3)
   implementation(libs.androidx.compose.ui)
   implementation(libs.androidx.compose.ui.graphics)
   implementation(libs.androidx.compose.ui.tooling.preview)
+
   implementation(libs.androidx.core.ktx)
+
   // implementation(libs.androidx.datastore.preferences)
+
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.navigation.compose)
+
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
+
   implementation(libs.coil.compose)
   implementation(libs.converter.moshi)
+
   // implementation(libs.firebase.ai)
+
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)
   implementation(libs.moshi.kotlin)
   implementation(libs.okhttp)
+  
   // implementation(libs.play.services.location)
+
   implementation(libs.retrofit)
+
   testImplementation(libs.androidx.compose.ui.test.junit4)
   testImplementation(libs.androidx.core)
   testImplementation(libs.androidx.junit)
@@ -113,26 +144,29 @@ dependencies {
   testImplementation(libs.roborazzi)
   testImplementation(libs.roborazzi.compose)
   testImplementation(libs.roborazzi.junit.rule)
+
   androidTestImplementation(platform(libs.androidx.compose.bom))
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   androidTestImplementation(libs.androidx.espresso.core)
   androidTestImplementation(libs.androidx.junit)
   androidTestImplementation(libs.androidx.runner)
+
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
+
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
 
-  // 100% Free Forever OpenStreetMap Engine (No API Key or Billing Required)
+  // 100% Free Forever OpenStreetMap Engine
+  // No Google Maps API key or billing required.
   implementation("org.osmdroid:osmdroid-android:6.1.18")
 
   // Supabase, Ktor and Kotlinx Serialization
   implementation(platform(libs.supabase.bom))
   implementation(libs.supabase.postgrest)
   implementation(libs.supabase.auth)
-  // NOTE: supabase-storage (storage-kt) intentionally omitted - its Android
-  // classes fail to resolve at compile time in this project's Gradle/Kotlin
-  // setup due to a non-standard KMP source-set hierarchy in that module.
+
+  // NOTE: supabase-storage (storage-kt) intentionally omitted.
   // Catalog image uploads use OkHttp against the Storage REST API directly.
   implementation(libs.ktor.client.android)
   implementation(libs.kotlinx.serialization.json)
@@ -143,19 +177,41 @@ tasks.register("copyApk") {
   val appDirectory = project.projectDir
 
   doLast {
-    val apkFile = File(appDirectory, "build/outputs/apk/debug/app-debug.apk")
+    val apkFile = File(
+      appDirectory,
+      "build/outputs/apk/debug/app-debug.apk"
+    )
+
     if (apkFile.exists()) {
       val destDir1 = File(rootDirectory, ".build-outputs")
       val destDir2 = File(rootDirectory, "APK_DOWNLOAD")
+
       destDir1.mkdirs()
       destDir2.mkdirs()
-      apkFile.copyTo(File(destDir1, "app-debug.apk"), overwrite = true)
-      apkFile.copyTo(File(destDir2, "app-debug.apk"), overwrite = true)
+
+      apkFile.copyTo(
+        File(destDir1, "app-debug.apk"),
+        overwrite = true
+      )
+
+      apkFile.copyTo(
+        File(destDir2, "app-debug.apk"),
+        overwrite = true
+      )
+
       val size1 = File(destDir1, "app-debug.apk").length()
       val size2 = File(destDir2, "app-debug.apk").length()
-      println("SUCCESS: APK copied to direct folders. Size .build-outputs: $size1 bytes, Size APK_DOWNLOAD: $size2 bytes")
+
+      println(
+        "SUCCESS: APK copied to direct folders. " +
+        "Size .build-outputs: $size1 bytes, " +
+        "Size APK_DOWNLOAD: $size2 bytes"
+      )
     } else {
-      println("WARNING: app-debug.apk not found at ${apkFile.absolutePath}")
+      println(
+        "WARNING: app-debug.apk not found at " +
+        "${apkFile.absolutePath}"
+      )
     }
   }
 }
