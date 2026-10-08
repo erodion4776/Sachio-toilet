@@ -15,8 +15,8 @@ android {
     applicationId = "com.sashio.express"
     minSdk = 24
     targetSdk = 36
-    versionCode = "2.5"
-    versionName = "1.0"
+    versionCode = 2
+    versionName = "2.5"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
