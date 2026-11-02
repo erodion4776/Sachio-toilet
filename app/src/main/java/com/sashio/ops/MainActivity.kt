@@ -107,9 +107,7 @@ class MainActivity : FragmentActivity() {
                 refreshToken = refreshToken ?: ""
             )
         } else if (!refreshToken.isNullOrBlank()) {
-            viewModel.completeGoogleSignIn(
-                accessToken = accessToken,
-                refreshToken = refreshToken
+            viewModel.completeGoogleSignIn()
             )
         }
     }
