@@ -174,7 +174,9 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
         Text("Follow your quotations from Under Review to Delivery", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
         Spacer(modifier = Modifier.height(12.dp))
 
-        val liveQuoted = liveBookings.filter { it.quoted_price > 0.0 && it.payment_status != "success" }
+        val liveQuoted = liveBookings
+    .filter { it.quoted_price > 0.0 && it.payment_status != "success" }
+    .take(2)
 
         if (liveQuoted.isNotEmpty()) {
             Text("LIVE QUOTATIONS READY FOR PAYMENT", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = SashioGold)
