@@ -2097,8 +2097,8 @@ fun completeGoogleSignIn() {
             repository.registerProfile(name = name, email = email, role = "staff", phone = phone)
         }
     }
-   fun createIncident(title: String, reporter: String, priority: String, details: String) {
-        fun createIncident(
+   
+    fun createIncident(
         title: String,
         reporter: String,
         priority: String,
@@ -2106,6 +2106,7 @@ fun completeGoogleSignIn() {
     ) {
         _incidents.update { list ->
             val newId = "INC-${100 + list.size + 1}"
+
             val dateStr = SimpleDateFormat(
                 "MMM d, yyyy",
                 Locale.getDefault()
@@ -2113,17 +2114,18 @@ fun completeGoogleSignIn() {
 
             listOf(
                 AdminIncident(
-                    newId,
-                    title,
-                    reporter,
-                    priority,
-                    "Open",
-                    dateStr,
-                    details
+                    id = newId,
+                    title = title,
+                    reporter = reporter,
+                    priority = priority,
+                    status = "Open",
+                    date = dateStr,
+                    details = details
                 )
             ) + list
         }
     }
+
 
     fun completeGoogleSignIn() {
         viewModelScope.launch {
