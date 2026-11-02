@@ -1,35 +1,44 @@
+
 package com.sashio.ops
 
-import io.github.jan.supabase.handleDeeplinks
-import com.sashio.ops.data.SupabaseProvider
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.fragment.app.FragmentActivity
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.viewModels
 import androidx.compose.runtime.getValue
+import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sashio.ops.data.SashioViewModel
+import com.sashio.ops.data.SupabaseProvider
 import com.sashio.ops.ui.SashioAppContent
 import com.sashio.ops.ui.theme.SashioTheme
+import io.github.jan.supabase.handleDeeplinks
 import org.osmdroid.config.Configuration
 import java.net.URLDecoder
 
 class MainActivity : FragmentActivity() {
+
     private val viewModel: SashioViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Configuration.getInstance().userAgentValue = applicationContext.packageName
+
+        Configuration.getInstance().userAgentValue =
+            applicationContext.packageName
 
         enableEdgeToEdge()
 
         setContent {
-            val themePreference by viewModel.themePreference.collectAsStateWithLifecycle()
+            val themePreference by
+                viewModel.themePreference.collectAsStateWithLifecycle()
+
             SashioTheme(
-                darkTheme = themePreference.equals("dark", ignoreCase = true)
+                darkTheme = themePreference.equals(
+                    "dark",
+                    ignoreCase = true
+                )
             ) {
                 SashioAppContent(viewModel = viewModel)
             }
@@ -45,13 +54,42 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleDeepLink(intent: Intent?) {
-        val uri = intent?.data ?: return
+        val callbackIntent = intent ?: return
+        val uri = callbackIntent.data ?: return
+
         if (uri.scheme != "sachioexpress") return
 
         when (uri.host) {
-            "payment-complete", "payment-callback" -> handlePaymentDeepLink(uri)
-            "payment-cancel", "payment-cancelled" -> handlePaymentCancelled()
-            "reset-password" -> handlePasswordResetDeepLink(uri)
+
+            "payment-complete",
+            "payment-callback" -> {
+                handlePaymentDeepLink(uri)
+            }
+
+            "payment-cancel",
+            "payment-cancelled" -> {
+                handlePaymentCancelled()
+            }
+
+            "reset-password" -> {
+                if (isPasswordRecoveryLink(uri)) {
+                    handlePasswordResetDeepLink(uri)
+                } else {
+                    handleSupabaseAuthDeepLink(callbackIntent)
+                }
+            }
+        }
+    }
+
+    private fun handleSupabaseAuthDeepLink(intent: Intent) {
+        try {
+            SupabaseProvider.client.handleDeeplinks(intent)
+        } catch (e: Exception) {
+            android.util.Log.e(
+                "SashioAuth",
+                "Could not process authentication callback",
+                e
+            )
         }
     }
 
@@ -70,29 +108,57 @@ class MainActivity : FragmentActivity() {
         viewModel.handlePaymentCancelled()
     }
 
+    private fun isPasswordRecoveryLink(uri: Uri): Boolean {
+        val params = getDeepLinkParams(uri)
+        return params["type"] == "recovery"
+    }
+
     private fun handlePasswordResetDeepLink(uri: Uri) {
-        val fragment = uri.fragment ?: uri.encodedQuery ?: return
+        val params = getDeepLinkParams(uri)
 
-        try {
-            val params = fragment.split("&").mapNotNull { part ->
-                val idx = part.indexOf("=")
-                if (idx <= 0) null
-                else part.substring(0, idx) to
-                    URLDecoder.decode(part.substring(idx + 1), "UTF-8")
+        val accessToken = params["access_token"]
+        val refreshToken = params["refresh_token"]
+
+        if (!accessToken.isNullOrBlank()) {
+            viewModel.beginPasswordRecoverySession(
+                accessToken = accessToken,
+                refreshToken = refreshToken ?: ""
+            )
+        }
+    }
+
+    private fun getDeepLinkParams(uri: Uri): Map<String, String> {
+        val rawParams = uri.fragment
+            ?: uri.encodedQuery
+            ?: return emptyMap()
+
+        return try {
+            rawParams.split("&").mapNotNull { part ->
+                val index = part.indexOf("=")
+
+                if (index <= 0) {
+                    null
+                } else {
+                    val key = URLDecoder.decode(
+                        part.substring(0, index),
+                        "UTF-8"
+                    )
+
+                    val value = URLDecoder.decode(
+                        part.substring(index + 1),
+                        "UTF-8"
+                    )
+
+                    key to value
+                }
             }.toMap()
-
-            val accessToken = params["access_token"]
-            val refreshToken = params["refresh_token"]
-            val type = params["type"]
-
-            if (type == "recovery" && !accessToken.isNullOrBlank()) {
-                viewModel.beginPasswordRecoverySession(
-                    accessToken,
-                    refreshToken ?: ""
-                )
-            }
         } catch (e: Exception) {
-            // Ignore malformed deep links.
+            android.util.Log.e(
+                "SashioAuth",
+                "Could not read authentication callback parameters",
+                e
+            )
+            emptyMap()
         }
     }
 }
