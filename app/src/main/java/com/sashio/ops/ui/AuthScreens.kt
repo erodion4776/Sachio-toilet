@@ -28,8 +28,11 @@ import coil.compose.AsyncImage
 import com.sashio.ops.R
 import com.sashio.ops.data.BiometricAuthHelper
 import com.sashio.ops.data.SashioViewModel
+import com.sashio.ops.data.SupabaseProvider
 import com.sashio.ops.ui.theme.*
+import io.github.jan.supabase.auth.providers.Google
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 private fun PasswordVisibilityToggle(
@@ -59,9 +62,31 @@ fun LoginScreen(viewModel: SashioViewModel) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
+    var googleSignInLoading by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
 
     val loginError by viewModel.loginError.collectAsStateWithLifecycle()
     val headerLayoutType by remember { mutableStateOf("centered") }
+
+    val bioActivity = context as? FragmentActivity
+
+    var biometricAvailable by remember {
+        mutableStateOf(false)
+    }
+
+    var hasSavedBioLogin by remember {
+        mutableStateOf(false)
+    }
+
+    LaunchedEffect(Unit) {
+        biometricAvailable =
+            BiometricAuthHelper.isBiometricAvailable(context)
+
+        hasSavedBioLogin =
+            BiometricAuthHelper.hasSavedCredentials(context)
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
         LuxuryVideoBackgroundEffect()
@@ -84,7 +109,9 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                     contentDescription = "Sachio Logo",
                                     modifier = Modifier.size(46.dp)
                                 )
+
                                 Spacer(modifier = Modifier.width(12.dp))
+
                                 Text(
                                     "SACHIO EXPRESS",
                                     fontWeight = FontWeight.Bold,
@@ -97,6 +124,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                 }
             }
         ) { innerPadding ->
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -105,6 +133,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
                     .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+
                 if (headerLayoutType == "centered") {
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -149,7 +178,9 @@ fun LoginScreen(viewModel: SashioViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(24.dp)
                 ) {
+
                     Column(modifier = Modifier.padding(24.dp)) {
+
                         Text(
                             "Sign In To Portal",
                             style = MaterialTheme.typography.titleLarge,
@@ -185,7 +216,8 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
                                 focusedBorderColor = SashioGold,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+                                unfocusedBorderColor =
+                                    Color.White.copy(alpha = 0.3f)
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -228,7 +260,8 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
                                 focusedBorderColor = SashioGold,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+                                unfocusedBorderColor =
+                                    Color.White.copy(alpha = 0.3f)
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -254,6 +287,7 @@ fun LoginScreen(viewModel: SashioViewModel) {
 
                         loginError?.let { err ->
                             Spacer(modifier = Modifier.height(8.dp))
+
                             Text(
                                 err,
                                 color = SashioRed,
@@ -266,7 +300,11 @@ fun LoginScreen(viewModel: SashioViewModel) {
 
                         Button(
                             onClick = {
-                                viewModel.loginWithEmail(email, null, password)
+                                viewModel.loginWithEmail(
+                                    email,
+                                    null,
+                                    password
+                                )
                             },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = SashioGold
@@ -277,76 +315,133 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                 .testTag("submit_login_button")
                         ) {
                             Text(
-                                "Enter System".uppercase(),
+                                "ENTER SYSTEM",
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White,
                                 letterSpacing = 1.sp
                             )
                         }
 
-                        val bioContext = LocalContext.current
-                        val bioActivity = bioContext as? FragmentActivity
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                        var biometricAvailable by remember {
-                            mutableStateOf(false)
+                        // GOOGLE SIGN-IN
+
+                        OutlinedButton(
+                            onClick = {
+                                if (!googleSignInLoading) {
+                                    googleSignInLoading = true
+
+                                    coroutineScope.launch {
+                                        try {
+                                            SupabaseProvider.client.auth
+                                                .signInWith(Google)
+                                        } catch (error: Exception) {
+                                            googleSignInLoading = false
+
+                                            Toast.makeText(
+                                                context,
+                                                error.message
+                                                    ?: "Google sign-in could not be started. Please try again.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                    }
+                                }
+                            },
+                            enabled = !googleSignInLoading,
+                            border = BorderStroke(
+                                1.dp,
+                                Color.White.copy(alpha = 0.45f)
+                            ),
+                            colors = ButtonDefaults.outlinedButtonColors(
+                                contentColor = Color.White,
+                                disabledContentColor =
+                                    Color.White.copy(alpha = 0.6f)
+                            ),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                                .testTag("google_sign_in_button")
+                        ) {
+                            if (googleSignInLoading) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(18.dp),
+                                    color = SashioGold,
+                                    strokeWidth = 2.dp
+                                )
+
+                                Spacer(modifier = Modifier.width(10.dp))
+
+                                Text("Opening Google sign-in...")
+                            } else {
+                                Icon(
+                                    Icons.Default.AccountCircle,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(18.dp)
+                                )
+
+                                Spacer(modifier = Modifier.width(10.dp))
+
+                                Text(
+                                    "Continue with Google",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
 
-                        var hasSavedBioLogin by remember {
-                            mutableStateOf(false)
-                        }
-
-                        LaunchedEffect(Unit) {
-                            biometricAvailable =
-                                BiometricAuthHelper.isBiometricAvailable(bioContext)
-
-                            hasSavedBioLogin =
-                                BiometricAuthHelper.hasSavedCredentials(bioContext)
-                        }
+                        // BIOMETRIC SIGN-IN
 
                         if (biometricAvailable) {
                             Spacer(modifier = Modifier.height(14.dp))
 
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                horizontalArrangement =
+                                    Arrangement.spacedBy(8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
+
                                 OutlinedButton(
                                     onClick = {
                                         if (bioActivity == null) {
                                             Toast.makeText(
-                                                bioContext,
+                                                context,
                                                 "Biometric authentication is unavailable.",
                                                 Toast.LENGTH_LONG
                                             ).show()
                                         } else {
-                                            BiometricAuthHelper.authenticateAndGetCredentials(
-                                                activity = bioActivity,
-                                                title = "Biometric Verification",
-                                                onSuccess = { savedEmail, savedPassword ->
-                                                    viewModel.loginWithEmail(
+                                            BiometricAuthHelper
+                                                .authenticateAndGetCredentials(
+                                                    activity = bioActivity,
+                                                    title = "Biometric Verification",
+                                                    onSuccess = {
                                                         savedEmail,
-                                                        null,
-                                                        savedPassword
-                                                    )
-                                                },
-                                                onError = { message ->
-                                                    Toast.makeText(
-                                                        bioContext,
-                                                        message,
-                                                        Toast.LENGTH_LONG
-                                                    ).show()
-                                                }
-                                            )
+                                                        savedPassword ->
+
+                                                        viewModel.loginWithEmail(
+                                                            savedEmail,
+                                                            null,
+                                                            savedPassword
+                                                        )
+                                                    },
+                                                    onError = { message ->
+                                                        Toast.makeText(
+                                                            context,
+                                                            message,
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                    }
+                                                )
                                         }
                                     },
                                     border = BorderStroke(
                                         1.dp,
                                         SashioGold.copy(alpha = 0.3f)
                                     ),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = SashioGold
-                                    ),
+                                    colors =
+                                        ButtonDefaults.outlinedButtonColors(
+                                            contentColor = SashioGold
+                                        ),
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(40.dp)
@@ -371,38 +466,43 @@ fun LoginScreen(viewModel: SashioViewModel) {
                                     onClick = {
                                         if (bioActivity == null) {
                                             Toast.makeText(
-                                                bioContext,
+                                                context,
                                                 "Biometric authentication is unavailable.",
                                                 Toast.LENGTH_LONG
                                             ).show()
                                         } else {
-                                            BiometricAuthHelper.authenticateAndGetCredentials(
-                                                activity = bioActivity,
-                                                title = "Biometric Verification",
-                                                onSuccess = { savedEmail, savedPassword ->
-                                                    viewModel.loginWithEmail(
+                                            BiometricAuthHelper
+                                                .authenticateAndGetCredentials(
+                                                    activity = bioActivity,
+                                                    title = "Biometric Verification",
+                                                    onSuccess = {
                                                         savedEmail,
-                                                        null,
-                                                        savedPassword
-                                                    )
-                                                },
-                                                onError = { message ->
-                                                    Toast.makeText(
-                                                        bioContext,
-                                                        message,
-                                                        Toast.LENGTH_LONG
-                                                    ).show()
-                                                }
-                                            )
+                                                        savedPassword ->
+
+                                                        viewModel.loginWithEmail(
+                                                            savedEmail,
+                                                            null,
+                                                            savedPassword
+                                                        )
+                                                    },
+                                                    onError = { message ->
+                                                        Toast.makeText(
+                                                            context,
+                                                            message,
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
+                                                    }
+                                                )
                                         }
                                     },
                                     border = BorderStroke(
                                         1.dp,
                                         SashioGold.copy(alpha = 0.3f)
                                     ),
-                                    colors = ButtonDefaults.outlinedButtonColors(
-                                        contentColor = SashioGold
-                                    ),
+                                    colors =
+                                        ButtonDefaults.outlinedButtonColors(
+                                            contentColor = SashioGold
+                                        ),
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(40.dp)
@@ -441,7 +541,9 @@ fun LoginScreen(viewModel: SashioViewModel) {
 
                 Spacer(modifier = Modifier.height(24.dp))
 
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         "New to SACHIO? ",
                         color = Color.White.copy(alpha = 0.7f)
@@ -518,6 +620,7 @@ fun RegisterScreen(viewModel: SashioViewModel) {
                 )
             }
         ) { innerPadding ->
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -525,6 +628,7 @@ fun RegisterScreen(viewModel: SashioViewModel) {
                     .verticalScroll(rememberScrollState())
                     .padding(24.dp)
             ) {
+
                 ElevatedCard(
                     colors = CardDefaults.cardColors(
                         containerColor = Color.Black.copy(alpha = 0.75f)
@@ -532,7 +636,9 @@ fun RegisterScreen(viewModel: SashioViewModel) {
                     shape = RoundedCornerShape(20.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
+
                     Column(modifier = Modifier.padding(20.dp)) {
+
                         Text(
                             "Register Mobile Account",
                             style = MaterialTheme.typography.titleMedium,
@@ -653,6 +759,7 @@ fun RegisterScreen(viewModel: SashioViewModel) {
 
                         signUpError?.let { err ->
                             Spacer(modifier = Modifier.height(12.dp))
+
                             Text(
                                 err,
                                 color = SashioRed,
@@ -683,7 +790,7 @@ fun RegisterScreen(viewModel: SashioViewModel) {
                                 .testTag("reg_submit_button")
                         ) {
                             Text(
-                                "Create Account Plan".uppercase(),
+                                "CREATE ACCOUNT PLAN",
                                 fontWeight = FontWeight.Bold,
                                 color = Color.White
                             )
@@ -737,6 +844,7 @@ fun ForgotPasswordScreen(viewModel: SashioViewModel) {
                 )
             }
         ) { innerPadding ->
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -745,13 +853,16 @@ fun ForgotPasswordScreen(viewModel: SashioViewModel) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+
                 ElevatedCard(
                     colors = CardDefaults.cardColors(
                         containerColor = Color.Black.copy(alpha = 0.75f)
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
+
                     Column(modifier = Modifier.padding(24.dp)) {
+
                         Text(
                             "Reset Verification",
                             style = MaterialTheme.typography.titleMedium,
@@ -782,7 +893,8 @@ fun ForgotPasswordScreen(viewModel: SashioViewModel) {
                                 focusedTextColor = Color.White,
                                 unfocusedTextColor = Color.White,
                                 focusedBorderColor = SashioGold,
-                                unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+                                unfocusedBorderColor =
+                                    Color.White.copy(alpha = 0.3f)
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -792,6 +904,7 @@ fun ForgotPasswordScreen(viewModel: SashioViewModel) {
 
                         if (resetSent) {
                             Spacer(modifier = Modifier.height(12.dp))
+
                             Text(
                                 "Reset link sent - check your email and tap the link to set a new password.",
                                 color = SashioGreen,
@@ -802,6 +915,7 @@ fun ForgotPasswordScreen(viewModel: SashioViewModel) {
 
                         resetError?.let { err ->
                             Spacer(modifier = Modifier.height(12.dp))
+
                             Text(
                                 err,
                                 color = SashioRed,
@@ -858,7 +972,10 @@ fun SetNewPasswordScreen(viewModel: SashioViewModel) {
     Box(modifier = Modifier.fillMaxSize()) {
         LuxuryVideoBackgroundEffect()
 
-        Scaffold(containerColor = Color.Transparent) { innerPadding ->
+        Scaffold(
+            containerColor = Color.Transparent
+        ) { innerPadding ->
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -867,13 +984,16 @@ fun SetNewPasswordScreen(viewModel: SashioViewModel) {
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
+
                 ElevatedCard(
                     colors = CardDefaults.cardColors(
                         containerColor = Color.Black.copy(alpha = 0.75f)
                     ),
                     modifier = Modifier.fillMaxWidth()
                 ) {
+
                     Column(modifier = Modifier.padding(24.dp)) {
+
                         if (success) {
                             Icon(
                                 Icons.Default.CheckCircle,
@@ -898,7 +1018,9 @@ fun SetNewPasswordScreen(viewModel: SashioViewModel) {
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.White.copy(alpha = 0.6f)
                             )
+
                         } else {
+
                             Text(
                                 "Set New Password",
                                 style = MaterialTheme.typography.titleMedium,
@@ -942,7 +1064,8 @@ fun SetNewPasswordScreen(viewModel: SashioViewModel) {
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White,
                                     focusedBorderColor = SashioGold,
-                                    unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+                                    unfocusedBorderColor =
+                                        Color.White.copy(alpha = 0.3f)
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -978,7 +1101,8 @@ fun SetNewPasswordScreen(viewModel: SashioViewModel) {
                                     focusedTextColor = Color.White,
                                     unfocusedTextColor = Color.White,
                                     focusedBorderColor = SashioGold,
-                                    unfocusedBorderColor = Color.White.copy(alpha = 0.3f)
+                                    unfocusedBorderColor =
+                                        Color.White.copy(alpha = 0.3f)
                                 ),
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -988,6 +1112,7 @@ fun SetNewPasswordScreen(viewModel: SashioViewModel) {
 
                             error?.let { err ->
                                 Spacer(modifier = Modifier.height(12.dp))
+
                                 Text(
                                     err,
                                     color = SashioRed,
@@ -1001,6 +1126,7 @@ fun SetNewPasswordScreen(viewModel: SashioViewModel) {
                                 confirmPassword != newPassword
                             ) {
                                 Spacer(modifier = Modifier.height(8.dp))
+
                                 Text(
                                     "Passwords don't match.",
                                     color = SashioRed,
