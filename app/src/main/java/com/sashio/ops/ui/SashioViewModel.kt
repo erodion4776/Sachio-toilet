@@ -2039,6 +2039,54 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     }
 }
 
+fun completeGoogleSignIn() {
+    viewModelScope.launch {
+        _loginError.value = null
+
+        try {
+            val authUser = SupabaseProvider.client.auth.currentUserOrNull()
+            val uid = authUser?.id
+            val email = authUser?.email
+
+            if (uid.isNullOrBlank() || email.isNullOrBlank()) {
+                _loginError.value = "Google sign-in did not return a valid account."
+                return@launch
+            }
+
+            val profile = SupabaseProvider.client.postgrest
+                .from("profiles")
+                .select {
+                    filter { eq("id", uid) }
+                }
+                .decodeSingle<SupabaseProfile>()
+
+            val user = UserProfile(
+                id = 1,
+                name = profile.full_name ?: email,
+                email = profile.email,
+                role = profile.role,
+                phoneNumber = profile.phone_number ?: "",
+                companyName = profile.company_name ?: ""
+            )
+
+            _currentUser.value = user
+
+            when (user.role) {
+                "client" -> _currentScreen.value = "client_dashboard"
+                "staff" -> _currentScreen.value = "staff_dashboard"
+                "admin" -> _currentScreen.value = "admin_dashboard"
+                else -> {
+                    _currentUser.value = null
+                    _loginError.value = "Your account has no valid application role."
+                }
+            }
+        } catch (e: Exception) {
+            _loginError.value =
+                "Google account authenticated, but profile loading failed: ${e.localizedMessage}"
+        }
+    }
+}
+
 // --- Local Data Models for Attendance & Logs ---
 data class StaffExpense(
     val id: String,
