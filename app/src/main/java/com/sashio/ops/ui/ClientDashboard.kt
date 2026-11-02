@@ -147,9 +147,12 @@ fun ClientOverviewTab(
     val outstandingPayments = bookings.filter { it.paymentStatus == "pending" && it.quotedPrice > 0.0 }.sumOf { it.quotedPrice + it.logisticsCost + it.vatAmount }
 
     LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
+    modifier = Modifier
+        .fillMaxSize()
+        .padding(horizontal = 16.dp, vertical = 16.dp),
+    contentPadding = PaddingValues(bottom = 100.dp),
+    verticalArrangement = Arrangement.spacedBy(16.dp)
+) {
         item {
             Text("Welcome back, ${client?.name ?: "Valued Client"}", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.ExtraBold)
             Text("Your SACHIO prestige dashboard", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
