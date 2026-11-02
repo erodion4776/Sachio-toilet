@@ -1,6 +1,7 @@
 
 package com.sashio.ops.ui
 
+import io.github.jan.supabase.auth.auth
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.*
