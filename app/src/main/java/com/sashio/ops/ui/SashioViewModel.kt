@@ -456,7 +456,75 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             }
         }
     }
+fun completeGoogleSignIn() {
+    viewModelScope.launch {
+        _loginError.value = null
 
+        try {
+            // Get the authenticated Google user from Supabase
+            val finalUser = SupabaseProvider.client.auth.currentUserOrNull()
+            val uid = finalUser?.id
+
+            if (uid.isNullOrBlank()) {
+                _loginError.value =
+                    "Google sign-in failed: No valid Supabase session was found."
+                return@launch
+            }
+
+            // Retrieve the user's existing profile
+            val dbProfile = SupabaseProvider.client.postgrest
+                .from("profiles")
+                .select {
+                    filter {
+                        eq("id", uid)
+                    }
+                }
+                .decodeSingle<SupabaseProfile>()
+
+            // Convert Supabase profile into the app's user model
+            val user = UserProfile(
+                id = 1,
+                name = dbProfile.full_name ?: dbProfile.email,
+                email = dbProfile.email,
+                role = dbProfile.role,
+                phoneNumber = dbProfile.phone_number ?: "",
+                companyName = dbProfile.company_name ?: ""
+            )
+
+            // Update the logged-in user
+            _currentUser.value = user
+            _loginError.value = null
+
+            // Open the correct dashboard
+            when (user.role.lowercase()) {
+                "client" -> {
+                    _currentScreen.value = "client_dashboard"
+                }
+
+                "staff" -> {
+                    _currentScreen.value = "staff_dashboard"
+                }
+
+                "admin" -> {
+                    _currentScreen.value = "admin_dashboard"
+                }
+
+                else -> {
+                    _currentUser.value = null
+                    _loginError.value =
+                        "Your account has an unsupported role. Please contact the administrator."
+                    _currentScreen.value = "login"
+                }
+            }
+
+        } catch (e: Exception) {
+            _currentUser.value = null
+            _loginError.value =
+                "Google sign-in failed: ${e.localizedMessage ?: "Please try again."}"
+            _currentScreen.value = "login"
+        }
+    }
+}
     fun signUpUser(name: String, email: String, role: String, phone: String, company: String = "", password: String = "") {
         if (name.isBlank() || email.isBlank() || phone.isBlank() || password.isBlank()) {
             _signUpError.value = "All fields except company are mandatory"
