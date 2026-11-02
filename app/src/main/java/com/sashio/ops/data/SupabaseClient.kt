@@ -1,5 +1,6 @@
 package com.sashio.ops.data
 
+import io.github.jan.supabase.auth.providers.Google
 import com.sashio.ops.BuildConfig
 import io.github.jan.supabase.createSupabaseClient
 import io.github.jan.supabase.postgrest.Postgrest
