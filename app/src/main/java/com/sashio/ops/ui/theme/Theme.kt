@@ -1,3 +1,4 @@
+
 package com.sashio.ops.ui.theme
 
 import android.app.Activity
@@ -18,7 +19,7 @@ private val DarkColorScheme = darkColorScheme(
     primaryContainer = SashioSlateCard,
     onPrimaryContainer = SashioGoldLight,
     secondary = SashioTeal,
-    onSecondary = Color.White,
+    onSecondary = Color.Black,
     secondaryContainer = SashioTealDark,
     onSecondaryContainer = SashioTealLight,
     tertiary = SashioGreen,
@@ -26,16 +27,19 @@ private val DarkColorScheme = darkColorScheme(
     surface = SashioSlateCard,
     onBackground = Color.White,
     onSurface = Color.White,
+    surfaceVariant = Color(0xFF303030),
+    onSurfaceVariant = Color(0xFFE0E0E0),
+    outline = Color(0xFF777777),
     error = SashioRed,
     onError = Color.White
 )
 
 private val LightColorScheme = lightColorScheme(
-    primary = SashioGold,
+    primary = SashioGoldDark,
     onPrimary = Color.White,
     primaryContainer = SashioGoldLight,
     onPrimaryContainer = SashioSlate,
-    secondary = SashioTeal,
+    secondary = SashioTealDark,
     onSecondary = Color.White,
     secondaryContainer = SashioTealLight,
     onSecondaryContainer = SashioTealDark,
@@ -44,6 +48,9 @@ private val LightColorScheme = lightColorScheme(
     surface = Color.White,
     onBackground = SachioTextDark,
     onSurface = SachioTextDark,
+    surfaceVariant = Color(0xFFECECEC),
+    onSurfaceVariant = Color(0xFF424242),
+    outline = Color(0xFF777777),
     error = SashioRed,
     onError = Color.White
 )
@@ -53,22 +60,31 @@ fun SashioTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
 ) {
-    val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme
+    val colorScheme = if (darkTheme) {
+        DarkColorScheme
+    } else {
+        LightColorScheme
+    }
+
     val view = LocalView.current
 
     if (!view.isInEditMode) {
         SideEffect {
             val window = (view.context as Activity).window
-            window.statusBarColor = SashioSlate.toArgb()
-            window.navigationBarColor = SashioSlate.toArgb()
-            WindowCompat.getInsetsController(window, view).isAppearanceLightStatusBars = !darkTheme
-            WindowCompat.getInsetsController(window, view).isAppearanceLightNavigationBars = !darkTheme
+            val systemBarColor = colorScheme.background.toArgb()
+
+            window.statusBarColor = systemBarColor
+            window.navigationBarColor = systemBarColor
+
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
         }
     }
 
     MaterialTheme(
         colorScheme = colorScheme,
-        typography = Typography, // Uses your custom Typography from Type.kt
+        typography = Typography,
         content = content
     )
 }
@@ -77,4 +93,9 @@ fun SashioTheme(
 fun MyApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     content: @Composable () -> Unit
-) = SashioTheme(darkTheme = darkTheme, content = content)
+) {
+    SashioTheme(
+        darkTheme = darkTheme,
+        content = content
+    )
+}
