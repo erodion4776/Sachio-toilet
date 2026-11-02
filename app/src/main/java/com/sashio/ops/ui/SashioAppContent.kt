@@ -95,7 +95,7 @@ fun SashioAppContent(viewModel: SashioViewModel) {
 
     Surface(
         modifier = Modifier.fillMaxSize(),
-        color = SashioLight
+        color = MaterialTheme.colorScheme.background
     ) {
         Box(modifier = Modifier.fillMaxSize()) {
             Crossfade(targetState = currentScreen, label = "ScreenTransition") { screen ->
