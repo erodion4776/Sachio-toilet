@@ -4,6 +4,7 @@ package com.sashio.ops
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -11,10 +12,8 @@ import androidx.compose.runtime.getValue
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sashio.ops.data.SashioViewModel
-import com.sashio.ops.data.SupabaseProvider
 import com.sashio.ops.ui.SashioAppContent
 import com.sashio.ops.ui.theme.SashioTheme
-import io.github.jan.supabase.handleDeeplinks
 import org.osmdroid.config.Configuration
 import java.net.URLDecoder
 
@@ -54,8 +53,7 @@ class MainActivity : FragmentActivity() {
     }
 
     private fun handleDeepLink(intent: Intent?) {
-        val callbackIntent = intent ?: return
-        val uri = callbackIntent.data ?: return
+        val uri = intent?.data ?: return
 
         if (uri.scheme != "sachioexpress") return
 
@@ -68,28 +66,12 @@ class MainActivity : FragmentActivity() {
 
             "payment-cancel",
             "payment-cancelled" -> {
-                handlePaymentCancelled()
+                viewModel.handlePaymentCancelled()
             }
 
             "reset-password" -> {
-                if (isPasswordRecoveryLink(uri)) {
-                    handlePasswordResetDeepLink(uri)
-                } else {
-                    handleSupabaseAuthDeepLink(callbackIntent)
-                }
+                handleAuthenticationDeepLink(uri)
             }
-        }
-    }
-
-    private fun handleSupabaseAuthDeepLink(intent: Intent) {
-        try {
-            SupabaseProvider.client.handleDeeplinks(intent)
-        } catch (e: Exception) {
-            android.util.Log.e(
-                "SashioAuth",
-                "Could not process authentication callback",
-                e
-            )
         }
     }
 
@@ -104,25 +86,30 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    private fun handlePaymentCancelled() {
-        viewModel.handlePaymentCancelled()
-    }
-
-    private fun isPasswordRecoveryLink(uri: Uri): Boolean {
-        val params = getDeepLinkParams(uri)
-        return params["type"] == "recovery"
-    }
-
-    private fun handlePasswordResetDeepLink(uri: Uri) {
+    private fun handleAuthenticationDeepLink(uri: Uri) {
         val params = getDeepLinkParams(uri)
 
         val accessToken = params["access_token"]
         val refreshToken = params["refresh_token"]
+        val type = params["type"]
 
-        if (!accessToken.isNullOrBlank()) {
+        if (accessToken.isNullOrBlank()) {
+            Log.e(
+                "SashioAuth",
+                "Authentication callback did not contain an access token"
+            )
+            return
+        }
+
+        if (type == "recovery") {
             viewModel.beginPasswordRecoverySession(
                 accessToken = accessToken,
                 refreshToken = refreshToken ?: ""
+            )
+        } else if (!refreshToken.isNullOrBlank()) {
+            viewModel.completeGoogleSignIn(
+                accessToken = accessToken,
+                refreshToken = refreshToken
             )
         }
     }
@@ -153,9 +140,9 @@ class MainActivity : FragmentActivity() {
                 }
             }.toMap()
         } catch (e: Exception) {
-            android.util.Log.e(
+            Log.e(
                 "SashioAuth",
-                "Could not read authentication callback parameters",
+                "Could not parse authentication callback",
                 e
             )
             emptyMap()
