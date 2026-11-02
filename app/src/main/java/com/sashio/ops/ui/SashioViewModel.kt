@@ -2125,7 +2125,7 @@ fun completeGoogleSignIn() {
             ) + list
         }
     }
-
+}
 
     
 // KEEP ALL EXISTING DATA CLASSES BELOW THIS LINE UNCHANGED.
