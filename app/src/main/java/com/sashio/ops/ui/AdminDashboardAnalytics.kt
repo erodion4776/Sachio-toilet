@@ -209,88 +209,538 @@ fun AdminRevenueView(
     }
 }
 
+
 @Composable
 fun AdminReportsView(viewModel: SashioViewModel) {
     var exportFormatType by remember { mutableStateOf("PDF") }
     var exportReportCategory by remember { mutableStateOf("Revenue Report") }
     var exportProgressPercent by remember { mutableStateOf(0f) }
-    val coroutineScope = rememberCoroutineScope()
+    var pendingExportBytes by remember { mutableStateOf<ByteArray?>(null) }
+
     val localContext = LocalContext.current
 
-    Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-        Text("REPORTS & ANALYTICS EXPORT HUB", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-        Text("Generate official logistical auditing reports in standard PDF, CSV, or Microsoft Excel formats.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
+    val payments by viewModel.allPayments.collectAsStateWithLifecycle()
+    val bookings by viewModel.allBookings.collectAsStateWithLifecycle()
+    val clients by viewModel.allProfiles.collectAsStateWithLifecycle()
+    val staff by viewModel.staffProfiles.collectAsStateWithLifecycle()
+
+    val pdfLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/pdf")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val bytes = pendingExportBytes
+                    ?: throw IllegalStateException("No report data available")
+
+                localContext.contentResolver.openOutputStream(uri)?.use {
+                    it.write(bytes)
+                } ?: throw IllegalStateException("Unable to open destination")
+
+                Toast.makeText(
+                    localContext,
+                    "PDF report saved successfully",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                Toast.makeText(
+                    localContext,
+                    "PDF export failed: ${e.localizedMessage}",
+                    Toast.LENGTH_LONG
+                ).show()
+            } finally {
+                pendingExportBytes = null
+                exportProgressPercent = 0f
+            }
+        } else {
+            pendingExportBytes = null
+            exportProgressPercent = 0f
+        }
+    }
+
+    val csvLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("text/csv")
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val bytes = pendingExportBytes
+                    ?: throw IllegalStateException("No report data available")
+
+                localContext.contentResolver.openOutputStream(uri)?.use {
+                    it.write(bytes)
+                } ?: throw IllegalStateException("Unable to open destination")
+
+                Toast.makeText(
+                    localContext,
+                    "CSV report saved successfully",
+                    Toast.LENGTH_LONG
+                ).show()
+            } catch (e: Exception) {
+                Toast.makeText(
+                    localContext,
+                    "CSV export failed: ${e.localizedMessage}",
+                    Toast.LENGTH_LONG
+                ).show()
+            } finally {
+                pendingExportBytes = null
+                exportProgressPercent = 0f
+            }
+        } else {
+            pendingExportBytes = null
+            exportProgressPercent = 0f
+        }
+    }
+
+    fun dateText(timestamp: Long): String {
+        return SimpleDateFormat(
+            "dd MMM yyyy HH:mm",
+            Locale.getDefault()
+        ).format(Date(timestamp))
+    }
+
+    fun csvCell(value: Any?): String {
+        var text = value?.toString() ?: ""
+
+        // Prevent spreadsheet formula injection.
+        if (text.trimStart().startsWith(
+                "="
+            ) || text.trimStart().startsWith(
+                "+"
+            ) || text.trimStart().startsWith(
+                "-"
+            ) || text.trimStart().startsWith(
+                "@"
+            )
+        ) {
+            text = "'$text"
+        }
+
+        return "\"${text.replace("\"", "\"\"")}\""
+    }
+
+    fun createReportRows(): Pair<List<String>, List<List<String>>> {
+        return when (exportReportCategory) {
+
+            "Revenue Report" -> {
+                val rows = payments.map { payment ->
+                    listOf(
+                        payment.id.toString(),
+                        payment.bookingId.toString(),
+                        payment.reference,
+                        payment.amount.toString(),
+                        payment.status,
+                        payment.channel,
+                        dateText(payment.paymentDate)
+                    )
+                }
+
+                Pair(
+                    listOf(
+                        "Payment ID",
+                        "Booking ID",
+                        "Reference",
+                        "Amount",
+                        "Status",
+                        "Channel",
+                        "Payment Date"
+                    ),
+                    rows
+                )
+            }
+
+            "Booking Report" -> {
+                val rows = bookings.map { booking ->
+                    listOf(
+                        booking.id.toString(),
+                        booking.clientName,
+                        booking.clientPhone,
+                        booking.clientEmail,
+                        booking.serviceType,
+                        booking.serviceMode,
+                        booking.address,
+                        booking.status,
+                        booking.paymentStatus,
+                        booking.quotedPrice.toString(),
+                        dateText(booking.createdAt)
+                    )
+                }
+
+                Pair(
+                    listOf(
+                        "Booking ID",
+                        "Client",
+                        "Phone",
+                        "Email",
+                        "Service",
+                        "Service Mode",
+                        "Address",
+                        "Booking Status",
+                        "Payment Status",
+                        "Quoted Price",
+                        "Created"
+                    ),
+                    rows
+                )
+            }
+
+            "Client Directory Log" -> {
+                val rows = clients
+                    .filter { it.role.equals("client", ignoreCase = true) }
+                    .map { client ->
+                        listOf(
+                            client.id.toString(),
+                            client.name,
+                            client.email,
+                            client.phoneNumber,
+                            client.companyName,
+                            client.role
+                        )
+                    }
+
+                Pair(
+                    listOf(
+                        "Client ID",
+                        "Name",
+                        "Email",
+                        "Phone",
+                        "Company",
+                        "Role"
+                    ),
+                    rows
+                )
+            }
+
+            else -> {
+                val rows = staff.map { member ->
+                    listOf(
+                        member.id.toString(),
+                        member.name,
+                        member.email,
+                        member.phoneNumber,
+                        member.companyName,
+                        member.role
+                    )
+                }
+
+                Pair(
+                    listOf(
+                        "Staff ID",
+                        "Name",
+                        "Email",
+                        "Phone",
+                        "Company",
+                        "Role"
+                    ),
+                    rows
+                )
+            }
+        }
+    }
+
+    fun createCsvBytes(
+        headers: List<String>,
+        rows: List<List<String>>
+    ): ByteArray {
+        val output = buildString {
+            appendLine(headers.joinToString(",") { csvCell(it) })
+
+            rows.forEach { row ->
+                appendLine(row.joinToString(",") { csvCell(it) })
+            }
+        }
+
+        // UTF-8 BOM improves compatibility with spreadsheet applications.
+        return ("\uFEFF$output").toByteArray(Charsets.UTF_8)
+    }
+
+    fun createPdfBytes(
+        title: String,
+        headers: List<String>,
+        rows: List<List<String>>
+    ): ByteArray {
+        val document = PdfDocument()
+        val pageWidth = 595
+        val pageHeight = 842
+        val margin = 36f
+        val lineHeight = 18f
+        val rowsPerPage = 35
+
+        val titlePaint = AndroidPaint().apply {
+            color = android.graphics.Color.BLACK
+            textSize = 17f
+            typeface = android.graphics.Typeface.create(
+                android.graphics.Typeface.DEFAULT,
+                android.graphics.Typeface.BOLD
+            )
+        }
+
+        val normalPaint = AndroidPaint().apply {
+            color = android.graphics.Color.BLACK
+            textSize = 8f
+        }
+
+        val headerPaint = AndroidPaint().apply {
+            color = android.graphics.Color.DKGRAY
+            textSize = 8f
+            typeface = android.graphics.Typeface.create(
+                android.graphics.Typeface.DEFAULT,
+                android.graphics.Typeface.BOLD
+            )
+        }
+
+        val pages = rows.chunked(rowsPerPage).ifEmpty {
+            listOf(emptyList())
+        }
+
+        pages.forEachIndexed { pageIndex, pageRows ->
+            val pageInfo = PdfDocument.PageInfo.Builder(
+                pageWidth,
+                pageHeight,
+                pageIndex + 1
+            ).create()
+
+            val page = document.startPage(pageInfo)
+            val canvas = page.canvas
+
+            var y = 48f
+
+            canvas.drawText(title, margin, y, titlePaint)
+            y += 22f
+
+            canvas.drawText(
+                "Generated: ${
+                    SimpleDateFormat(
+                        "dd MMM yyyy HH:mm",
+                        Locale.getDefault()
+                    ).format(Date())
+                }",
+                margin,
+                y,
+                normalPaint
+            )
+
+            y += 25f
+
+            canvas.drawText(
+                headers.joinToString(" | ").take(115),
+                margin,
+                y,
+                headerPaint
+            )
+
+            y += 16f
+
+            canvas.drawLine(
+                margin,
+                y,
+                pageWidth - margin,
+                y,
+                normalPaint
+            )
+
+            y += 15f
+
+            pageRows.forEach { row ->
+                val line = row.joinToString(" | ")
+                    .replace("\n", " ")
+                    .take(125)
+
+                canvas.drawText(line, margin, y, normalPaint)
+                y += lineHeight
+            }
+
+            canvas.drawText(
+                "Page ${pageIndex + 1} of ${pages.size}",
+                margin,
+                pageHeight - 25f,
+                normalPaint
+            )
+
+            document.finishPage(page)
+        }
+
+        val output = ByteArrayOutputStream()
+        document.writeTo(output)
+        document.close()
+
+        return output.toByteArray()
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(14.dp)
+    ) {
+        Text(
+            "REPORTS & ANALYTICS EXPORT HUB",
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold
+        )
+
+        Text(
+            "Generate and save PDF or CSV reports using records available in the application.",
+            style = MaterialTheme.typography.bodySmall,
+            color = SashioTextMuted
+        )
+
         Spacer(modifier = Modifier.height(14.dp))
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surface
+            ),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("SELECT REPORT CATEGORY", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                listOf("Revenue Report", "Booking Report", "Client Directory Log", "Staff Operations Matrix").forEach { cat ->
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    "SELECT REPORT CATEGORY",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+
+                listOf(
+                    "Revenue Report",
+                    "Booking Report",
+                    "Client Directory Log",
+                    "Staff Operations Matrix"
+                ).forEach { category ->
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clickable { exportReportCategory = cat }
-                            .background(if (exportReportCategory == cat) SashioGold.copy(alpha = 0.1f) else Color.Transparent, RoundedCornerShape(8.dp))
+                            .clickable {
+                                exportReportCategory = category
+                            }
+                            .background(
+                                if (exportReportCategory == category) {
+                                    SashioGold.copy(alpha = 0.1f)
+                                } else {
+                                    Color.Transparent
+                                },
+                                RoundedCornerShape(8.dp)
+                            )
                             .padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        RadioButton(selected = exportReportCategory == cat, onClick = { exportReportCategory = cat })
+                        RadioButton(
+                            selected = exportReportCategory == category,
+                            onClick = {
+                                exportReportCategory = category
+                            }
+                        )
+
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text(cat, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+
+                        Text(
+                            category,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
                     }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
-                Text("EXPORT FILE FORMAT", fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    listOf("PDF", "CSV", "Excel").forEach { format ->
+
+                Text(
+                    "EXPORT FILE FORMAT",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 12.sp
+                )
+
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    listOf("PDF", "CSV").forEach { format ->
                         FilterChip(
                             selected = exportFormatType == format,
-                            onClick = { exportFormatType = format },
+                            onClick = {
+                                exportFormatType = format
+                            },
                             label = { Text(format) }
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(8.dp))
                 if (exportProgressPercent > 0f) {
                     LinearProgressIndicator(
                         progress = { exportProgressPercent },
                         modifier = Modifier.fillMaxWidth(),
                         color = SashioGold
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Assembling records data structures & signatures... ${(exportProgressPercent * 100).toInt()}%", fontSize = 10.sp, color = SashioTextMuted)
                 }
 
                 Button(
+                    enabled = exportProgressPercent == 0f,
                     onClick = {
-                        exportProgressPercent = 0.1f
-                        coroutineScope.launch {
-                            for (p in 2..10) {
-                                delay(180)
-                                exportProgressPercent = p * 0.1f
+                        try {
+                            val (headers, rows) = createReportRows()
+
+                            pendingExportBytes = if (
+                                exportFormatType == "PDF"
+                            ) {
+                                createPdfBytes(
+                                    exportReportCategory,
+                                    headers,
+                                    rows
+                                )
+                            } else {
+                                createCsvBytes(headers, rows)
                             }
-                            Toast.makeText(localContext, "Exported $exportReportCategory successfully as $exportFormatType file", Toast.LENGTH_LONG).show()
-                            exportProgressPercent = 0.0f
+
+                            exportProgressPercent = 0.5f
+
+                            val filename = exportReportCategory
+                                .lowercase(Locale.ROOT)
+                                .replace(" ", "_") +
+                                "_${System.currentTimeMillis()}"
+
+                            if (exportFormatType == "PDF") {
+                                pdfLauncher.launch("$filename.pdf")
+                            } else {
+                                csvLauncher.launch("$filename.csv")
+                            }
+                        } catch (e: Exception) {
+                            pendingExportBytes = null
+                            exportProgressPercent = 0f
+
+                            Toast.makeText(
+                                localContext,
+                                "Could not create report: ${e.localizedMessage}",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     },
-                    colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = SashioSlate
+                    ),
                     shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth().height(44.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp)
                 ) {
-                    Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(16.dp), tint = Color.White)
+                    Icon(
+                        Icons.Default.Download,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White
+                    )
+
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("COMPILE & DISPATCH REPORT", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 11.sp)
+
+                    Text(
+                        "GENERATE & SAVE REPORT",
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 11.sp
+                    )
                 }
             }
         }
     }
 }
+
 
 @Composable
 fun AdminSettingsView(viewModel: SashioViewModel) {
