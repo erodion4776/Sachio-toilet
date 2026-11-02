@@ -1,20 +1,22 @@
+
 package com.sashio.ops.ui
 
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.AssignmentLate
+import androidx.compose.material.icons.filled.CameraAlt
+import androidx.compose.material.icons.filled.Directions
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -23,8 +25,64 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sashio.ops.data.SashioViewModel
-import com.sashio.ops.data.SupabaseBooking
 import com.sashio.ops.ui.theme.*
+
+private enum class StaffJobFilter {
+    ASSIGNED, ACTIVE, COMPLETED
+}
+
+private fun normalizedJobStatus(status: String): String {
+    return status.trim()
+        .uppercase()
+        .replace("_", " ")
+        .replace("-", " ")
+        .replace(Regex("\\s+"), " ")
+}
+
+private fun isAssignedJob(status: String): Boolean {
+    return normalizedJobStatus(status) in setOf(
+        "STAFF ASSIGNED",
+        "BOOKING CONFIRMED",
+        "PAYMENT CONFIRMED",
+        "ASSIGNED",
+        "CONFIRMED",
+        "ACCEPTED"
+    )
+}
+
+private fun isActiveJob(status: String): Boolean {
+    return normalizedJobStatus(status) in setOf(
+        "IN TRANSIT",
+        "ARRIVED",
+        "SETUP",
+        "ACTIVE",
+        "SETUP IN PROGRESS",
+        "IN PROGRESS",
+        "SERVICE IN PROGRESS",
+        "ONGOING"
+    )
+}
+
+private fun isCompletedJob(status: String): Boolean {
+    return normalizedJobStatus(status) in setOf(
+        "SERVICE DELIVERED",
+        "COMPLETED",
+        "COMPLETE",
+        "DELIVERED",
+        "CLOSED"
+    )
+}
+
+private fun validBookingCoordinates(
+    latitude: Double,
+    longitude: Double
+): Boolean {
+    return latitude.isFinite() &&
+        longitude.isFinite() &&
+        latitude in -90.0..90.0 &&
+        longitude in -180.0..180.0 &&
+        (latitude != 0.0 || longitude != 0.0)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -32,354 +90,596 @@ fun StaffDashboardJobsTab(
     viewModel: SashioViewModel,
     workOfflineToggle: Boolean
 ) {
-    val myAssignedBookings by viewModel.myAssignedBookings.collectAsStateWithLifecycle()
-    var selectedJobDetailsId by remember { mutableStateOf<String?>(null) }
-    var selectedFilterTab by remember { mutableStateOf("Assigned") }
+    val bookings by viewModel.myAssignedBookings.collectAsStateWithLifecycle()
     val context = LocalContext.current
+
+    var selectedJobDetailsId by remember {
+        mutableStateOf<String?>(null)
+    }
+
+    var selectedFilter by remember {
+        mutableStateOf(StaffJobFilter.ASSIGNED)
+    }
+
+    var selectedInspectionCondition by remember {
+        mutableStateOf("Pristine")
+    }
+
+    var selectedWaterLevel by remember {
+        mutableStateOf("100%")
+    }
+
+    var cleanlinessScoreInput by remember {
+        mutableFloatStateOf(5f)
+    }
+
+    var equipmentConditionInput by remember {
+        mutableStateOf("Good")
+    }
+
+    var damageAssessmentInput by remember {
+        mutableStateOf("")
+    }
+
+    var inspectionCommentInput by remember {
+        mutableStateOf("")
+    }
+
+    var isSubmittingInspection by remember {
+        mutableStateOf(false)
+    }
+
+    var checklistBefore by remember {
+        mutableStateOf(setOf<String>())
+    }
+
+    var checklistArrival by remember {
+        mutableStateOf(setOf<String>())
+    }
+
+    var checklistService by remember {
+        mutableStateOf(setOf<String>())
+    }
 
     LaunchedEffect(Unit) {
         viewModel.loadMyAssignedBookings()
     }
 
-    var activeChecklistBeforeDeparture by remember { mutableStateOf(setOf<String>()) }
-    var activeChecklistUponArrival by remember { mutableStateOf(setOf<String>()) }
-    var activeChecklistServiceActivities by remember { mutableStateOf(setOf<String>()) }
+    val selectedBooking = bookings.find {
+        it.id == selectedJobDetailsId
+    }
 
-    var selectedInspectionCondition by remember { mutableStateOf("Pristine") }
-    val selectedWaterLevel by remember { mutableStateOf("100%") }
-    var cleanlinessScoreInput by remember { mutableStateOf(5f) }
-    val equipmentConditionInput by remember { mutableStateOf("Good") }
-    val damageAssessmentInput by remember { mutableStateOf("No noticeable exterior scratches or pipe dents.") }
-    var inspectionCommentInput by remember { mutableStateOf("Excellent pre-commissioning standard. Sovereign vacuum manifold initialized perfectly.") }
+    fun openGps(
+        latitude: Double,
+        longitude: Double,
+        address: String
+    ) {
+        if (validBookingCoordinates(latitude, longitude)) {
+            launchExternalGpsNavigation(
+                context,
+                latitude,
+                longitude,
+                address
+            )
+        } else {
+            Toast.makeText(
+                context,
+                "This booking has no valid GPS coordinates. Please use the address.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
 
-    var beforePhotosList by remember { mutableStateOf(listOf("https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&auto=format&fit=crop")) }
-    var afterPhotosList by remember { mutableStateOf(listOf("https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&auto=format&fit=crop")) }
-    var showCameraSimulationBox by remember { mutableStateOf<String?>(null) }
-    var cameraCapturingStatus by remember { mutableStateOf("Live camera lens online...") }
-    var queuedOfflineInspections by remember { mutableStateOf(listOf<String>()) }
+    fun updateChecklist(
+        current: Set<String>,
+        item: String
+    ): Set<String> {
+        return if (item in current) {
+            current - item
+        } else {
+            current + item
+        }
+    }
 
     if (selectedJobDetailsId != null) {
-        val bkId = selectedJobDetailsId!!
-        val b = myAssignedBookings.find { it.id == bkId }
+        val booking = selectedBooking
 
-        if (b == null) {
+        if (booking == null) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xFF0F172A)),
+                    .background(MaterialTheme.colorScheme.background),
                 contentAlignment = Alignment.Center
             ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Job data not found", color = Color.White)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Button(onClick = { selectedJobDetailsId = null }) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text("Job data not found")
+                    Spacer(Modifier.height(12.dp))
+                    Button(
+                        onClick = {
+                            selectedJobDetailsId = null
+                        }
+                    ) {
                         Text("Back to Jobs")
                     }
                 }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Color(0xFF0F172A))
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                item {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        IconButton(onClick = { selectedJobDetailsId = null }) {
-                            Icon(Icons.Default.ArrowBack, contentDescription = "Back", tint = SashioGold)
+            return
+        }
+
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(
+                        onClick = {
+                            selectedJobDetailsId = null
                         }
-                        Spacer(modifier = Modifier.width(8.dp))
+                    ) {
+                        Icon(
+                            Icons.Default.ArrowBack,
+                            contentDescription = "Back"
+                        )
+                    }
+
+                    Text(
+                        text = "Job Details #${booking.id.take(8)}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
                         Text(
-                            "Job Deep-Dive: #QR-${b.id.take(8)}",
-                            style = MaterialTheme.typography.titleMedium,
+                            booking.status.uppercase(),
+                            color = SashioGold,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(
+                            booking.service_type,
+                            style = MaterialTheme.typography.titleLarge,
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Text(
+                            "${booking.variant_name} | ${booking.model_number}"
+                        )
+
+                        HorizontalDivider()
+
+                        Text("CLIENT: ${booking.client_name}")
+                        Text("PHONE: ${booking.client_phone}")
+                        Text("BUSINESS: ${booking.company_name.ifBlank { "Private Client" }}")
+                        Text("ADDRESS: ${booking.address}")
+                        Text("DATE: ${booking.event_date ?: "Pending"}")
+
+                        if (booking.special_instructions.isNotBlank()) {
+                            Text(
+                                "SPECIAL NOTES: ${booking.special_instructions}",
+                                color = SashioGold
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                openGps(
+                                    booking.latitude,
+                                    booking.longitude,
+                                    booking.address
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(
+                                Icons.Default.Directions,
+                                contentDescription = null
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("OPEN DIRECTIONS")
+                        }
+                    }
+                }
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            "PRE-DEPARTURE CHECKLIST",
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = SashioGold
+                        )
+
+                        listOf(
+                            "Trailer coupling pin secured",
+                            "Dual hydraulic brakes verified",
+                            "Bio-degradable chemical charged"
+                        ).forEach { task ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = task in checklistBefore,
+                                    onCheckedChange = {
+                                        checklistBefore =
+                                            updateChecklist(checklistBefore, task)
+                                    }
+                                )
+                                Text(task)
+                            }
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+
+                        Text(
+                            "ARRIVAL CHECKLIST",
+                            fontWeight = FontWeight.Bold,
+                            color = SashioGold
+                        )
+
+                        listOf(
+                            "Vehicle positioned safely",
+                            "Hydraulic support stands deployed",
+                            "Water supply line connected"
+                        ).forEach { task ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = task in checklistArrival,
+                                    onCheckedChange = {
+                                        checklistArrival =
+                                            updateChecklist(checklistArrival, task)
+                                    }
+                                )
+                                Text(task)
+                            }
+                        }
+
+                        HorizontalDivider(
+                            modifier = Modifier.padding(vertical = 8.dp)
+                        )
+
+                        Text(
+                            "SERVICE ACTIVITIES",
+                            fontWeight = FontWeight.Bold,
+                            color = SashioGold
+                        )
+
+                        listOf(
+                            "Floor and fixtures sanitized",
+                            "Scent atomizer checked",
+                            "Paper towels and soap replenished"
+                        ).forEach { task ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(
+                                    checked = task in checklistService,
+                                    onCheckedChange = {
+                                        checklistService =
+                                            updateChecklist(checklistService, task)
+                                    }
+                                )
+                                Text(task)
+                            }
+                        }
+                    }
+                }
+            }
+
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Text(
+                            "INSPECTION PHOTOGRAPHS",
+                            fontWeight = FontWeight.Bold,
+                            color = SashioGold
+                        )
+
+                        Icon(
+                            Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            modifier = Modifier.size(36.dp)
+                        )
+
+                        Text(
+                            "Camera capture and photo upload are not connected yet. " +
+                                "No sample photographs will be added to your inspection report."
+                        )
+
+                        Text(
+                            "Do not submit an inspection as photo-verified until real photographs have been captured and uploaded."
                         )
                     }
                 }
+            }
 
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.4f)),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-                        modifier = Modifier.fillMaxWidth()
+            item {
+                Card(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(b.status.uppercase(), fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, color = SashioGold)
-                                Text("Date: ${b.event_date ?: "Pending"}", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
-                            }
-                            Spacer(modifier = Modifier.height(12.dp))
-                            Text(b.service_type, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = Color.White)
-                            Text("${b.variant_name} | ${b.model_number}", fontSize = 11.sp, color = SashioGold)
-                            Spacer(modifier = Modifier.height(8.dp))
-                            HorizontalDivider(color = Color.White.copy(alpha = 0.08f))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Text("CLIENT NAME: ${b.client_name}", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                            Text("PHONE: ${b.client_phone}", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                            Text("BUSINESS: ${b.company_name.ifEmpty { "Private Client" }}", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                            Text("ADDRESS: ${b.address}", fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                            Text(
-                                "SPECIAL NOTES: ${b.special_instructions.ifEmpty { "Standard setup protocol." }}",
-                                fontSize = 12.sp,
-                                color = SashioGold,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            "DIGITAL INSPECTION REPORT",
+                            fontWeight = FontWeight.Bold,
+                            color = SashioGold
+                        )
 
-                            Button(
-                                onClick = {
-                                    val lat = if (b.latitude != 0.0) b.latitude else 6.4531
-                                    val lng = if (b.longitude != 0.0) b.longitude else 3.3958
-                                    launchExternalGpsNavigation(context, lat, lng, b.address)
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
-                                modifier = Modifier.fillMaxWidth().height(38.dp)
-                            ) {
-                                Icon(Icons.Default.Directions, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("OPEN IN GPS MAPS / WAZE", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 11.sp)
+                        Text("Toilet condition")
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            listOf(
+                                "Pristine",
+                                "Fair",
+                                "Needs Repair"
+                            ).forEach { condition ->
+                                FilterChip(
+                                    selected = selectedInspectionCondition == condition,
+                                    onClick = {
+                                        selectedInspectionCondition = condition
+                                    },
+                                    label = {
+                                        Text(condition)
+                                    }
+                                )
                             }
                         }
-                    }
-                }
 
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.25f)),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.06f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("Step-by-step Quality Checklists", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SashioGold, letterSpacing = 1.sp)
-                            Spacer(modifier = Modifier.height(10.dp))
+                        Text("Water level")
 
-                            Text("1. Pre-Departure Parameters", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
-                            listOf("Trailer coupling pin secured", "Dual hydraulic brakes verified", "Bio-degradable chemical charged").forEach { item ->
-                                val isDone = activeChecklistBeforeDeparture.contains(item)
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(
-                                        checked = isDone,
-                                        onCheckedChange = {
-                                            activeChecklistBeforeDeparture = if (isDone) activeChecklistBeforeDeparture - item else activeChecklistBeforeDeparture + item
-                                        },
-                                        colors = CheckboxDefaults.colors(checkedColor = SashioGold)
-                                    )
-                                    Text(item, fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Text("2. Upon Arrival Alignment", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
-                            listOf("Halt vehicle in spacious quadrant", "Deploy hydraulic support stands", "Integrate standard water supply line").forEach { item ->
-                                val isDone = activeChecklistUponArrival.contains(item)
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(
-                                        checked = isDone,
-                                        onCheckedChange = {
-                                            activeChecklistUponArrival = if (isDone) activeChecklistUponArrival - item else activeChecklistUponArrival + item
-                                        },
-                                        colors = CheckboxDefaults.colors(checkedColor = SashioGold)
-                                    )
-                                    Text(item, fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-
-                            Text("3. On-Site Service Activities", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
-                            listOf("Sanitize floor, seat, and vanity handles", "Refill luxury scent atomizer", "Refill paper towel and soap stocks").forEach { item ->
-                                val isDone = activeChecklistServiceActivities.contains(item)
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Checkbox(
-                                        checked = isDone,
-                                        onCheckedChange = {
-                                            activeChecklistServiceActivities = if (isDone) activeChecklistServiceActivities - item else activeChecklistServiceActivities + item
-                                        },
-                                        colors = CheckboxDefaults.colors(checkedColor = SashioGold)
-                                    )
-                                    Text(item, fontSize = 12.sp, color = Color.White.copy(alpha = 0.8f))
-                                }
-                            }
+                        var waterMenuExpanded by remember {
+                            mutableStateOf(false)
                         }
-                    }
-                }
 
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.2f)),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.05f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("SANITY PHOTO & VIDEO REPORTING", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SashioGold, letterSpacing = 1.sp)
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            if (showCameraSimulationBox != null) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(180.dp)
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(Color.Black)
-                                        .border(1.dp, SashioGold, RoundedCornerShape(12.dp)),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Icon(Icons.Default.CameraAlt, contentDescription = null, modifier = Modifier.size(32.dp), tint = SashioGold)
-                                        Spacer(modifier = Modifier.height(8.dp))
-                                        Text(cameraCapturingStatus, color = Color.White, fontSize = 12.sp)
-                                        Spacer(modifier = Modifier.height(16.dp))
-                                        Button(
-                                            onClick = {
-                                                cameraCapturingStatus = "Capturing image frame..."
-                                                val mockUrl = "https://images.unsplash.com/photo-1584622650111-993a426fbf0a?w=500&auto=format&fit=crop"
-                                                if (showCameraSimulationBox == "before") {
-                                                    beforePhotosList = beforePhotosList + mockUrl
-                                                } else {
-                                                    afterPhotosList = afterPhotosList + mockUrl
-                                                }
-                                                cameraCapturingStatus = "Sanitation photograph captured successfully!"
-                                                showCameraSimulationBox = null
-                                            },
-                                            colors = ButtonDefaults.buttonColors(containerColor = SashioGold)
-                                        ) {
-                                            Text("SNAP CAPTURE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                                        }
-                                    }
-                                }
-                            } else {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    Button(
-                                        onClick = {
-                                            showCameraSimulationBox = "before"
-                                            cameraCapturingStatus = "Resolving aperture lens. Aligning restroom exterior..."
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
-                                        modifier = Modifier.weight(1f).height(38.dp)
-                                    ) {
-                                        Icon(Icons.Default.CameraAlt, contentDescription = null, tint = SashioGold, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("Before Photo", fontSize = 10.sp, color = Color.White)
-                                    }
-
-                                    Button(
-                                        onClick = {
-                                            showCameraSimulationBox = "after"
-                                            cameraCapturingStatus = "Focusing pristine interior fixtures..."
-                                        },
-                                        colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
-                                        modifier = Modifier.weight(1f).height(38.dp)
-                                    ) {
-                                        Icon(Icons.Default.CameraAlt, contentDescription = null, tint = SashioGold, modifier = Modifier.size(14.dp))
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("After Photo", fontSize = 10.sp, color = Color.White)
-                                    }
-                                }
+                        ExposedDropdownMenuBox(
+                            expanded = waterMenuExpanded,
+                            onExpandedChange = {
+                                waterMenuExpanded = !waterMenuExpanded
                             }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Text("Captured Files: ${beforePhotosList.size} Before, ${afterPhotosList.size} After", fontSize = 11.sp, color = Color.LightGray)
-                        }
-                    }
-                }
-
-                item {
-                    Card(
-                        colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.3f)),
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Column(modifier = Modifier.padding(16.dp)) {
-                            Text("DIGITAL INSPECTION SPEC FORM", fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SashioGold, letterSpacing = 1.sp)
-                            Spacer(modifier = Modifier.height(12.dp))
-
-                            Text("Toilet Condition Status", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                                horizontalArrangement = Arrangement.spacedBy(6.dp)
-                            ) {
-                                listOf("Pristine", "Fair", "Needs Repair").forEach { cond ->
-                                    val isSelected = selectedInspectionCondition == cond
-                                    FilterChip(
-                                        selected = isSelected,
-                                        onClick = { selectedInspectionCondition = cond },
-                                        label = { Text(cond, fontSize = 11.sp, color = if (isSelected) Color.Black else Color.White) },
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = SashioGold,
-                                            selectedLabelColor = Color.Black
-                                        )
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Text("Sanitation Rating: ${cleanlinessScoreInput.toInt()}/5", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = Color.White)
-                            Slider(
-                                value = cleanlinessScoreInput,
-                                onValueChange = { cleanlinessScoreInput = it },
-                                valueRange = 1f..5f,
-                                steps = 3,
-                                colors = SliderDefaults.colors(thumbColor = SashioGold, activeTrackColor = SashioGold)
-                            )
-
-                            Spacer(modifier = Modifier.height(4.dp))
-
+                        ) {
                             OutlinedTextField(
-                                value = inspectionCommentInput,
-                                onValueChange = { inspectionCommentInput = it },
-                                label = { Text("Sanitation remarks & field observations") },
-                                textStyle = androidx.compose.ui.text.TextStyle(color = Color.White),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = SashioGold,
-                                    unfocusedBorderColor = Color.White.copy(alpha = 0.2f),
-                                    focusedLabelColor = SashioGold
-                                ),
-                                modifier = Modifier.fillMaxWidth()
+                                value = selectedWaterLevel,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Water level") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = waterMenuExpanded
+                                    )
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
                             )
 
-                            Spacer(modifier = Modifier.height(14.dp))
-
-                            Button(
-                                onClick = {
-                                    if (workOfflineToggle) {
-                                        queuedOfflineInspections = queuedOfflineInspections + "Booking #${b.id.take(6)}: Cond: $selectedInspectionCondition, Cln: ${cleanlinessScoreInput.toInt()}"
-                                        Toast.makeText(context, "Inspection cached offline successfully.", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        val longId = b.id.hashCode().toLong()
-                                        viewModel.submitInspectionReport(
-                                            bookingId = longId,
-                                            toiletCondition = selectedInspectionCondition,
-                                            waterLevel = selectedWaterLevel,
-                                            cleanlinessScore = cleanlinessScoreInput.toInt(),
-                                            equipmentCondition = equipmentConditionInput,
-                                            damageAssessment = damageAssessmentInput,
-                                            comments = inspectionCommentInput,
-                                            beforePhotos = beforePhotosList,
-                                            afterPhotos = afterPhotosList
-                                        )
-                                        Toast.makeText(context, "Digital inspection report transmitted.", Toast.LENGTH_SHORT).show()
-                                    }
-                                    selectedJobDetailsId = null
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
-                                modifier = Modifier.fillMaxWidth().height(42.dp)
+                            ExposedDropdownMenu(
+                                expanded = waterMenuExpanded,
+                                onDismissRequest = {
+                                    waterMenuExpanded = false
+                                }
                             ) {
-                                Text("TRANSMIT DIGITAL SPECIFICATION REPORT", fontWeight = FontWeight.Bold, fontSize = 11.sp, color = Color.Black)
+                                listOf(
+                                    "0%",
+                                    "25%",
+                                    "50%",
+                                    "75%",
+                                    "100%"
+                                ).forEach { level ->
+                                    DropdownMenuItem(
+                                        text = { Text(level) },
+                                        onClick = {
+                                            selectedWaterLevel = level
+                                            waterMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        Text(
+                            "Cleanliness rating: ${cleanlinessScoreInput.toInt()}/5",
+                            fontWeight = FontWeight.Bold
+                        )
+
+                        Slider(
+                            value = cleanlinessScoreInput,
+                            onValueChange = {
+                                cleanlinessScoreInput = it
+                            },
+                            valueRange = 1f..5f,
+                            steps = 3
+                        )
+
+                        Text("Equipment condition")
+
+                        var equipmentMenuExpanded by remember {
+                            mutableStateOf(false)
+                        }
+
+                        ExposedDropdownMenuBox(
+                            expanded = equipmentMenuExpanded,
+                            onExpandedChange = {
+                                equipmentMenuExpanded = !equipmentMenuExpanded
+                            }
+                        ) {
+                            OutlinedTextField(
+                                value = equipmentConditionInput,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("Equipment condition") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(
+                                        expanded = equipmentMenuExpanded
+                                    )
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
+                            )
+
+                            ExposedDropdownMenu(
+                                expanded = equipmentMenuExpanded,
+                                onDismissRequest = {
+                                    equipmentMenuExpanded = false
+                                }
+                            ) {
+                                listOf(
+                                    "Excellent",
+                                    "Good",
+                                    "Fair",
+                                    "Needs Repair",
+                                    "Not Working"
+                                ).forEach { condition ->
+                                    DropdownMenuItem(
+                                        text = { Text(condition) },
+                                        onClick = {
+                                            equipmentConditionInput = condition
+                                            equipmentMenuExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = damageAssessmentInput,
+                            onValueChange = {
+                                damageAssessmentInput = it
+                            },
+                            label = {
+                                Text("Damage assessment")
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2
+                        )
+
+                        OutlinedTextField(
+                            value = inspectionCommentInput,
+                            onValueChange = {
+                                inspectionCommentInput = it
+                            },
+                            label = {
+                                Text("Inspection remarks")
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 3
+                        )
+
+                        if (workOfflineToggle) {
+                            Text(
+                                "Offline mode is enabled. This screen does not yet have persistent offline inspection storage. Your report will not be saved by pressing the button.",
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+
+                        Button(
+                            onClick = {
+                                if (isSubmittingInspection) {
+                                    return@Button
+                                }
+
+                                if (workOfflineToggle) {
+                                    Toast.makeText(
+                                        context,
+                                        "Offline inspection storage is not connected. Report not saved.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    return@Button
+                                }
+
+                                // SupabaseBooking.id is a String.
+                                // Never convert it using hashCode().
+                                val numericBookingId =
+                                    booking.id.toLongOrNull()
+
+                                if (numericBookingId == null) {
+                                    Toast.makeText(
+                                        context,
+                                        "This booking uses a non-numeric ID. The inspection ViewModel must accept the String booking ID before submission.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                    return@Button
+                                }
+
+                                isSubmittingInspection = true
+
+                                try {
+                                    viewModel.submitInspectionReport(
+                                        bookingId = numericBookingId,
+                                        toiletCondition = selectedInspectionCondition,
+                                        waterLevel = selectedWaterLevel,
+                                        cleanlinessScore = cleanlinessScoreInput.toInt(),
+                                        equipmentCondition = equipmentConditionInput,
+                                        damageAssessment = damageAssessmentInput,
+                                        comments = inspectionCommentInput,
+                                        beforePhotos = emptyList(),
+                                        afterPhotos = emptyList()
+                                    )
+
+                                    Toast.makeText(
+                                        context,
+                                        "Inspection request submitted to the current ViewModel. Backend persistence has not been confirmed.",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+
+                                    selectedJobDetailsId = null
+                                } catch (e: Exception) {
+                                    Toast.makeText(
+                                        context,
+                                        "Inspection submission failed: ${e.message ?: "Unknown error"}",
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                } finally {
+                                    isSubmittingInspection = false
+                                }
+                            },
+                            enabled = !isSubmittingInspection,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp)
+                        ) {
+                            if (isSubmittingInspection) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("SUBMIT INSPECTION")
                             }
                         }
                     }
@@ -387,166 +687,282 @@ fun StaffDashboardJobsTab(
             }
         }
     } else {
-        Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0F172A)).padding(12.dp)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.background)
+                .padding(12.dp)
+        ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                listOf("Assigned", "Active", "Completed").forEach { fTab ->
-                    val isSel = selectedFilterTab == fTab
+                StaffJobFilter.entries.forEach { filter ->
+                    val selected = selectedFilter == filter
+
                     Button(
-                        onClick = { selectedFilterTab = fTab },
+                        onClick = {
+                            selectedFilter = filter
+                        },
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp),
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = if (isSel) SashioGold else SashioSlate.copy(alpha = 0.3f),
-                            contentColor = if (isSel) Color.Black else Color.White
+                            containerColor = if (selected) {
+                                SashioGold
+                            } else {
+                                MaterialTheme.colorScheme.surfaceVariant
+                            },
+                            contentColor = if (selected) {
+                                Color.Black
+                            } else {
+                                MaterialTheme.colorScheme.onSurfaceVariant
+                            }
                         ),
-                        modifier = Modifier.weight(1f).height(36.dp)
+                        contentPadding = PaddingValues(2.dp)
                     ) {
-                        Text(fTab, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        Text(
+                            when (filter) {
+                                StaffJobFilter.ASSIGNED -> "Assigned"
+                                StaffJobFilter.ACTIVE -> "Active"
+                                StaffJobFilter.COMPLETED -> "Completed"
+                            },
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(Modifier.height(14.dp))
 
-            val filteredList = myAssignedBookings.filter { b ->
-                when (selectedFilterTab) {
-                    "Active" -> b.status == "IN TRANSIT" || b.status == "ARRIVED" || b.status == "SETUP" || b.status == "ACTIVE" || b.status == "SETUP IN PROGRESS"
-                    "Completed" -> b.status == "SERVICE DELIVERED" || b.status == "COMPLETED" || b.status == "Completed"
-                    else -> b.status == "Staff Assigned" || b.status == "Booking Confirmed" || b.status == "Payment Confirmed"
+            val filteredBookings = bookings.filter { booking ->
+                when (selectedFilter) {
+                    StaffJobFilter.ASSIGNED ->
+                        isAssignedJob(booking.status)
+
+                    StaffJobFilter.ACTIVE ->
+                        isActiveJob(booking.status)
+
+                    StaffJobFilter.COMPLETED ->
+                        isCompletedJob(booking.status)
                 }
             }
 
-            if (filteredList.isEmpty()) {
-                Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Default.AssignmentLate, contentDescription = null, tint = Color.White.copy(alpha = 0.3f), modifier = Modifier.size(48.dp))
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text("No $selectedFilterTab jobs found.", color = Color.White.copy(alpha = 0.5f), fontSize = 13.sp)
+            if (filteredBookings.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Default.AssignmentLate,
+                            contentDescription = null,
+                            modifier = Modifier.size(48.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Text(
+                            "No ${selectedFilter.name.lowercase()} jobs found.",
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                 }
             } else {
                 LazyColumn(
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    items(filteredList) { b ->
+                    items(
+                        items = filteredBookings,
+                        key = { it.id }
+                    ) { booking ->
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = SashioSlate.copy(alpha = 0.35f)),
-                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier.fillMaxWidth(),
+                            border = BorderStroke(
+                                1.dp,
+                                MaterialTheme.colorScheme.outlineVariant
+                            )
                         ) {
-                            Column(modifier = Modifier.padding(14.dp)) {
+                            Column(
+                                modifier = Modifier.padding(14.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.SpaceBetween,
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Text(b.service_type, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    BookingStatusBadge(status = b.status)
-                                }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text("Client: ${b.client_name} | Phone: ${b.client_phone}", fontSize = 11.sp, color = Color.LightGray)
-                                Text("Location: ${b.address}", fontSize = 11.sp, color = SashioGold, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                                if (b.special_instructions.isNotBlank()) {
-                                    Text("Notes: ${b.special_instructions}", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f))
+                                    Text(
+                                        booking.service_type,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+
+                                    BookingStatusBadge(
+                                        status = booking.status
+                                    )
                                 }
 
-                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    "Client: ${booking.client_name} | ${booking.client_phone}",
+                                    fontSize = 11.sp
+                                )
+
+                                Text(
+                                    "Location: ${booking.address}",
+                                    fontSize = 11.sp,
+                                    color = SashioGold,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+
+                                if (booking.special_instructions.isNotBlank()) {
+                                    Text(
+                                        "Notes: ${booking.special_instructions}",
+                                        fontSize = 11.sp
+                                    )
+                                }
+
+                                Spacer(Modifier.height(8.dp))
 
                                 Row(
                                     modifier = Modifier.fillMaxWidth(),
                                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    Button(
-                                        onClick = { selectedJobDetailsId = b.id },
-                                        colors = ButtonDefaults.buttonColors(containerColor = SashioSlate),
-                                        modifier = Modifier.weight(0.9f).height(36.dp),
-                                        contentPadding = PaddingValues(0.dp)
-                                    ) {
-                                        Text("DETAILS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                                    }
-
-                                    Button(
+                                    OutlinedButton(
                                         onClick = {
-                                            val lat = if (b.latitude != 0.0) b.latitude else 6.4531
-                                            val lng = if (b.longitude != 0.0) b.longitude else 3.3958
-                                            launchExternalGpsNavigation(context, lat, lng, b.address)
+                                            selectedJobDetailsId = booking.id
                                         },
-                                        colors = ButtonDefaults.buttonColors(containerColor = SashioTeal),
-                                        modifier = Modifier.weight(1.1f).height(36.dp),
-                                        contentPadding = PaddingValues(0.dp)
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(4.dp)
                                     ) {
-                                        Icon(Icons.Default.Directions, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
-                                        Spacer(modifier = Modifier.width(3.dp))
-                                        Text("GPS MAPS", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text("DETAILS", fontSize = 10.sp)
                                     }
 
-                                    when (b.status) {
-                                        "Staff Assigned" -> {
-                                            Button(
-                                                onClick = {
-                                                    viewModel.staffUpdateBookingStatus(b.id, "IN TRANSIT") {
-                                                        Toast.makeText(context, "Departure locked! In transit to venue.", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                },
-                                                colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
-                                                modifier = Modifier.weight(1.2f).height(36.dp),
-                                                contentPadding = PaddingValues(0.dp)
-                                            ) {
-                                                Text("START SHIFT", fontWeight = FontWeight.ExtraBold, color = Color.Black, fontSize = 9.sp)
-                                            }
+                                    OutlinedButton(
+                                        onClick = {
+                                            openGps(
+                                                booking.latitude,
+                                                booking.longitude,
+                                                booking.address
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        contentPadding = PaddingValues(4.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Directions,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Spacer(Modifier.width(3.dp))
+                                        Text("GPS", fontSize = 10.sp)
+                                    }
+                                }
+
+                                when (normalizedJobStatus(booking.status)) {
+                                    "STAFF ASSIGNED",
+                                    "ASSIGNED" -> {
+                                        Button(
+                                            onClick = {
+                                                viewModel.staffUpdateBookingStatus(
+                                                    booking.id,
+                                                    "IN TRANSIT"
+                                                ) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Departure status update requested.",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("START SHIFT")
                                         }
-                                        "IN TRANSIT" -> {
-                                            Button(
-                                                onClick = {
-                                                    viewModel.staffUpdateBookingStatus(b.id, "ARRIVED") {
-                                                        Toast.makeText(context, "Marked as Arrived at venue.", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                },
-                                                colors = ButtonDefaults.buttonColors(containerColor = SashioTealDark),
-                                                modifier = Modifier.weight(1.2f).height(36.dp),
-                                                contentPadding = PaddingValues(0.dp)
-                                            ) {
-                                                Text("ARRIVED", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 10.sp)
-                                            }
+                                    }
+
+                                    "IN TRANSIT" -> {
+                                        Button(
+                                            onClick = {
+                                                viewModel.staffUpdateBookingStatus(
+                                                    booking.id,
+                                                    "ARRIVED"
+                                                ) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Arrival status update requested.",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("MARK ARRIVED")
                                         }
-                                        "ARRIVED" -> {
-                                            Button(
-                                                onClick = {
-                                                    viewModel.staffUpdateBookingStatus(b.id, "SETUP IN PROGRESS") {
-                                                        Toast.makeText(context, "Commencing cabin setup.", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                },
-                                                colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
-                                                modifier = Modifier.weight(1.2f).height(36.dp),
-                                                contentPadding = PaddingValues(0.dp)
-                                            ) {
-                                                Text("SETUP", fontWeight = FontWeight.Bold, color = Color.Black, fontSize = 10.sp)
-                                            }
+                                    }
+
+                                    "ARRIVED" -> {
+                                        Button(
+                                            onClick = {
+                                                viewModel.staffUpdateBookingStatus(
+                                                    booking.id,
+                                                    "SETUP IN PROGRESS"
+                                                ) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Setup status update requested.",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("START SETUP")
                                         }
-                                        "SETUP IN PROGRESS", "SETUP" -> {
-                                            Button(
-                                                onClick = {
-                                                    viewModel.staffUpdateBookingStatus(b.id, "SERVICE DELIVERED") {
-                                                        Toast.makeText(context, "Service delivered and active!", Toast.LENGTH_SHORT).show()
-                                                    }
-                                                },
-                                                colors = ButtonDefaults.buttonColors(containerColor = SashioGreen),
-                                                modifier = Modifier.weight(1.2f).height(36.dp),
-                                                contentPadding = PaddingValues(0.dp)
-                                            ) {
-                                                Text("COMPLETE", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 10.sp)
-                                            }
+                                    }
+
+                                    "SETUP",
+                                    "SETUP IN PROGRESS" -> {
+                                        Button(
+                                            onClick = {
+                                                viewModel.staffUpdateBookingStatus(
+                                                    booking.id,
+                                                    "SERVICE DELIVERED"
+                                                ) {
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Service marked as delivered.",
+                                                        Toast.LENGTH_SHORT
+                                                    ).show()
+                                                }
+                                            },
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("COMPLETE JOB")
                                         }
-                                        else -> {
-                                            Box(
-                                                modifier = Modifier.weight(1.2f).height(36.dp),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Text("COMPLETED", color = SashioGreen, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                            }
-                                        }
+                                    }
+
+                                    else -> {
+                                        Text(
+                                            if (isCompletedJob(booking.status)) {
+                                                "COMPLETED"
+                                            } else {
+                                                "STATUS: ${booking.status}"
+                                            },
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                 }
                             }
