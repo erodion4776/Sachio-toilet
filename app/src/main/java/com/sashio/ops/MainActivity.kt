@@ -107,9 +107,8 @@ class MainActivity : FragmentActivity() {
                 refreshToken = refreshToken ?: ""
             )
         } else if (!refreshToken.isNullOrBlank()) {
-            viewModel.completeGoogleSignIn()
-            )
-        }
+    viewModel.completeGoogleSignIn()
+}
     }
 
     private fun getDeepLinkParams(uri: Uri): Map<String, String> {
