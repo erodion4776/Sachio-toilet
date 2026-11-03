@@ -791,75 +791,62 @@ fun completeGoogleSignIn() {
     }
 
     fun adminIssueQuotation(
-        bookingId: String,
-        quotedPrice: Double,
-        logisticsCost: Double,
-        vatAmount: Double,
-        adminNotes: String,
-        onComplete: () -> Unit
-    ) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("bookings").update(
-                    buildJsonObject {
-                        put("quoted_price", quotedPrice)
-                        put("logistics_cost", logisticsCost)
-                        put("vat_amount", vatAmount)
-                        put("admin_notes", adminNotes)
-                        put("status", "Quotation Generated")
-                    }
-                ) {
-                    filter { eq("id", bookingId) }
+    bookingId: String,
+    quotedPrice: Double,
+    logisticsCost: Double,
+    vatAmount: Double,
+    adminNotes: String,
+    onComplete: () -> Unit
+) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "admin_issue_booking_quotation",
+                parameters = buildJsonObject {
+                    put("p_booking_id", bookingId)
+                    put("p_quoted_price", quotedPrice)
+                    put("p_logistics_cost", logisticsCost)
+                    put("p_vat_amount", vatAmount)
+                    put("p_admin_notes", adminNotes)
                 }
-                loadSupabaseBookings()
-                onComplete()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not issue quotation: ${e.message}"
-            }
+            )
+
+            loadSupabaseBookings()
+            _roleManagementError.value = null
+            onComplete()
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not issue quotation: ${e.message}"
         }
     }
+}
 
     fun adminAssignStaffToSupabaseBooking(
-        bookingId: String,
-        staffId: String,
-        staffName: String,
-        onComplete: (Boolean) -> Unit = {}
-    ) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("bookings").update(
-                    buildJsonObject {
-                        put("assigned_staff_id", staffId)
-                        put("assigned_staff_name", staffName)
-                        put("status", "Staff Assigned")
-                    }
-                ) {
-                    filter { eq("id", bookingId) }
+    bookingId: String,
+    staffId: String,
+    staffName: String,
+    onComplete: (Boolean) -> Unit = {}
+) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "admin_assign_booking_staff",
+                parameters = buildJsonObject {
+                    put("p_booking_id", bookingId)
+                    put("p_staff_id", staffId)
                 }
-                loadSupabaseBookings()
-                _roleManagementError.value = null
-                onComplete(true)
-            } catch (e: Exception) {
-                // Fallback: assign staff without altering status if check constraint blocks "Staff Assigned"
-                try {
-                    SupabaseProvider.client.postgrest.from("bookings").update(
-                        buildJsonObject {
-                            put("assigned_staff_id", staffId)
-                            put("assigned_staff_name", staffName)
-                        }
-                    ) {
-                        filter { eq("id", bookingId) }
-                    }
-                    loadSupabaseBookings()
-                    _roleManagementError.value = null
-                    onComplete(true)
-                } catch (fallbackError: Exception) {
-                    _roleManagementError.value = "Could not assign staff: ${fallbackError.message}"
-                    onComplete(false)
-                }
-            }
+            )
+
+            loadSupabaseBookings()
+            _roleManagementError.value = null
+            onComplete(true)
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not assign staff: ${e.message}"
+            onComplete(false)
         }
     }
+}
 
     fun loadMyAssignedBookings() {
         viewModelScope.launch {
@@ -891,22 +878,31 @@ fun completeGoogleSignIn() {
         }
     }
 
-    fun staffUpdateBookingStatus(bookingId: String, newStatus: String, onComplete: () -> Unit = {}) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("bookings").update(
-                    buildJsonObject { put("status", newStatus) }
-                ) {
-                    filter { eq("id", bookingId) }
+fun staffUpdateBookingStatus(
+    bookingId: String,
+    newStatus: String,
+    onComplete: () -> Unit = {}
+) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "staff_update_booking_status",
+                parameters = buildJsonObject {
+                    put("p_booking_id", bookingId)
+                    put("p_new_status", newStatus)
                 }
-                loadMyAssignedBookings()
-                loadSupabaseBookings()
-                onComplete()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not update job status: ${e.message}"
-            }
+            )
+
+            loadMyAssignedBookings()
+            loadSupabaseBookings()
+            _roleManagementError.value = null
+            onComplete()
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not update job status: ${e.message}"
         }
     }
+}
 
     fun staffUpdateLocalBookingStatus(bookingId: Long, status: String) {
         viewModelScope.launch {
