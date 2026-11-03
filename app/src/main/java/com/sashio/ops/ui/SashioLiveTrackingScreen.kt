@@ -701,111 +701,85 @@ fun SashioInteractiveCanvasMap(
                     center = Offset(closureX, closureY),
                     radius = 9.dp.toPx()
                 )
+@Composable
+fun SashioInteractiveCanvasMap(
+    latitude: Double,
+    longitude: Double,
+    staffLat: Double,
+    staffLng: Double,
+    vehicleLat: Double,
+    vehicleLng: Double,
+    mapStyle: String = "Standard",
+    showRoute: Boolean = true,
+    alternateRoute: Boolean = false,
+    roadClosureSelected: Boolean = false,
+    zoomFactor: Float = 1.0f,
+    label: String = ""
+) {
+    val context = LocalContext.current
 
-                drawLine(
-                    color = Color.White,
-                    start = Offset(
-                        closureX - 5.dp.toPx(),
-                        closureY - 5.dp.toPx()
-                    ),
-                    end = Offset(
-                        closureX + 5.dp.toPx(),
-                        closureY + 5.dp.toPx()
-                    ),
-                    strokeWidth = 2.dp.toPx()
-                )
-            }
+    val mapView = remember {
+        Configuration.getInstance().userAgentValue =
+            context.packageName
 
-            val pulseRadius = pulseProgress * 20.dp.toPx()
+        MapView(context).apply {
+            setTileSource(TileSourceFactory.MAPNIK)
+            setMultiTouchControls(true)
+            setBuiltInZoomControls(true)
+            controller.setZoom(15.0)
+            controller.setCenter(
+                GeoPoint(latitude, longitude)
+            )
+        }
+    }
 
-            drawCircle(
-                color = SashioGold.copy(
-                    alpha = (1f - pulseProgress).coerceIn(0f, 1f)
-                ),
-                center = targetPos,
-                radius = pulseRadius
+    LaunchedEffect(latitude, longitude, zoomFactor) {
+        mapView.controller.setCenter(
+            GeoPoint(latitude, longitude)
+        )
+
+        val zoom = (15.0 * zoomFactor)
+            .coerceIn(3.0, 20.0)
+
+        mapView.controller.setZoom(zoom)
+    }
+
+    AndroidView(
+        factory = { mapView },
+        modifier = Modifier.fillMaxSize(),
+        update = { map ->
+            map.overlays.clear()
+
+            val venueMarker = Marker(map)
+
+            venueMarker.position = GeoPoint(
+                latitude,
+                longitude
             )
 
-            drawCircle(
-                color = SashioGreen,
-                center = depotPos,
-                radius = 7.dp.toPx()
+            venueMarker.title =
+                if (label.isNotBlank()) label
+                else "Booking venue"
+
+            venueMarker.snippet =
+                "Booking location"
+
+            venueMarker.setAnchor(
+                Marker.ANCHOR_CENTER,
+                Marker.ANCHOR_BOTTOM
             )
 
-            drawCircle(
-                color = Color.White,
-                center = depotPos,
-                radius = 3.dp.toPx()
-            )
+            map.overlays.add(venueMarker)
+            map.invalidate()
+        }
+    )
 
-            drawCircle(
-                color = SashioSlate,
-                center = vehiclePos,
-                radius = 10.dp.toPx()
-            )
+    DisposableEffect(mapView) {
+        mapView.onResume()
 
-            drawCircle(
-                color = SashioGold,
-                center = vehiclePos,
-                radius = 6.dp.toPx()
-            )
-
-            drawCircle(
-                color = Color.White,
-                center = vehiclePos,
-                radius = 2.dp.toPx()
-            )
-
-            drawCircle(
-                color = SashioTeal,
-                center = staffPos,
-                radius = 6.dp.toPx()
-            )
-
-            drawCircle(
-                color = Color.White,
-                center = staffPos,
-                radius = 2.dp.toPx()
-            )
-
-            if (label.isNotBlank()) {
-                drawCircle(
-                    color = SashioRed,
-                    center = targetPos,
-                    radius = 5.dp.toPx()
-                )
-            }
-                    }
-
-        Row(
-            modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .padding(12.dp)
-                .background(Color.Black.copy(alpha = 0.72f), RoundedCornerShape(8.dp))
-                .padding(6.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SashioGreen))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Depot", color = Color.White, fontSize = 8.sp)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SashioGold))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Hauler V", color = Color.White, fontSize = 8.sp)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SashioTeal))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Attendant", color = Color.White, fontSize = 8.sp)
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(SashioRed))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Venue", color = Color.White, fontSize = 8.sp)
-            }
+        onDispose {
+            mapView.onPause()
+            mapView.onDetach()
         }
     }
 }
