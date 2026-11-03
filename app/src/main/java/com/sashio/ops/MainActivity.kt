@@ -24,8 +24,8 @@ class MainActivity : FragmentActivity() {
     private val viewModel: SashioViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-
+     super.onCreate(savedInstanceState)
+SupabaseProvider.client.handleDeeplinks(intent)
         Configuration.getInstance().userAgentValue =
             applicationContext.packageName
 
@@ -45,7 +45,7 @@ class MainActivity : FragmentActivity() {
             }
         }
 
-        SupabaseProvider.client.handleDeeplinks(intent)
+        
 handleDeepLink(intent)
     }
 
