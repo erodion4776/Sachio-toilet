@@ -226,7 +226,7 @@ object SupabaseProvider {
             requestTimeout = 30.seconds
             install(Auth) {
                 scheme = "sachioexpress"
-                host = "reset-password"
+                host = "login-callback"
             }
             install(Postgrest)
         }
