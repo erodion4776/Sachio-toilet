@@ -1184,18 +1184,28 @@ fun staffUpdateBookingStatus(
     }
 }
 
-    fun adminDeleteSupabaseCatalogItem(id: String, onComplete: () -> Unit = {}) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("catalog_items").delete {
-                    filter { eq("id", id) }
+
+    fun adminDeleteSupabaseCatalogItem(
+    id: String,
+    onComplete: () -> Unit = {}
+) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "admin_delete_catalog_item",
+                parameters = buildJsonObject {
+                    put("p_id", id)
                 }
-                loadSupabaseCatalogItems()
-                onComplete()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not delete catalog item: ${e.message}"
-            }
+            )
+
+            loadSupabaseCatalogItems()
+            _roleManagementError.value = null
+            onComplete()
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not delete catalog item: ${e.message}"
         }
+    }
     }
 
     // --- Password Reset & Recovery ---
