@@ -264,7 +264,8 @@ fun StaffDashboardJobsTab(
                         )
 
                         HorizontalDivider()
-
+                       
+                        Text("ASSIGNED STAFF: ${booking.assigned_staff_name ?: "Not assigned"}")
                         Text("CLIENT: ${booking.client_name}")
                         Text("PHONE: ${booking.client_phone}")
                         Text("BUSINESS: ${booking.company_name.ifBlank { "Private Client" }}")
