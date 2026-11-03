@@ -1,3 +1,4 @@
+
 package com.sashio.ops.data
 
 import io.github.jan.supabase.auth.providers.Google
@@ -49,7 +50,7 @@ data class SupabaseCatalogItem(
 )
 
 /**
- * Maps a remote Supabase catalog item into the local UI/Room model shape.
+ * Maps a remote Supabase catalog item into the local Room model.
  */
 fun SupabaseCatalogItem.toCatalogItem(): CatalogItem = CatalogItem(
     title = title,
@@ -58,7 +59,9 @@ fun SupabaseCatalogItem.toCatalogItem(): CatalogItem = CatalogItem(
     variantName = variant_name,
     basePrice = base_price,
     imageUrl = image_url,
-    imageUrls = image_urls.ifEmpty { if (image_url.isNotBlank()) listOf(image_url) else emptyList() },
+    imageUrls = image_urls.ifEmpty {
+        if (image_url.isNotBlank()) listOf(image_url) else emptyList()
+    },
     videoUrl = video_url,
     features = features,
     specifications = specifications,
@@ -149,7 +152,7 @@ data class SupabaseMessage(
     val sender_name: String = "",
     val sender_role: String = "client",
     val recipient_id: String? = null,
-    val recipient_role: String? = null, // "staff" | "client" | "admin" | "all" | null
+    val recipient_role: String? = null,
     val content: String = "",
     val created_at: String = ""
 )
@@ -210,6 +213,21 @@ data class SupabaseAttendance(
     val location_verified: String? = null,
     val is_verified: Boolean = true,
     val created_at: String = ""
+)
+
+/**
+ * Latest real GPS location for an assigned staff member.
+ */
+@Serializable
+data class BookingLiveLocation(
+    val booking_id: String,
+    val staff_id: String,
+    val latitude: Double,
+    val longitude: Double,
+    val accuracy_m: Double? = null,
+    val heading: Double? = null,
+    val speed_mps: Double? = null,
+    val updated_at: String
 )
 
 object SupabaseProvider {
