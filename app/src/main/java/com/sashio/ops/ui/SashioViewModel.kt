@@ -1136,48 +1136,53 @@ fun staffUpdateBookingStatus(
     }
 
     fun adminUpdateSupabaseCatalogItem(
-        id: String,
-        title: String,
-        description: String,
-        modelNumber: String,
-        variantName: String,
-        basePrice: Double,
-        imageUrl: String,
-        imageUrls: List<String>,
-        videoUrl: String,
-        features: String,
-        specifications: String,
-        benefits: String,
-        useCases: String,
-        onComplete: () -> Unit
-    ) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("catalog_items").update(
-                    buildJsonObject {
-                        put("title", title)
-                        put("description", description)
-                        put("model_number", modelNumber)
-                        put("variant_name", variantName)
-                        put("base_price", basePrice)
-                        put("image_url", imageUrl)
-                        putJsonArray("image_urls") { imageUrls.forEach { add(it) } }
-                        put("video_url", videoUrl)
-                        put("features", features)
-                        put("specifications", specifications)
-                        put("benefits", benefits)
-                        put("use_cases", useCases)
+    id: String,
+    title: String,
+    description: String,
+    modelNumber: String,
+    variantName: String,
+    basePrice: Double,
+    imageUrl: String,
+    imageUrls: List<String>,
+    videoUrl: String,
+    features: String,
+    specifications: String,
+    benefits: String,
+    useCases: String,
+    onComplete: () -> Unit
+) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "admin_update_catalog_item",
+                parameters = buildJsonObject {
+                    put("p_id", id)
+                    put("p_title", title)
+                    put("p_description", description)
+                    put("p_model_number", modelNumber)
+                    put("p_variant_name", variantName)
+                    put("p_base_price", basePrice)
+                    put("p_image_url", imageUrl)
+                    putJsonArray("p_image_urls") {
+                        imageUrls.forEach { add(it) }
                     }
-                ) {
-                    filter { eq("id", id) }
+                    put("p_video_url", videoUrl)
+                    put("p_features", features)
+                    put("p_specifications", specifications)
+                    put("p_benefits", benefits)
+                    put("p_use_cases", useCases)
                 }
-                loadSupabaseCatalogItems()
-                onComplete()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not update catalog item: ${e.message}"
-            }
+            )
+
+            loadSupabaseCatalogItems()
+            _roleManagementError.value = null
+            onComplete()
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not update catalog item: ${e.message}"
         }
     }
+}
 
     fun adminDeleteSupabaseCatalogItem(id: String, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
