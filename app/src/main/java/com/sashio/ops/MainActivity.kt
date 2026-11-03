@@ -44,7 +44,8 @@ class MainActivity : FragmentActivity() {
             }
         }
 
-        handleDeepLink(intent)
+        SupabaseProvider.client.handleDeeplinks(intent)
+handleDeepLink(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
