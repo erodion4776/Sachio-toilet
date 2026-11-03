@@ -470,8 +470,10 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
         error.contains("connect") ->
             "Connection problem. Please check your internet and try again."
 
-        else ->
+                else ->
             "We couldn't log you in right now. Please try again."
+    }
+}
     }
 }
 
