@@ -777,18 +777,27 @@ fun completeGoogleSignIn() {
     }
 
     fun adminDeleteBooking(bookingId: String, onComplete: () -> Unit = {}) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("bookings").delete {
-                    filter { eq("id", bookingId) }
+    
+fun adminDeleteBooking(bookingId: String, onComplete: () -> Unit = {}) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "admin_delete_booking",
+                parameters = buildJsonObject {
+                    put("p_booking_id", bookingId)
                 }
-                loadSupabaseBookings()
-                onComplete()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not delete quotation: ${e.message}"
-            }
+            )
+
+            loadSupabaseBookings()
+            _roleManagementError.value = null
+            onComplete()
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not delete booking: ${e.message}"
         }
     }
+}
+
 
     fun adminIssueQuotation(
     bookingId: String,
