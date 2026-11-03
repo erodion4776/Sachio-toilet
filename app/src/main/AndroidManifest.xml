@@ -1,3 +1,4 @@
+
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
@@ -8,18 +9,10 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-<uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
-<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.USE_BIOMETRIC" />
-<service
-    android:name=".location.StaffLocationService"
-    android:exported="false"
-    android:foregroundServiceType="location" />
-<service
-    android:name=".location.StaffLocationService"
-    android:exported="false"
-    android:foregroundServiceType="location" />
-    
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -30,19 +23,23 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MyApplication">
 
+        <service
+            android:name=".location.StaffLocationService"
+            android:exported="false"
+            android:foregroundServiceType="location" />
+
         <activity
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
             android:launchMode="singleTask"
             android:theme="@style/Theme.MyApplication">
-            
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- Deep link filters for Paystack Payment Completion and Cancellation -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
@@ -55,6 +52,7 @@
                 <data android:scheme="sachioexpress" android:host="reset-password" />
                 <data android:scheme="sachioexpress" android:host="login-callback" />
             </intent-filter>
+
         </activity>
     </application>
 
