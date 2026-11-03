@@ -444,18 +444,16 @@ fun StaffDashboardMapsTab(
 
         if (hasValidCoordinates) {
 
-            SashioCanvasMap(
-                latitude = destLat,
-                longitude = destLng,
-                staffLat = vehicleLat,
-                staffLng = vehicleLng,
-                vehicleLat = vehicleLat,
-                vehicleLng = vehicleLng,
-                showRoute = true,
-                label = "Event Venue: $address"
-            )
-
-        } else {
+            SashioInteractiveCanvasMap(
+    latitude = destLat,
+    longitude = destLng,
+    staffLat = destLat,
+    staffLng = destLng,
+    vehicleLat = destLat,
+    vehicleLng = destLng,
+    showRoute = false,
+    label = "Event Venue: $address"
+)
 
             Box(
                 modifier = Modifier.fillMaxSize(),
