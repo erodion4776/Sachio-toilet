@@ -825,7 +825,9 @@ fun LiveRadarDetailTab(
                 }
             }
         }
-                                                
+    }
+}
+
 @Composable
 fun LiveChatInteractiveTab(
     viewModel: SashioViewModel,
