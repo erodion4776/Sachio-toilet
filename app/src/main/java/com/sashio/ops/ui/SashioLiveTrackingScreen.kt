@@ -79,12 +79,8 @@ fun SashioLiveTrackingScreen(
     val trackers by viewModel.activeLiveTrackers.collectAsStateWithLifecycle()
 
     val tracker = trackers[bookingId] ?: LiveTrackingState(
-        bookingId = bookingId,
-        staffLat = booking.latitude - 0.05,
-        staffLng = booking.longitude - 0.04,
-        vehicleLat = booking.latitude - 0.048,
-        vehicleLng = booking.longitude - 0.038
-    )
+    bookingId = bookingId
+)
 
     var currentTab by remember { mutableStateOf("radar") }
     var zoomLevel by remember { mutableStateOf(1f) }
