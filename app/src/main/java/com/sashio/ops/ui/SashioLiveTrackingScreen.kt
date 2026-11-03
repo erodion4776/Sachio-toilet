@@ -738,10 +738,9 @@ fun SashioInteractiveCanvasMap(
             GeoPoint(latitude, longitude)
         )
 
-        val zoom = (15.0 * zoomFactor)
-            .coerceIn(3.0, 20.0)
-
-        mapView.controller.setZoom(zoom)
+        mapView.controller.setZoom(
+            (15.0 * zoomFactor).coerceIn(3.0, 20.0)
+        )
     }
 
     AndroidView(
@@ -751,18 +750,10 @@ fun SashioInteractiveCanvasMap(
             map.overlays.clear()
 
             val venueMarker = Marker(map)
-
-            venueMarker.position = GeoPoint(
-                latitude,
-                longitude
-            )
-
+            venueMarker.position = GeoPoint(latitude, longitude)
             venueMarker.title =
-                if (label.isNotBlank()) label
-                else "Booking venue"
-
-            venueMarker.snippet =
-                "Booking location"
+                if (label.isNotBlank()) label else "Booking venue"
+            venueMarker.snippet = "Booking location"
 
             venueMarker.setAnchor(
                 Marker.ANCHOR_CENTER,
