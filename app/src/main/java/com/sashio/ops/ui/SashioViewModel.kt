@@ -452,9 +452,28 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
                     "admin" -> _currentScreen.value = "admin_dashboard"
                 }
             } catch (e: Exception) {
-                _loginError.value = "Supabase Shield Connection: ${e.localizedMessage ?: e.message ?: "Invalid credentials or network failure"}"
-            }
-        }
+    val error = (e.message ?: "").lowercase()
+
+    _loginError.value = when {
+        error.contains("invalid login credentials") ->
+            "Incorrect email or password. Please try again."
+
+        error.contains("email not confirmed") ->
+            "Please verify your email before logging in."
+
+        error.contains("too many requests") ||
+        error.contains("rate limit") ->
+            "Too many login attempts. Please wait a moment and try again."
+
+        error.contains("network") ||
+        error.contains("timeout") ||
+        error.contains("connect") ->
+            "Connection problem. Please check your internet and try again."
+
+        else ->
+            "We couldn't log you in right now. Please try again."
+    }
+}
     }
 fun completeGoogleSignIn() {
     viewModelScope.launch {
