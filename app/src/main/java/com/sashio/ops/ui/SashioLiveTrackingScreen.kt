@@ -825,18 +825,7 @@ fun LiveRadarDetailTab(
                 }
             }
         }
-                                                colors.onSurfaceVariant.copy(alpha = 0.65f)
-                                    }
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
+                                                
 @Composable
 fun LiveChatInteractiveTab(
     viewModel: SashioViewModel,
