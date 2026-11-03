@@ -2021,43 +2021,40 @@ fun rejectExpenseClaim(id: String) {
     }
 
     fun clockOutStaff(onComplete: () -> Unit = {}) {
-        _isClockedIn.value = false
-        val nowIso = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ssXXX", Locale.getDefault()).format(Date())
-        viewModelScope.launch {
-            try {
-                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
-                val staffId = supaUser?.id ?: _currentUser.value?.id?.toString()
+    fun clockOutStaff(onComplete: () -> Unit = {}) {
+    viewModelScope.launch {
+        try {
+            val staffId = SupabaseProvider.client.auth
+                .currentUserOrNull()?.id
+                ?: throw Exception("User is not authenticated")
 
-                if (staffId != null) {
-                    val openRecords = _supabaseAttendance.value.filter { 
-                        it.staff_id == staffId && it.clock_out_time.isNullOrBlank() 
-                    }
-                    val latest = openRecords.firstOrNull()
-                    if (latest != null) {
-                        SupabaseProvider.client.postgrest.from("staff_attendance").update(
-                            buildJsonObject { put("clock_out_time", nowIso) }
-                        ) {
-                            filter { eq("id", latest.id) }
-                        }
-                    }
-                }
-                loadSupabaseAttendance()
-                onComplete()
-            } catch (e: Exception) {
-                val nowStr = SimpleDateFormat("hh:mm a", Locale.getDefault()).format(Date())
-                _attendanceHistory.update { list ->
-                    list.mapIndexed { idx, log ->
-                        if (idx == 0 && log.clockOutTime == null) {
-                            log.copy(clockOutTime = nowStr, status = "Completed")
-                        } else {
-                            log
-                        }
-                    }
-                }
-                onComplete()
+            val openRecords = _supabaseAttendance.value.filter {
+                it.staff_id == staffId &&
+                it.clock_out_time.isNullOrBlank()
             }
+
+            val latest = openRecords.firstOrNull()
+                ?: throw Exception("No open attendance record found")
+
+            SupabaseProvider.client.postgrest.rpc(
+                function = "staff_clock_out",
+                parameters = buildJsonObject {
+                    put("p_id", latest.id)
+                }
+            )
+
+            _isClockedIn.value = false
+            _roleManagementError.value = null
+
+            loadSupabaseAttendance()
+            onComplete()
+
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not clock out: ${e.message}"
         }
     }
+}
 
     fun submitInspectionReport(
         bookingId: Long,
