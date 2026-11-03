@@ -1,6 +1,7 @@
 
 package com.sashio.ops
 
+import io.github.jan.supabase.auth.handleDeeplinks
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
