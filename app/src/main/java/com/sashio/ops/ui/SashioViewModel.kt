@@ -754,19 +754,24 @@ fun adminSetUserRole(userId: String, newRole: String) {
     }
 
     fun adminSetProfileSuspended(userId: String, suspended: Boolean) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("profiles").update(
-                    buildJsonObject { put("suspended", suspended) }
-                ) {
-                    filter { eq("id", userId) }
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "admin_set_profile_suspended",
+                parameters = buildJsonObject {
+                    put("p_user_id", userId)
+                    put("p_suspended", suspended)
                 }
-                loadSupabaseProfiles()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not update status: ${e.message}"
-            }
+            )
+
+            loadSupabaseProfiles()
+            _roleManagementError.value = null
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not update status: ${e.message}"
         }
     }
+}
 
     // --- Bookings & Quotation Workflows ---
     fun loadSupabaseBookings() {
