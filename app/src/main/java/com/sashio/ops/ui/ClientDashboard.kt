@@ -102,29 +102,7 @@ fun ClientDashboard(viewModel: SashioViewModel, client: UserProfile?) {
                 }
             }
         },
-        floatingActionButton = {
-            if (activeTab != "home" && !isBookingFormOpen && !isSettingsOpen) {
-                ExtendedFloatingActionButton(
-                    onClick = {
-                        selectedCategoryForQuote =
-                            "Presidential Luxury Mobile Restrooms"
-                        isBookingFormOpen = true
-                    },
-                    containerColor = SashioGold,
-                    contentColor = Color.White,
-                    icon = {
-                        Icon(Icons.Default.Add, contentDescription = null)
-                    },
-                    text = {
-                        Text(
-                            "Request Quotation",
-                            fontWeight = FontWeight.Bold
-                        )
-                    },
-                    modifier = Modifier.testTag("book_restroom_fab")
-                )
-            }
-        }
+        
     ) { innerPadding ->
         Box(
             modifier = Modifier
