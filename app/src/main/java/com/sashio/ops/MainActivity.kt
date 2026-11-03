@@ -72,13 +72,11 @@ handleDeepLink(intent)
                 viewModel.handlePaymentCancelled()
             }
 
-            "reset-password" -> {
-    handleAuthenticationDeepLink(uri)
-}
-}
+                        "reset-password" -> {
+                handleAuthenticationDeepLink(uri)
+            }
         }
     }
-
     private fun handlePaymentDeepLink(uri: Uri) {
         val reference = uri.getQueryParameter("reference")
             ?: uri.getQueryParameter("trxref")
