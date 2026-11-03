@@ -50,6 +50,11 @@ handleDeepLink(intent)
     }
 
     override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    SupabaseProvider.client.handleDeeplinks(intent)
+    handleDeepLink(intent)
+}
         super.onNewIntent(intent)
         setIntent(intent)
         handleDeepLink(intent)
