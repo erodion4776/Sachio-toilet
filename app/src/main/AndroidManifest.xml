@@ -42,6 +42,7 @@
                 <data android:scheme="sachioexpress" android:host="payment-cancel" />
                 <data android:scheme="sachioexpress" android:host="payment-cancelled" />
                 <data android:scheme="sachioexpress" android:host="reset-password" />
+                <data android:scheme="sachioexpress" android:host="login-callback" />
             </intent-filter>
         </activity>
     </application>
