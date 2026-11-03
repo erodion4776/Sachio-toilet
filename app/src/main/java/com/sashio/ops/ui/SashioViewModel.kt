@@ -2037,8 +2037,8 @@ fun rejectExpenseClaim(id: String) {
         }
     }
 
-    fun clockOutStaff(onComplete: () -> Unit = {}) {
-    fun clockOutStaff(onComplete: () -> Unit = {}) {
+    
+fun clockOutStaff(onComplete: () -> Unit = {}) {
     viewModelScope.launch {
         try {
             val staffId = SupabaseProvider.client.auth
