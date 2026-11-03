@@ -69,9 +69,10 @@ class MainActivity : FragmentActivity() {
                 viewModel.handlePaymentCancelled()
             }
 
-            "reset-password" -> {
-                handleAuthenticationDeepLink(uri)
-            }
+            "reset-password",
+"login-callback" -> {
+    handleAuthenticationDeepLink(uri)
+}
         }
     }
 
