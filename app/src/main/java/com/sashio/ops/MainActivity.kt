@@ -72,9 +72,9 @@ handleDeepLink(intent)
                 viewModel.handlePaymentCancelled()
             }
 
-            "reset-password",
-"login-callback" -> {
+            "reset-password" -> {
     handleAuthenticationDeepLink(uri)
+}
 }
         }
     }
