@@ -482,17 +482,25 @@ fun completeGoogleSignIn() {
         _loginError.value = null
 
         try {
-            // Get the authenticated Google user from Supabase
-            val finalUser = SupabaseProvider.client.auth.currentUserOrNull()
+            // Wait up to 10 seconds for Supabase to finish
+            // processing the Google callback.
+            var finalUser = SupabaseProvider.client.auth.currentUserOrNull()
+
+            repeat(20) {
+                if (finalUser != null) return@repeat
+                delay(500)
+                finalUser = SupabaseProvider.client.auth.currentUserOrNull()
+            }
+
             val uid = finalUser?.id
 
             if (uid.isNullOrBlank()) {
                 _loginError.value =
-                    "Google sign-in failed: No valid Supabase session was found."
+                    "Google sign-in failed: Supabase session was not received. Please try again."
+                _currentScreen.value = "login"
                 return@launch
             }
 
-            // Retrieve the user's existing profile
             val dbProfile = SupabaseProvider.client.postgrest
                 .from("profiles")
                 .select {
@@ -502,7 +510,6 @@ fun completeGoogleSignIn() {
                 }
                 .decodeSingle<SupabaseProfile>()
 
-            // Convert Supabase profile into the app's user model
             val user = UserProfile(
                 id = 1,
                 name = dbProfile.full_name ?: dbProfile.email,
@@ -512,24 +519,13 @@ fun completeGoogleSignIn() {
                 companyName = dbProfile.company_name ?: ""
             )
 
-            // Update the logged-in user
             _currentUser.value = user
             _loginError.value = null
 
-            // Open the correct dashboard
             when (user.role.lowercase()) {
-                "client" -> {
-                    _currentScreen.value = "client_dashboard"
-                }
-
-                "staff" -> {
-                    _currentScreen.value = "staff_dashboard"
-                }
-
-                "admin" -> {
-                    _currentScreen.value = "admin_dashboard"
-                }
-
+                "client" -> _currentScreen.value = "client_dashboard"
+                "staff" -> _currentScreen.value = "staff_dashboard"
+                "admin" -> _currentScreen.value = "admin_dashboard"
                 else -> {
                     _currentUser.value = null
                     _loginError.value =
