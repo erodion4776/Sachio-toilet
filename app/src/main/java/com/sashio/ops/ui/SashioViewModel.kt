@@ -474,7 +474,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
             "We couldn't log you in right now. Please try again."
     }
 }
-    }
+
 fun completeGoogleSignIn() {
     viewModelScope.launch {
         _loginError.value = null
