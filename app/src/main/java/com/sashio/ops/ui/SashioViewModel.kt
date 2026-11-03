@@ -717,20 +717,27 @@ fun completeGoogleSignIn() {
         }
     }
 
-    fun adminSetUserRole(userId: String, newRole: String) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("profiles").update(
-                    buildJsonObject { put("role", newRole) }
-                ) {
-                    filter { eq("id", userId) }
+    
+fun adminSetUserRole(userId: String, newRole: String) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "admin_set_user_role",
+                parameters = buildJsonObject {
+                    put("p_user_id", userId)
+                    put("p_new_role", newRole)
                 }
-                loadSupabaseProfiles()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not update role: ${e.message}"
-            }
+            )
+
+            loadSupabaseProfiles()
+            _roleManagementError.value = null
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not update role: ${e.message}"
         }
     }
+}
+
 
     fun adminDeleteUserProfile(userId: String, onComplete: () -> Unit = {}) {
         viewModelScope.launch {
