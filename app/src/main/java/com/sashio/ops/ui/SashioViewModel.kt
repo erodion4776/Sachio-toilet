@@ -740,18 +740,28 @@ fun adminSetUserRole(userId: String, newRole: String) {
 
 
     fun adminDeleteUserProfile(userId: String, onComplete: () -> Unit = {}) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("profiles").delete {
-                    filter { eq("id", userId) }
+    fun adminDeleteUserProfile(
+    userId: String,
+    onComplete: () -> Unit = {}
+) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "admin_delete_user_profile",
+                parameters = buildJsonObject {
+                    put("p_user_id", userId)
                 }
-                loadSupabaseProfiles()
-                onComplete()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not delete user: ${e.message}"
-            }
+            )
+
+            loadSupabaseProfiles()
+            _roleManagementError.value = null
+            onComplete()
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not delete user: ${e.message}"
         }
     }
+}
 
     fun adminSetProfileSuspended(userId: String, suspended: Boolean) {
     viewModelScope.launch {
