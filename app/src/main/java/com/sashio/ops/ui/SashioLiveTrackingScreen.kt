@@ -298,8 +298,7 @@ fun SashioLiveTrackingScreen(
                         fontWeight = FontWeight.Bold
                     )
                 }
-
-                Button(
+                                Button(
                     onClick = {
                         simulateRoadClosure = !simulateRoadClosure
 
@@ -500,207 +499,6 @@ fun SashioLiveTrackingScreen(
         }
     }
 }
-
-@Composable
-fun SashioInteractiveCanvasMap(
-    latitude: Double,
-    longitude: Double,
-    staffLat: Double,
-    staffLng: Double,
-    vehicleLat: Double,
-    vehicleLng: Double,
-    mapStyle: String = "Standard",
-    showRoute: Boolean = true,
-    alternateRoute: Boolean = false,
-    roadClosureSelected: Boolean = false,
-    zoomFactor: Float = 1.0f,
-    label: String = ""
-) {
-    val infiniteTransition = rememberInfiniteTransition(
-        label = "radar_pulse"
-    )
-
-    val pulseProgress by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 1f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 2000),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "radar_pulse_progress"
-    )
-
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .clip(
-                RoundedCornerShape(
-                    bottomStart = 24.dp,
-                    bottomEnd = 24.dp
-                )
-            )
-    ) {
-        val bgGrad = when (mapStyle) {
-            "Satellite" -> Brush.verticalGradient(
-                listOf(
-                    Color(0xFF0F2012),
-                    Color(0xFF1B311E)
-                )
-            )
-
-            "Traffic" -> Brush.verticalGradient(
-                listOf(
-                    Color(0xFFE9EEEC),
-                    Color(0xFFD6DFDC)
-                )
-            )
-
-            "Operations" -> Brush.verticalGradient(
-                listOf(
-                    Color(0xFF1E293B),
-                    Color(0xFF0F172A)
-                )
-            )
-
-            else -> Brush.verticalGradient(
-                listOf(
-                    Color(0xFFEDF4F7),
-                    Color(0xFFE2EBF1)
-                )
-            )
-        }
-
-        Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(bgGrad)
-        ) {
-            val canvasW = size.width
-            val canvasH = size.height
-            val cX = canvasW / 2f
-            val cY = canvasH / 2f
-            val zoom = 4000f * zoomFactor
-
-            fun getCanvasPos(
-                lat: Double,
-                lng: Double
-            ): Offset {
-                val dx = (lng - longitude) * zoom
-                val dy = (latitude - lat) * zoom
-
-                return Offset(
-                    cX + dx.toFloat(),
-                    cY + dy.toFloat()
-                )
-            }
-
-            val targetPos = Offset(cX, cY)
-            val staffPos = getCanvasPos(staffLat, staffLng)
-            val vehiclePos = getCanvasPos(vehicleLat, vehicleLng)
-
-            val depotPos = getCanvasPos(
-                latitude - 0.05,
-                longitude - 0.04
-            )
-
-            val roadColor = when (mapStyle) {
-                "Satellite" -> Color.White.copy(alpha = 0.15f)
-                "Operations" -> Color(0xFF334155)
-                else -> Color.White
-            }
-
-            val scale = zoomFactor
-
-            for (offset in -4..4) {
-                val gridY = cY + offset * 110f * scale
-                val gridX = cX + offset * 150f * scale
-
-                drawLine(
-                    color = roadColor,
-                    start = Offset(0f, gridY),
-                    end = Offset(canvasW, gridY),
-                    strokeWidth = 6.dp.toPx()
-                )
-
-                drawLine(
-                    color = roadColor,
-                    start = Offset(gridX, 0f),
-                    end = Offset(gridX, canvasH),
-                    strokeWidth = 6.dp.toPx()
-                )
-            }
-
-            if (mapStyle == "Traffic") {
-                drawLine(
-                    color = SashioRed.copy(alpha = 0.8f),
-                    start = depotPos,
-                    end = targetPos,
-                    strokeWidth = 4.dp.toPx()
-                )
-            }
-
-            if (showRoute) {
-                val pathColor = if (mapStyle == "Operations") {
-                    SashioGold
-                } else {
-                    SashioSlate
-                }
-
-                drawLine(
-                    color = pathColor.copy(alpha = 0.7f),
-                    start = depotPos,
-                    end = targetPos,
-                    strokeWidth = 3.dp.toPx()
-                )
-            }
-
-            if (alternateRoute) {
-                val bypassColor = SashioTeal
-                val steps = 20
-
-                var currentX = depotPos.x
-                var currentY = depotPos.y
-
-                val targetX = targetPos.x
-                val targetY = targetPos.y
-
-                for (step in 0 until steps) {
-                    val nextPct = (step + 1).toFloat() / steps
-
-                    val tX =
-                        depotPos.x +
-                            nextPct * (targetX - depotPos.x) +
-                            sin(nextPct * Math.PI.toFloat()) * 90f * scale
-
-                    val tY =
-                        depotPos.y +
-                            nextPct * (targetY - depotPos.y) -
-                            cos(nextPct * Math.PI.toFloat()) * 50f * scale
-
-                    drawLine(
-                        color = bypassColor,
-                        start = Offset(currentX, currentY),
-                        end = Offset(tX, tY),
-                        strokeWidth = 3.dp.toPx()
-                    )
-
-                    currentX = tX
-                    currentY = tY
-                }
-            }
-
-            if (roadClosureSelected) {
-                val closureX =
-                    depotPos.x + 0.5f * (targetPos.x - depotPos.x)
-
-                val closureY =
-                    depotPos.y + 0.5f * (targetPos.y - depotPos.y)
-
-                drawCircle(
-                    color = SashioRed,
-                    center = Offset(closureX, closureY),
-                    radius = 9.dp.toPx()
-                )
 @Composable
 fun SashioInteractiveCanvasMap(
     latitude: Double,
@@ -719,25 +517,19 @@ fun SashioInteractiveCanvasMap(
     val context = LocalContext.current
 
     val mapView = remember {
-        Configuration.getInstance().userAgentValue =
-            context.packageName
+        Configuration.getInstance().userAgentValue = context.packageName
 
         MapView(context).apply {
             setTileSource(TileSourceFactory.MAPNIK)
             setMultiTouchControls(true)
             setBuiltInZoomControls(true)
             controller.setZoom(15.0)
-            controller.setCenter(
-                GeoPoint(latitude, longitude)
-            )
+            controller.setCenter(GeoPoint(latitude, longitude))
         }
     }
 
     LaunchedEffect(latitude, longitude, zoomFactor) {
-        mapView.controller.setCenter(
-            GeoPoint(latitude, longitude)
-        )
-
+        mapView.controller.setCenter(GeoPoint(latitude, longitude))
         mapView.controller.setZoom(
             (15.0 * zoomFactor).coerceIn(3.0, 20.0)
         )
@@ -749,16 +541,15 @@ fun SashioInteractiveCanvasMap(
         update = { map ->
             map.overlays.clear()
 
-            val venueMarker = Marker(map)
-            venueMarker.position = GeoPoint(latitude, longitude)
-            venueMarker.title =
-                if (label.isNotBlank()) label else "Booking venue"
-            venueMarker.snippet = "Booking location"
-
-            venueMarker.setAnchor(
-                Marker.ANCHOR_CENTER,
-                Marker.ANCHOR_BOTTOM
-            )
+            val venueMarker = Marker(map).apply {
+                position = GeoPoint(latitude, longitude)
+                title = if (label.isNotBlank()) label else "Booking venue"
+                snippet = "Booking location"
+                setAnchor(
+                    Marker.ANCHOR_CENTER,
+                    Marker.ANCHOR_BOTTOM
+                )
+            }
 
             map.overlays.add(venueMarker)
             map.invalidate()
@@ -774,7 +565,6 @@ fun SashioInteractiveCanvasMap(
         }
     }
 }
-
 @Composable
 fun LiveRadarDetailTab(
     viewModel: SashioViewModel,
@@ -1026,7 +816,16 @@ fun LiveRadarDetailTab(
                                     color = if (isDone) {
                                         colors.onSurfaceVariant
                                     } else {
-                                        colors.onSurfaceVariant.copy(alpha = 0.65f)
+                                        colors.onSurfaceVariant.copy(alpha = 0.6f)
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+                                                colors.onSurfaceVariant.copy(alpha = 0.65f)
                                     }
                                 )
                             }
