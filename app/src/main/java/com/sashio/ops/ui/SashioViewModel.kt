@@ -816,8 +816,7 @@ fun adminSetUserRole(userId: String, newRole: String) {
         }
     }
 
-    fun adminDeleteBooking(bookingId: String, onComplete: () -> Unit = {}) {
-    
+
 fun adminDeleteBooking(bookingId: String, onComplete: () -> Unit = {}) {
     viewModelScope.launch {
         try {
