@@ -758,7 +758,6 @@ fun adminSetUserRole(userId: String, newRole: String) {
 }
 
 
-    fun adminDeleteUserProfile(userId: String, onComplete: () -> Unit = {}) {
     fun adminDeleteUserProfile(
     userId: String,
     onComplete: () -> Unit = {}
