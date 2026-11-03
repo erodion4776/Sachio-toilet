@@ -56,27 +56,30 @@ handleDeepLink(intent)
     }
 
     private fun handleDeepLink(intent: Intent?) {
-        val uri = intent?.data ?: return
+    val uri = intent?.data ?: return
 
-        if (uri.scheme != "sachioexpress") return
+    if (uri.scheme != "sachioexpress") return
 
-        when (uri.host) {
+    when (uri.host) {
+        "payment-complete",
+        "payment-callback" -> {
+            handlePaymentDeepLink(uri)
+        }
 
-            "payment-complete",
-            "payment-callback" -> {
-                handlePaymentDeepLink(uri)
-            }
+        "payment-cancel",
+        "payment-cancelled" -> {
+            viewModel.handlePaymentCancelled()
+        }
 
-            "payment-cancel",
-            "payment-cancelled" -> {
-                viewModel.handlePaymentCancelled()
-            }
+        "login-callback" -> {
+            viewModel.completeGoogleSignIn()
+        }
 
-                        "reset-password" -> {
-                handleAuthenticationDeepLink(uri)
-            }
+        "reset-password" -> {
+            handleAuthenticationDeepLink(uri)
         }
     }
+}
     private fun handlePaymentDeepLink(uri: Uri) {
         val reference = uri.getQueryParameter("reference")
             ?: uri.getQueryParameter("trxref")
