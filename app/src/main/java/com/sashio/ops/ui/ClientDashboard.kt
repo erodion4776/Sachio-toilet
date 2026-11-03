@@ -103,7 +103,7 @@ fun ClientDashboard(viewModel: SashioViewModel, client: UserProfile?) {
             }
         },
         floatingActionButton = {
-            if (!isBookingFormOpen && !isSettingsOpen) {
+            if (activeTab != "home" && !isBookingFormOpen && !isSettingsOpen) {
                 ExtendedFloatingActionButton(
                     onClick = {
                         selectedCategoryForQuote =
