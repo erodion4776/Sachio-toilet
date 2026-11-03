@@ -1926,34 +1926,45 @@ fun staffUpdateBookingStatus(
     }
 
     fun approveExpenseClaim(id: String) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("expenses").update(
-                    buildJsonObject { put("status", "Approved") }
-                ) {
-                    filter { eq("id", id) }
+    fun approveExpenseClaim(id: String) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "admin_set_expense_status",
+                parameters = buildJsonObject {
+                    put("p_id", id)
+                    put("p_status", "Approved")
                 }
-                loadSupabaseExpenses()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not approve expense: ${e.message}"
-            }
-        }
-    }
+            )
 
-    fun rejectExpenseClaim(id: String) {
-        viewModelScope.launch {
-            try {
-                SupabaseProvider.client.postgrest.from("expenses").update(
-                    buildJsonObject { put("status", "Rejected") }
-                ) {
-                    filter { eq("id", id) }
-                }
-                loadSupabaseExpenses()
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not reject expense: ${e.message}"
-            }
+            loadSupabaseExpenses()
+            _roleManagementError.value = null
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not approve expense: ${e.message}"
         }
     }
+}
+
+fun rejectExpenseClaim(id: String) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "admin_set_expense_status",
+                parameters = buildJsonObject {
+                    put("p_id", id)
+                    put("p_status", "Rejected")
+                }
+            )
+
+            loadSupabaseExpenses()
+            _roleManagementError.value = null
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not reject expense: ${e.message}"
+        }
+    }
+}
 
     // --- Supabase-Backed Staff Attendance ---
     fun loadSupabaseAttendance() {
