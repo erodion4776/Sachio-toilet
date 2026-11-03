@@ -1942,8 +1942,8 @@ fun staffUpdateBookingStatus(
         }
     }
 
-    fun approveExpenseClaim(id: String) {
-    fun approveExpenseClaim(id: String) {
+
+fun approveExpenseClaim(id: String) {
     viewModelScope.launch {
         try {
             SupabaseProvider.client.postgrest.rpc(
