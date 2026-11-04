@@ -44,7 +44,17 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
     LaunchedEffect(Unit) {
         viewModel.loadClientSupabaseBookings()
     }
+LaunchedEffect(liveBookings) {
+    while (true) {
+        liveBookings
+            .filter { it.assigned_staff_id != null }
+            .forEach { booking ->
+                viewModel.loadBookingLiveLocation(booking.id)
+            }
 
+        kotlinx.coroutines.delay(15000)
+    }
+}
     if (activeTrackingBookingId != null) {
         SashioLiveTrackingScreen(
             viewModel = viewModel,
