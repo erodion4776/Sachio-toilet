@@ -982,7 +982,7 @@ fun staffUpdateBookingStatus(
                             venue_name = booking.venueName,
                             event_type = booking.eventType,
                             guest_count = booking.guestCount,
-                            event_date = booking.eventDate,
+                            event_date = booking.eventDate.takeIf { it.isNotBlank() },
                             cleaning_support = booking.cleaningSupport,
                             on_site_attendant = booking.onSiteAttendant,
                             waste_evacuation = booking.wasteEvacuation,
