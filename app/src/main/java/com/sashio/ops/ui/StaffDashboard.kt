@@ -1,4 +1,4 @@
-Jj=package com.sashio.ops.ui
+package com.sashio.ops.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
