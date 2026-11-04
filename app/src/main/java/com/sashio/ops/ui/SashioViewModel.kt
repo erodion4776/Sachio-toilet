@@ -1009,30 +1009,51 @@ fun staffUpdateBookingStatus(
     }
 }
 
+
     fun clientConvertCopyToBooking(
-        bookingId: Long,
-        serviceDate: String,
-        duration: String,
-        deliveryAddress: String,
-        specialInstructions: String,
-        onComplete: () -> Unit
-    ) {
-        viewModelScope.launch {
+    bookingId: Long,
+    remoteBookingId: String,
+    serviceDate: String,
+    duration: String,
+    deliveryAddress: String,
+    specialInstructions: String,
+    onComplete: () -> Unit
+) {
+    viewModelScope.launch {
+        try {
+            SupabaseProvider.client.postgrest.rpc(
+                function = "client_accept_booking_quotation",
+                parameters = buildJsonObject {
+                    put("p_booking_id", remoteBookingId)
+                    put("p_service_date", serviceDate)
+                    put("p_duration", duration)
+                    put("p_delivery_address", deliveryAddress)
+                    put("p_special_instructions", specialInstructions)
+                }
+            )
+
             val booking = database.sashioDao().getBookingById(bookingId)
             if (booking != null) {
-                val updatedBooking = booking.copy(
-                    eventDate = serviceDate,
-                    duration = duration,
-                    address = deliveryAddress,
-                    specialInstructions = specialInstructions,
-                    status = "Client Accepted"
+                repository.updateBooking(
+                    booking.copy(
+                        eventDate = serviceDate,
+                        duration = duration,
+                        address = deliveryAddress,
+                        specialInstructions = specialInstructions,
+                        status = "Client Accepted"
+                    )
                 )
-                repository.updateBooking(updatedBooking)
-                onComplete()
             }
+
+            loadClientSupabaseBookings()
+            _roleManagementError.value = null
+            onComplete()
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not accept quotation: ${e.message}"
         }
     }
-
+}
     fun clientRejectQuotation(bookingId: Long, onComplete: () -> Unit) {
         viewModelScope.launch {
             repository.updateBookingStatus(bookingId, "Cancelled")
