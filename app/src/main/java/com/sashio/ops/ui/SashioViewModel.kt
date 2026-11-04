@@ -957,50 +957,52 @@ fun staffUpdateBookingStatus(
     }
 
     fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
-        viewModelScope.launch {
-            repository.insertBooking(booking)
+    fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
+    viewModelScope.launch {
+        val localBookingId = repository.insertBooking(booking)
 
-            try {
-                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
-                if (supaUser != null) {
-                    SupabaseProvider.client.postgrest.from("bookings").insert(
-                        NewSupabaseBooking(
-                            client_id = supaUser.id,
-                            client_name = booking.clientName,
-                            client_phone = booking.clientPhone,
-                            client_email = booking.clientEmail,
-                            company_name = booking.companyName,
-                            service_mode = booking.serviceMode,
-                            service_type = booking.serviceType,
-                            variant_name = booking.variantName,
-                            model_number = booking.modelNumber,
-                            quantity = booking.quantity,
-                            duration = booking.duration,
-                            address = booking.address,
-                            latitude = booking.latitude,
-                            longitude = booking.longitude,
-                            venue_name = booking.venueName,
-                            event_type = booking.eventType,
-                            guest_count = booking.guestCount,
-                            event_date = booking.eventDate.takeIf { it.isNotBlank() },
-                            cleaning_support = booking.cleaningSupport,
-                            on_site_attendant = booking.onSiteAttendant,
-                            waste_evacuation = booking.wasteEvacuation,
-                            maintenance_support = booking.maintenanceSupport,
-                            special_instructions = booking.specialInstructions
-                        )
+        try {
+            val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
+            if (supaUser != null) {
+                SupabaseProvider.client.postgrest.from("bookings").insert(
+                    NewSupabaseBooking(
+                        client_id = supaUser.id,
+                        local_booking_id = localBookingId,
+                        client_name = booking.clientName,
+                        client_phone = booking.clientPhone,
+                        client_email = booking.clientEmail,
+                        company_name = booking.companyName,
+                        service_mode = booking.serviceMode,
+                        service_type = booking.serviceType,
+                        variant_name = booking.variantName,
+                        model_number = booking.modelNumber,
+                        quantity = booking.quantity,
+                        duration = booking.duration,
+                        address = booking.address,
+                        latitude = booking.latitude,
+                        longitude = booking.longitude,
+                        venue_name = booking.venueName,
+                        event_type = booking.eventType,
+                        guest_count = booking.guestCount,
+                        event_date = booking.eventDate.takeIf { it.isNotBlank() },
+                        cleaning_support = booking.cleaningSupport,
+                        on_site_attendant = booking.onSiteAttendant,
+                        waste_evacuation = booking.wasteEvacuation,
+                        maintenance_support = booking.maintenanceSupport,
+                        special_instructions = booking.specialInstructions
                     )
-                    _bookingSyncMessage.value = "synced"
-                } else {
-                    _bookingSyncMessage.value = "no_supabase_session"
-                }
-            } catch (e: Exception) {
-                _bookingSyncMessage.value = "sync_failed: ${e.message}"
+                )
+                _bookingSyncMessage.value = "synced"
+            } else {
+                _bookingSyncMessage.value = "no_supabase_session"
             }
-
-            onComplete()
+        } catch (e: Exception) {
+            _bookingSyncMessage.value = "sync_failed: ${e.message}"
         }
+
+        onComplete()
     }
+}
 
     fun clientConvertCopyToBooking(
         bookingId: Long,
