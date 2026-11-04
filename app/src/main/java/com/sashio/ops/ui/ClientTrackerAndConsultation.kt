@@ -821,7 +821,7 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
         }
     }
 }
-
+}
 @Composable
 fun ConsultationAndReviewsTab(viewModel: SashioViewModel) {
     val reviews by viewModel.allReviews.collectAsStateWithLifecycle()
