@@ -2284,7 +2284,7 @@ data class ChatMessage(
     val imageUri: String? = null,
     val locationShare: Pair<Double, Double>? = null
 )
- } 
+
 data class LiveTrackingState(
     val bookingId: Long,
     val staffLat: Double = 0.0,
