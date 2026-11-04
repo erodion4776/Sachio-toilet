@@ -72,6 +72,7 @@ fun SupabaseCatalogItem.toCatalogItem(): CatalogItem = CatalogItem(
 @Serializable
 data class NewSupabaseBooking(
     val client_id: String,
+    val local_booking_id: Long? = null,
     val client_name: String,
     val client_phone: String,
     val client_email: String,
@@ -100,6 +101,7 @@ data class NewSupabaseBooking(
 data class SupabaseBooking(
     val id: String,
     val client_id: String,
+    val local_booking_id: Long? = null,
     val client_name: String = "",
     val client_phone: String = "",
     val client_email: String = "",
