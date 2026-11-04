@@ -341,6 +341,11 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     private val _clientSupabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
     val clientSupabaseBookings: StateFlow<List<SupabaseBooking>> = _clientSupabaseBookings.asStateFlow()
 
+    private val _bookingLiveLocations =
+    MutableStateFlow<Map<String, BookingLiveLocation>>(emptyMap())
+
+val bookingLiveLocations: StateFlow<Map<String, BookingLiveLocation>> =
+    _bookingLiveLocations.asStateFlow()
     private val _lastPaymentStatus = MutableStateFlow<String?>(null)
     val lastPaymentStatus: StateFlow<String?> = _lastPaymentStatus.asStateFlow()
 
@@ -1336,6 +1341,32 @@ fun staffUpdateBookingStatus(
         }
     }
 
+    fun loadBookingLiveLocation(bookingId: String) {
+    viewModelScope.launch {
+        try {
+            val rows = SupabaseProvider.client.postgrest.from("booking_live_locations")
+                .select {
+                    filter { eq("booking_id", bookingId) }
+                }
+                .decodeList<BookingLiveLocation>()
+
+            val latest = rows.maxByOrNull { it.updated_at }
+
+            if (latest != null) {
+                _bookingLiveLocations.update {
+                    it + (bookingId to latest)
+                }
+            } else {
+                _bookingLiveLocations.update {
+                    it - bookingId
+                }
+            }
+        } catch (e: Exception) {
+            _roleManagementError.value =
+                "Could not load staff GPS location: ${e.message}"
+        }
+    }
+}
     fun triggerPaystackPaymentForRealBooking(bookingId: String, totalAmount: Double) {
         val user = _currentUser.value ?: return
         viewModelScope.launch {
