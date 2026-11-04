@@ -961,8 +961,8 @@ fun staffUpdateBookingStatus(
         }
     }
 
-    fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
-    fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
+    
+ fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
     viewModelScope.launch {
         val localBookingId = repository.insertBooking(booking)
 
@@ -2284,7 +2284,7 @@ data class ChatMessage(
     val imageUri: String? = null,
     val locationShare: Pair<Double, Double>? = null
 )
-
+ } 
 data class LiveTrackingState(
     val bookingId: Long,
     val staffLat: Double = 0.0,
