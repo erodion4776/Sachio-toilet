@@ -450,6 +450,13 @@ LaunchedEffect(liveBookings) {
                 modifier = Modifier.weight(1f)
             ) {
                 items(bookings) { b ->
+                    val remoteBooking = liveBookings.firstOrNull {
+    it.local_booking_id == b.id
+}
+
+val liveLocation = remoteBooking?.let {
+    bookingLiveLocations[it.id]
+}
                     Card(
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         shape = RoundedCornerShape(16.dp),
