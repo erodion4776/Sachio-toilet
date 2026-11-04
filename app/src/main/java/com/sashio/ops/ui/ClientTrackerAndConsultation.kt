@@ -1248,3 +1248,4 @@ fun ConsultationAndReviewsTab(viewModel: SashioViewModel) {
         Spacer(modifier = Modifier.height(30.dp))
     }
 }                
+}
