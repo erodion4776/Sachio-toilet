@@ -1,4 +1,4 @@
-package com.sashio.ops.ui
+Jj=package com.sashio.ops.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
@@ -418,7 +418,46 @@ fun StaffDashboardMapsTab(
         destLat in -90.0..90.0 &&
         destLng in -180.0..180.0 &&
         !(destLat == 0.0 && destLng == 0.0)
+var isLocationTracking by remember(activeJob) {
+    mutableStateOf(false)
+}
 
+val locationPermissionLauncher =
+    rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+
+        val hasLocationPermission =
+            permissions[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            permissions[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+
+        if (hasLocationPermission) {
+            val booking = activeJob as? SupabaseBooking
+
+            if (booking != null) {
+                val serviceIntent = Intent(
+                    context,
+                    StaffLocationService::class.java
+                ).putExtra(
+                    StaffLocationService.EXTRA_BOOKING_ID,
+                    booking.id
+                )
+
+                ContextCompat.startForegroundService(
+                    context,
+                    serviceIntent
+                )
+
+                isLocationTracking = true
+            }
+        } else {
+            Toast.makeText(
+                context,
+                "Location permission is required.",
+                Toast.LENGTH_LONG
+            ).show()
+        }
+    }
     // Illustrative map positions only.
     // These are NOT actual staff GPS coordinates.
 
@@ -557,6 +596,175 @@ fun StaffDashboardMapsTab(
                 )
 
                 Spacer(modifier = Modifier.height(10.dp))
+
+Button(
+    onClick = {
+        if (isLocationTracking) {
+            val stopIntent = Intent(
+                context,
+                StaffLocationService::class.java
+            ).setAction(
+                StaffLocationService.ACTION_STOP_TRACKING
+            )
+
+            context.startService(stopIntent)
+            isLocationTracking = false
+        } else {
+            locationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    },
+    enabled = activeJob is SupabaseBooking,
+    colors = ButtonDefaults.buttonColors(
+        containerColor = if (isLocationTracking) {
+            Color(0xFFB91C1C)
+        } else {
+            SashioTeal
+        }
+    ),
+    modifier = Modifier.fillMaxWidth()
+) {
+    Text(
+        if (isLocationTracking) {
+            "STOP GPS SHARING"
+        } else {
+            "START GPS SHARING"
+        },
+        fontWeight = FontWeight.Bold
+    )
+}
+
+Spacer(modifier = Modifier.height(8.dp))
+
+Row(
+    modifier = Modifier.fillMaxWidth(),
+    horizontalArrangement = Arrangement.spacedBy(8.dp)
+) {
+
+    Button(
+        onClick = {
+            launchExternalGpsNavigation(
+                context,
+                destLat,
+                destLng,
+                address
+            )
+        },
+        enabled = hasValidCoordinates,
+        colors = ButtonDefaults.buttonColors(
+            containerColor = SashioTeal
+        ),
+        modifier = Modifier
+            .weight(1f)
+            .height(42.dp)
+    ) {
+        Icon(
+            Icons.Default.Directions,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(14.dp)
+        )
+
+        Spacer(modifier = Modifier.width(4.dp))
+
+        Text(
+            "NAVIGATE",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+
+    Button(
+        onClick = {
+
+            if (activeJob is SupabaseBooking) {
+
+                val nextStatus = when (status) {
+                    "Staff Assigned" -> "IN TRANSIT"
+                    "IN TRANSIT" -> "ARRIVED"
+                    "ARRIVED" -> "SETUP IN PROGRESS"
+                    "SETUP IN PROGRESS" -> "SERVICE DELIVERED"
+                    else -> null
+                }
+
+                if (nextStatus == null) {
+                    Toast.makeText(
+                        context,
+                        "There is no next status for this job.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else {
+                    viewModel.staffUpdateBookingStatus(
+                        activeJob.id,
+                        nextStatus
+                    ) {
+                        Toast.makeText(
+                            context,
+                            "Status updated to $nextStatus",
+                            Toast.LENGTH_SHORT
+                        ).show()
+
+                        viewModel.loadMyAssignedBookings()
+                    }
+                }
+
+            } else if (activeJob is Booking) {
+
+                when (status) {
+                    "IN TRANSIT" -> {
+                        viewModel.staffMarkArrived(activeJob.id)
+                    }
+
+                    "ARRIVED" -> {
+                        viewModel.staffStartSetup(activeJob.id)
+                    }
+
+                    "Staff Assigned" -> {
+                        Toast.makeText(
+                            context,
+                            "Please start dispatch from My Jobs first.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+
+                    "SETUP IN PROGRESS" -> {
+                        Toast.makeText(
+                            context,
+                            "Complete the service using the job controls.",
+                            Toast.LENGTH_LONG
+                        ).show()
+                    }
+
+                    else -> {
+                        Toast.makeText(
+                            context,
+                            "No status update is available.",
+                            Toast.LENGTH_SHORT
+                        ).show()
+                    }
+                }
+            }
+        },
+        colors = ButtonDefaults.buttonColors(
+            containerColor = SashioGold
+        ),
+        modifier = Modifier
+            .weight(1.2f)
+            .height(42.dp)
+    ) {
+        Text(
+            "SYNC STATUS",
+            fontSize = 10.sp,
+            fontWeight = FontWeight.Bold,
+            color = Color.Black
+        )
+    }
+}
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
