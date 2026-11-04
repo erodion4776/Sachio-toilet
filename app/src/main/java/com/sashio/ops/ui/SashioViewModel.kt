@@ -1,4 +1,4 @@
-package com.sashio.ops.data
+Lpackage com.sashio.ops.data
 
 import android.app.Application
 import android.location.Geocoder
@@ -1012,7 +1012,6 @@ fun staffUpdateBookingStatus(
 
     fun clientConvertCopyToBooking(
     bookingId: Long,
-    remoteBookingId: String,
     serviceDate: String,
     duration: String,
     deliveryAddress: String,
@@ -1021,10 +1020,26 @@ fun staffUpdateBookingStatus(
 ) {
     viewModelScope.launch {
         try {
+            val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id
+                ?: throw Exception("Please sign in again.")
+
+            val rows = SupabaseProvider.client.postgrest
+                .from("bookings")
+                .select {
+                    filter {
+                        eq("client_id", uid)
+                        eq("local_booking_id", bookingId)
+                    }
+                }
+                .decodeList<SupabaseBooking>()
+
+            val remoteBooking = rows.firstOrNull()
+                ?: throw Exception("Could not find your online quotation.")
+
             SupabaseProvider.client.postgrest.rpc(
                 function = "client_accept_booking_quotation",
                 parameters = buildJsonObject {
-                    put("p_booking_id", remoteBookingId)
+                    put("p_booking_id", remoteBooking.id)
                     put("p_service_date", serviceDate)
                     put("p_duration", duration)
                     put("p_delivery_address", deliveryAddress)
@@ -1033,6 +1048,7 @@ fun staffUpdateBookingStatus(
             )
 
             val booking = database.sashioDao().getBookingById(bookingId)
+
             if (booking != null) {
                 repository.updateBooking(
                     booking.copy(
@@ -1048,6 +1064,7 @@ fun staffUpdateBookingStatus(
             loadClientSupabaseBookings()
             _roleManagementError.value = null
             onComplete()
+
         } catch (e: Exception) {
             _roleManagementError.value =
                 "Could not accept quotation: ${e.message}"
