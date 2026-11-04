@@ -1429,7 +1429,7 @@ fun staffUpdateBookingStatus(
         loadClientSupabaseBookings()
     }
 
-    // Handles Paystack completion with smart polling for webhook landing
+// Handles Paystack completion with smart polling for webhook landing
     fun simWebpayComplete(ref: String) {
         _activePaystackTransaction.value = null
         viewModelScope.launch {
