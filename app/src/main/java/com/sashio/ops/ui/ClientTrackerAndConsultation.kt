@@ -36,6 +36,7 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
     val bookings by viewModel.clientBookings.collectAsStateWithLifecycle()
     val activeTrackers by viewModel.activeLiveTrackers.collectAsStateWithLifecycle()
     val liveBookings by viewModel.clientSupabaseBookings.collectAsStateWithLifecycle()
+    val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLifecycle()
     var bookingToConvert by remember { mutableStateOf<Booking?>(null) }
     val context = LocalContext.current
     var activeTrackingBookingId by remember { mutableStateOf<Long?>(null) }
