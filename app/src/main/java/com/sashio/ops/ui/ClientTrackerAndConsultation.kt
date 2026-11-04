@@ -1,4 +1,3 @@
-
 package com.sashio.ops.ui
 
 import android.content.Intent
@@ -44,17 +43,19 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
     LaunchedEffect(Unit) {
         viewModel.loadClientSupabaseBookings()
     }
-LaunchedEffect(liveBookings) {
-    while (true) {
-        liveBookings
-            .filter { it.assigned_staff_id != null }
-            .forEach { booking ->
-                viewModel.loadBookingLiveLocation(booking.id)
-            }
 
-        kotlinx.coroutines.delay(15000)
+    LaunchedEffect(liveBookings) {
+        while (true) {
+            liveBookings
+                .filter { it.assigned_staff_id != null }
+                .forEach { booking ->
+                    viewModel.loadBookingLiveLocation(booking.id)
+                }
+
+            kotlinx.coroutines.delay(15000)
+        }
     }
-}
+
     if (activeTrackingBookingId != null) {
         SashioLiveTrackingScreen(
             viewModel = viewModel,
@@ -299,8 +300,7 @@ LaunchedEffect(liveBookings) {
             color = SashioTextMuted
         )
         Spacer(modifier = Modifier.height(12.dp))
-
-        val liveQuoted = liveBookings
+                val liveQuoted = liveBookings
             .filter { it.quoted_price > 0.0 && it.payment_status != "success" }
             .take(2)
 
@@ -451,12 +451,13 @@ LaunchedEffect(liveBookings) {
             ) {
                 items(bookings) { b ->
                     val remoteBooking = liveBookings.firstOrNull {
-    it.local_booking_id == b.id
-}
+                        it.local_booking_id == b.id
+                    }
 
-val liveLocation = remoteBooking?.let {
-    bookingLiveLocations[it.id]
-}
+                    val liveLocation = remoteBooking?.let {
+                        bookingLiveLocations[it.id]
+                    }
+
                     Card(
                         colors = CardDefaults.cardColors(containerColor = Color.White),
                         shape = RoundedCornerShape(16.dp),
@@ -511,7 +512,6 @@ val liveLocation = remoteBooking?.let {
                                     "SETUP IN PROGRESS"
                                 )
                             ) {
-                                val tracker = activeTrackers[b.id]
                                 var layer by remember { mutableStateOf("Standard") }
 
                                 Spacer(modifier = Modifier.height(12.dp))
@@ -578,10 +578,8 @@ val liveLocation = remoteBooking?.let {
                                             SashioCanvasMap(
                                                 latitude = b.latitude,
                                                 longitude = b.longitude,
-                                                staffLat = tracker?.staffLat ?: (b.latitude - 0.03),
-                                                staffLng = tracker?.staffLng ?: (b.longitude - 0.025),
-                                                vehicleLat = tracker?.vehicleLat ?: (b.latitude - 0.032),
-                                                vehicleLng = tracker?.vehicleLng ?: (b.longitude - 0.028),
+                                                vehicleLat = liveLocation?.latitude,
+                                                vehicleLng = liveLocation?.longitude,
                                                 mapStyle = layer,
                                                 showRoute = true,
                                                 label = "My Event Location"
@@ -596,20 +594,29 @@ val liveLocation = remoteBooking?.let {
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Column {
-                                                Text(
-                                                    "ETA: ${tracker?.etaMinutes ?: 15} mins",
-                                                    color = Color.White,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 12.sp
-                                                )
-                                                Text(
-                                                    "Distance: %.1f km".format(
-                                                        tracker?.distanceRemainingKm ?: 8.4
-                                                    ),
-                                                    color = Color.White.copy(alpha = 0.8f),
-                                                    fontSize = 11.sp
-                                                )
+                                                if (liveLocation != null) {
+                                                    Text(
+                                                        "Staff GPS updated: ${liveLocation.updated_at}",
+                                                        color = Color.White,
+                                                        fontSize = 11.sp
+                                                    )
+
+                                                    liveLocation.accuracy_m?.let {
+                                                        Text(
+                                                            "GPS accuracy: %.0f metres".format(it),
+                                                            color = Color.White.copy(alpha = 0.8f),
+                                                            fontSize = 11.sp
+                                                        )
+                                                    }
+                                                } else {
+                                                    Text(
+                                                        "Waiting for staff GPS location…",
+                                                        color = Color.White,
+                                                        fontSize = 11.sp
+                                                    )
+                                                }
                                             }
+
                                             Column(horizontalAlignment = Alignment.End) {
                                                 Text(
                                                     "Crew: ${b.assignedStaffName ?: "Unassigned"}",
@@ -627,9 +634,7 @@ val liveLocation = remoteBooking?.let {
                                         }
                                     }
                                 }
-                            }
-
-                            if (b.status in listOf(
+                                                            if (b.status in listOf(
                                     "Payment Confirmed",
                                     "Booking Confirmed",
                                     "Staff Assigned",
@@ -685,22 +690,12 @@ val liveLocation = remoteBooking?.let {
                                 val grandTotal =
                                     b.quotedPrice + b.logisticsCost + b.vatAmount
 
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Text(
-                                        "Issued Service Total:",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 13.sp
-                                    )
-                                    Text(
-                                        "₦%,.2f".format(grandTotal),
-                                        fontWeight = FontWeight.ExtraBold,
-                                        color = SashioSlate,
-                                        fontSize = 13.sp
-                                    )
-                                }
+                                Text(
+                                    "Commercial Breakdown",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 12.sp,
+                                    color = SashioSlate
+                                )
 
                                 Spacer(modifier = Modifier.height(4.dp))
 
@@ -972,8 +967,8 @@ fun ConsultationAndReviewsTab(viewModel: SashioViewModel) {
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
+        
+                    Spacer(modifier = Modifier.height(24.dp))
 
         Text(
             "CUSTOMER REVIEWS",
@@ -1000,10 +995,7 @@ fun ConsultationAndReviewsTab(viewModel: SashioViewModel) {
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    Text(
-                        "Your Rating:",
-                        color = colors.onSurface
-                    )
+                    Text("Your Rating:", color = colors.onSurface)
 
                     (1..5).forEach { stars ->
                         IconButton(
@@ -1255,4 +1247,4 @@ fun ConsultationAndReviewsTab(viewModel: SashioViewModel) {
 
         Spacer(modifier = Modifier.height(30.dp))
     }
-}
+}                
