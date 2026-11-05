@@ -322,13 +322,23 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
             color = SashioTextMuted
         )
         Spacer(modifier = Modifier.height(12.dp))
-                val liveQuoted = liveBookings
-            .filter {
-    it.status == "Client Accepted" &&
-    (it.quoted_price + it.logistics_cost + it.vat_amount) > 0 &&
-    it.payment_status != "success"
-}
-            .take(2)
+                // Show online quotations that do not have a matching local Room row.
+        // This includes quotations whose device-local ID was intentionally
+        // omitted to avoid a duplicate-key collision in Supabase.
+        val liveQuoted = liveBookings
+            .filter { quote ->
+                val hasLocalMatch = quote.local_booking_id != null &&
+                    bookings.any { it.id == quote.local_booking_id }
+                !hasLocalMatch &&
+                    quote.status in listOf(
+                        "Quotation Sent",
+                        "Quotation Generated",
+                        "Client Accepted"
+                    ) &&
+                    (quote.quoted_price + quote.logistics_cost + quote.vat_amount) > 0 &&
+                    quote.payment_status != "success"
+            }
+            .take(5)
 
         if (liveQuoted.isNotEmpty()) {
             Text(
@@ -364,6 +374,11 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                         Text(lb.service_type, fontWeight = FontWeight.Bold)
                         Text(
                             "${lb.event_type} | Qty ${lb.quantity} | ${lb.duration}",
+                            fontSize = 10.sp,
+                            color = SashioTextMuted
+                        )
+                        Text(
+                            "Quotation ready. Pay securely to confirm this booking.",
                             fontSize = 10.sp,
                             color = SashioTextMuted
                         )
@@ -821,10 +836,17 @@ displayVatAmount
 } else if (displayPaymentStatus != "success") {
                                                 Button(
                                                     onClick = {
-                                                        viewModel.triggerPaystackPayment(
-                                                            b.id,
-                                                            grandTotal
-                                                        )
+                                                        if (remoteBooking != null) {
+                                                            viewModel.triggerPaystackPaymentForRealBooking(
+                                                                remoteBooking.id,
+                                                                grandTotal
+                                                            )
+                                                        } else {
+                                                            viewModel.triggerPaystackPayment(
+                                                                b.id,
+                                                                grandTotal
+                                                            )
+                                                        }
                                                     },
                                                     colors = ButtonDefaults.buttonColors(
                                                         containerColor = SashioGreen,
