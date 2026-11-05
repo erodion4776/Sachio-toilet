@@ -461,68 +461,88 @@ val outstandingPayments = liveBookings
             Spacer(modifier = Modifier.height(8.dp))
         }
 
-        if (bookings.isEmpty()) {
-            item {
-                Text(
-                    "No recent activities found.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = colors.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 12.dp)
-                )
-            }
-        } else {
-            items(bookings.sortedByDescending { it.createdAt }.take(5)) { booking ->
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = colors.surface
-                    ),
-                    shape = RoundedCornerShape(8.dp),
-                    elevation = CardDefaults.cardElevation(
-                        defaultElevation = 2.dp
-                    ),
-                    modifier = Modifier.fillMaxWidth()
+        if (liveBookings.isEmpty()) {
+    item {
+        Text(
+            "No recent activities or notifications found.",
+            style = MaterialTheme.typography.bodySmall,
+            color = colors.onSurfaceVariant,
+            modifier = Modifier.padding(vertical = 12.dp)
+        )
+    }
+} else {
+    items(liveBookings.take(10)) { booking ->
+        Card(
+            colors = CardDefaults.cardColors(
+                containerColor = colors.surface
+            ),
+            shape = RoundedCornerShape(8.dp),
+            elevation = CardDefaults.cardElevation(
+                defaultElevation = 2.dp
+            ),
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(
+                            SashioGold.copy(alpha = 0.12f),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(40.dp)
-                                .background(
-                                    SashioGold.copy(alpha = 0.12f),
-                                    CircleShape
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                Icons.Default.NotificationsActive,
-                                contentDescription = null,
-                                tint = SashioGold,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.width(12.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                "Quotation for ${booking.serviceType}",
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = colors.onSurface
-                            )
-
-                            Text(
-                                "Status updated to: ${booking.status}",
-                                fontSize = 10.sp,
-                                color = colors.onSurfaceVariant
-                            )
-                        }
-
-                        BookingStatusBadge(status = booking.status)
-                    }
+                    Icon(
+                        Icons.Default.NotificationsActive,
+                        contentDescription = null,
+                        tint = SashioGold,
+                        modifier = Modifier.size(20.dp)
+                    )
                 }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(
+                        "Quotation for ${booking.service_type}",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = colors.onSurface
+                    )
+
+                    Text(
+                        when (booking.status) {
+                            "Quotation Requested",
+                            "Under Review",
+                            "Quotation Generated" ->
+                                "Your quotation is pending admin review."
+
+                            "Quotation Sent" ->
+                                "Your quotation is ready for your review."
+
+                            "Payment Confirmed" ->
+                                "Your payment has been confirmed."
+
+                            "IN TRANSIT" ->
+                                "Your service is on the way."
+
+                            "Completed" ->
+                                "Your service has been completed."
+
+                            else ->
+                                "Status updated to: ${booking.status}"
+                        },
+                        fontSize = 10.sp,
+                        color = colors.onSurfaceVariant
+                    )
+                }
+
+                BookingStatusBadge(status = booking.status)
             }
         }
     }
