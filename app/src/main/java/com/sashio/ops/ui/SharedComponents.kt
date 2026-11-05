@@ -21,8 +21,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.compose.ui.input.nestedscroll.nestedScroll
-import androidx.compose.ui.input.nestedscroll.rememberNestedScrollInteropConnection
 import coil.compose.AsyncImage
 import com.sashio.ops.R
 import com.sashio.ops.data.CreatePaymentResponse
@@ -329,7 +327,6 @@ fun SashioCanvasMap(
             },
             modifier = Modifier
                 .fillMaxSize()
-                .nestedScroll(rememberNestedScrollInteropConnection())
         )
 
         if (label.isNotBlank()) {
