@@ -721,7 +721,7 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    when (b.status) {
+                                    when (displayStatus) {
                                         "Quotation Sent" -> {
                                             Row(
                                                 modifier = Modifier.fillMaxWidth(),
