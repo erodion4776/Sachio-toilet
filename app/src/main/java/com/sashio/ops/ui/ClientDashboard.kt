@@ -2,7 +2,15 @@
 package com.sashio.ops.ui
 
 import com.sashio.ops.data.SupabaseBooking
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import com.google.android.gms.location.LocationServices
+import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -26,6 +34,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -648,6 +658,7 @@ fun BookingFormSheet(
     // Coordinates must be explicitly confirmed for each new address.
     // Never submit the default Lagos map center as if it were the client's venue.
     var locationPinConfirmed by remember { mutableStateOf(false) }
+    var showFullMapPicker by remember { mutableStateOf(false) }
 
     var eventType by remember { mutableStateOf("Wedding") }
     var guestCount by remember { mutableStateOf("100") }
@@ -1054,6 +1065,15 @@ fun BookingFormSheet(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        OutlinedButton(
+            onClick = { showFullMapPicker = true },
+            modifier = Modifier.fillMaxWidth().height(46.dp)
+        ) {
+            Icon(Icons.Default.Map, contentDescription = null)
+            Spacer(Modifier.width(8.dp))
+            Text("OPEN LARGE MAP TO PIN EXACT LOCATION", fontWeight = FontWeight.Bold)
+        }
+
         Text(
             if (locationPinConfirmed) {
                 "PIN CONFIRMED • The staff navigation will use this exact map point."
@@ -1396,5 +1416,150 @@ fun BookingFormSheet(
                 color = Color.White
             )
         }
+
+    if (showFullMapPicker) {
+        ClientFullMapPicker(
+            initialLatitude = currentCoords.first,
+            initialLongitude = currentCoords.second,
+            onDismiss = { showFullMapPicker = false },
+            onConfirm = { lat, lng ->
+                currentCoords = Pair(lat, lng)
+                locationPinConfirmed = true
+                viewModel.reverseGeocodeLocation(lat, lng) { address ->
+                    selectedAddressText = address
+                    addressQuery = address
+                }
+                showFullMapPicker = false
+                Toast.makeText(context, "Exact venue pin saved.", Toast.LENGTH_SHORT).show()
+            }
+        )
+    }
+}
+
+@Composable
+private fun ClientFullMapPicker(
+    initialLatitude: Double,
+    initialLongitude: Double,
+    onDismiss: () -> Unit,
+    onConfirm: (Double, Double) -> Unit
+) {
+    val context = LocalContext.current
+    val fusedLocationClient = remember { LocationServices.getFusedLocationProviderClient(context) }
+    var pin by remember { mutableStateOf(Pair(initialLatitude, initialLongitude)) }
+    var locating by remember { mutableStateOf(false) }
+
+    fun fetchCurrentLocation() {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) != PackageManager.PERMISSION_GRANTED &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) != PackageManager.PERMISSION_GRANTED
+        ) {
+            Toast.makeText(context, "Allow location access to find your current position.", Toast.LENGTH_LONG).show()
+            return
+        }
+        locating = true
+        try {
+            fusedLocationClient.getCurrentLocation(
+                Priority.PRIORITY_HIGH_ACCURACY,
+                CancellationTokenSource().token
+            ).addOnSuccessListener { location ->
+                locating = false
+                if (location != null) {
+                    pin = Pair(location.latitude, location.longitude)
+                } else {
+                    Toast.makeText(context, "Could not get GPS fix. Move outdoors and try again.", Toast.LENGTH_LONG).show()
+                }
+            }.addOnFailureListener {
+                locating = false
+                Toast.makeText(context, it.localizedMessage ?: "Unable to get GPS location.", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: SecurityException) {
+            locating = false
+            Toast.makeText(context, "Location permission is required.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { grants ->
+        if (grants[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
+            grants[Manifest.permission.ACCESS_COARSE_LOCATION] == true
+        ) fetchCurrentLocation()
+        else Toast.makeText(context, "Location permission was not granted.", Toast.LENGTH_LONG).show()
+    }
+
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxSize().padding(8.dp),
+            shape = RoundedCornerShape(18.dp),
+            color = MaterialTheme.colorScheme.surface
+        ) {
+            Column(Modifier.fillMaxSize().padding(12.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(Modifier.weight(1f)) {
+                        Text("Pin your exact venue", fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text("Move the map, then tap the exact entrance or venue.", fontSize = 11.sp)
+                    }
+                    IconButton(onClick = onDismiss) {
+                        Icon(Icons.Default.Close, contentDescription = "Close map")
+                    }
+                }
+                Spacer(Modifier.height(8.dp))
+                Button(
+                    onClick = {
+                        val fine = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                        val coarse = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                        if (fine || coarse) fetchCurrentLocation()
+                        else permissionLauncher.launch(arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION))
+                    },
+                    enabled = !locating,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.MyLocation, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (locating) "FINDING YOUR GPS LOCATION…" else "USE MY CURRENT GPS LOCATION")
+                }
+                Text(
+                    "You can also drag the map to the venue and tap the exact point. The pin coordinates are shown below.",
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(vertical = 8.dp)
+                )
+                Box(
+                    modifier = Modifier.weight(1f).fillMaxWidth().clip(RoundedCornerShape(12.dp))
+                ) {
+                    SashioCanvasMap(
+                        latitude = pin.first,
+                        longitude = pin.second,
+                        onMarkerChanged = { lat, lng -> pin = Pair(lat, lng) },
+                        label = "Tap exact venue location"
+                    )
+                }
+                Text(
+                    "PIN: %.6f, %.6f".format(pin.first, pin.second),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.padding(vertical = 10.dp)
+                )
+                Button(
+                    onClick = { onConfirm(pin.first, pin.second) },
+                    modifier = Modifier.fillMaxWidth().height(50.dp)
+                ) {
+                    Icon(Icons.Default.Check, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text("CONFIRM THIS VENUE PIN", fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
+                    Text("Cancel")
+                }
+            }
+        }
+    }
+}
     }
 }
