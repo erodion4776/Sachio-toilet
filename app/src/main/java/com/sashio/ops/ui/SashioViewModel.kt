@@ -966,13 +966,13 @@ fun staffUpdateBookingStatus(
     }
 
     
- fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
-    viewModelScope.launch {
-        val localBookingId = repository.insertBooking(booking)
-
-        try {
-            val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
-            if (supaUser != null) {
+    fun submitQuotationRequest(booking: Booking, onComplete: () -> Unit) {
+        viewModelScope.launch {
+            var localBookingId: Long? = null
+            try {
+                val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
+                    ?: throw Exception("Your login session has expired. Please sign in again.")
+                localBookingId = repository.insertBooking(booking)
                 SupabaseProvider.client.postgrest.from("bookings").insert(
                     NewSupabaseBooking(
                         client_id = supaUser.id,
@@ -1002,16 +1002,17 @@ fun staffUpdateBookingStatus(
                     )
                 )
                 _bookingSyncMessage.value = "synced"
-            } else {
-                _bookingSyncMessage.value = "no_supabase_session"
+                loadClientSupabaseBookings()
+                loadSupabaseBookings()
+                onComplete()
+            } catch (e: Exception) {
+                localBookingId?.let {
+                    try { repository.deleteBooking(it) } catch (_: Exception) { }
+                }
+                _bookingSyncMessage.value = "sync_failed: ${e.message ?: "Please check your internet connection and try again."}"
             }
-        } catch (e: Exception) {
-            _bookingSyncMessage.value = "sync_failed: ${e.message}"
         }
-
-        onComplete()
     }
-}
 
 
     fun clientConvertCopyToBooking(
