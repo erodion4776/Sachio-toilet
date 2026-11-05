@@ -60,8 +60,8 @@ fun SashioAppContent(viewModel: SashioViewModel) {
     LaunchedEffect(bookingSyncMessage) {
         when {
             bookingSyncMessage == "synced" -> Toast.makeText(context, "Booking request sent successfully.", Toast.LENGTH_LONG).show()
-            bookingSyncMessage == "no_supabase_session" -> Toast.makeText(context, "Booking saved on this device only - please sign out and sign back in to sync it to your account.", Toast.LENGTH_LONG).show()
-            bookingSyncMessage?.startsWith("sync_failed") == true -> Toast.makeText(context, "Booking saved on this device, but couldn't reach the server: ${bookingSyncMessage?.removePrefix("sync_failed: ")}", Toast.LENGTH_LONG).show()
+            bookingSyncMessage == "no_supabase_session" -> Toast.makeText(context, "Booking was NOT submitted. Please sign in again and retry.", Toast.LENGTH_LONG).show()
+            bookingSyncMessage?.startsWith("sync_failed") == true -> Toast.makeText(context, "Booking was NOT submitted: ${bookingSyncMessage?.removePrefix("sync_failed: ")}", Toast.LENGTH_LONG).show()
             else -> {}
         }
     }
