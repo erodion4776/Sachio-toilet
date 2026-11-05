@@ -936,6 +936,7 @@ fun adminDeleteBooking(bookingId: String, onComplete: () -> Unit = {}) {
 fun staffUpdateBookingStatus(
     bookingId: String,
     newStatus: String,
+    onError: (String) -> Unit = {},
     onComplete: () -> Unit = {}
 ) {
     viewModelScope.launch {
@@ -950,11 +951,13 @@ fun staffUpdateBookingStatus(
 
             loadMyAssignedBookings()
             loadSupabaseBookings()
+            loadClientSupabaseBookings()
             _roleManagementError.value = null
             onComplete()
         } catch (e: Exception) {
-            _roleManagementError.value =
-                "Could not update job status: ${e.message}"
+            val message = "Could not update job status: ${e.message ?: "Unknown error"}"
+            _roleManagementError.value = message
+            onError(message)
         }
     }
 }
