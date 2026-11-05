@@ -388,7 +388,7 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
                         SashioCanvasMap(
                             latitude = 6.4282, 
                             longitude = 3.4211, 
-                            mapStyle = currentMapLayer, 
+                            mapStyle = "Standard", 
                             label = "SACHIO Victoria Island Central Depot"
                         )
                         Box(modifier = Modifier.align(Alignment.Center).background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(8.dp)).padding(12.dp)) {
