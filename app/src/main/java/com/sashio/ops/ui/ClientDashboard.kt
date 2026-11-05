@@ -1435,6 +1435,7 @@ fun BookingFormSheet(
         )
     }
 }
+}
 
 @Composable
 private fun ClientFullMapPicker(
@@ -1559,7 +1560,5 @@ private fun ClientFullMapPicker(
                 }
             }
         }
-    }
-}
     }
 }
