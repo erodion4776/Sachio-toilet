@@ -1073,48 +1073,6 @@ fun BookingFormSheet(
         ) {
             Button(
                 onClick = {
-                    val sampleLat = 6.4351
-                    val sampleLng = 3.4219
-                    val locText =
-                        "Plot 24, SACHIO Central Plaza Arena, Victoria Island, Lagos"
-
-                    selectedAddressText = locText
-                    addressQuery = locText
-                    currentCoords = Pair(sampleLat, sampleLng)
-                    locationPinConfirmed = true
-
-                    Toast.makeText(
-                        context,
-                        "Sample location pinned.",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                },
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = SashioSlate,
-                    contentColor = Color.White
-                ),
-                modifier = Modifier
-                    .weight(1.2f)
-                    .height(38.dp)
-            ) {
-                Icon(
-                    Icons.Default.MyLocation,
-                    contentDescription = null,
-                    modifier = Modifier.size(14.dp),
-                    tint = SashioGold
-                )
-
-                Spacer(modifier = Modifier.width(4.dp))
-
-                Text(
-                    "Use Sample Location",
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-
-            Button(
-                onClick = {
                     val finalAddr =
                         if (selectedAddressText.isNotBlank()) {
                             selectedAddressText
