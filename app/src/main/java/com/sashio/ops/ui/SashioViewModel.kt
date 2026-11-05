@@ -973,10 +973,25 @@ fun staffUpdateBookingStatus(
                 val supaUser = SupabaseProvider.client.auth.currentUserOrNull()
                     ?: throw Exception("Your login session has expired. Please sign in again.")
                 localBookingId = repository.insertBooking(booking)
-                SupabaseProvider.client.postgrest.from("bookings").insert(
-                    NewSupabaseBooking(
+
+                // Room IDs are local to each device/install. A reinstall or a
+                // second device can reuse an ID already stored for this client.
+                // Preserve the mapping only when it is not already in use.
+                val existingLocalId = SupabaseProvider.client.postgrest
+                    .from("bookings")
+                    .select {
+                        filter {
+                            eq("client_id", supaUser.id)
+                            eq("local_booking_id", localBookingId)
+                        }
+                    }
+                    .decodeList<SupabaseBooking>()
+                    .isNotEmpty()
+
+                val remoteLocalBookingId = if (existingLocalId) null else localBookingId
+                val newBooking = NewSupabaseBooking(
                         client_id = supaUser.id,
-                        local_booking_id = localBookingId,
+                        local_booking_id = remoteLocalBookingId,
                         client_name = booking.clientName,
                         client_phone = booking.clientPhone,
                         client_email = booking.clientEmail,
@@ -1000,7 +1015,24 @@ fun staffUpdateBookingStatus(
                         maintenance_support = booking.maintenanceSupport,
                         special_instructions = booking.specialInstructions
                     )
-                )
+
+                try {
+                    SupabaseProvider.client.postgrest.from("bookings").insert(newBooking)
+                } catch (insertError: Exception) {
+                    // Handle a simultaneous request that claimed the same local
+                    // ID after the pre-check. Retry once without the device-local ID.
+                    if (!existingLocalId &&
+                        insertError.message.orEmpty().contains(
+                            "bookings_client_local_id_unique",
+                            ignoreCase = true
+                        )
+                    ) {
+                        SupabaseProvider.client.postgrest.from("bookings")
+                            .insert(newBooking.copy(local_booking_id = null))
+                    } else {
+                        throw insertError
+                    }
+                }
                 _bookingSyncMessage.value = "synced"
                 loadClientSupabaseBookings()
                 loadSupabaseBookings()
