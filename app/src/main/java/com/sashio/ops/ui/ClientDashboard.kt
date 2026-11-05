@@ -547,6 +547,7 @@ val outstandingPayments = liveBookings
         }
     }
 }
+}
 
 @Composable
 fun StatCard(
