@@ -453,6 +453,11 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
                     val remoteBooking = liveBookings.firstOrNull {
                         it.local_booking_id == b.id
                     }
+                    val displayStatus = remoteBooking?.status ?: b.status
+val displayQuotedPrice = remoteBooking?.quoted_price ?: b.quotedPrice
+val displayLogisticsCost = remoteBooking?.logistics_cost ?: b.logisticsCost
+val displayVatAmount = remoteBooking?.vat_amount ?: b.vatAmount
+val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
 
                     val liveLocation = remoteBooking?.let {
                         bookingLiveLocations[it.id]
