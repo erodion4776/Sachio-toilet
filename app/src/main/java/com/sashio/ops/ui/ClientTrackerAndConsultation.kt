@@ -789,7 +789,14 @@ displayVatAmount
                                         }
 
                                         "Client Accepted" -> {
-                                            if (displayPaymentStatus != "success" && grandTotal > 0) {
+                                            if (grandTotal <= 0) {
+    Text(
+        "FREE — No payment required. Your quotation has been accepted.",
+        color = SashioGreen,
+        fontWeight = FontWeight.Bold,
+        fontSize = 12.sp
+    )
+} else if (displayPaymentStatus != "success") {
                                                 Button(
                                                     onClick = {
                                                         viewModel.triggerPaystackPayment(
