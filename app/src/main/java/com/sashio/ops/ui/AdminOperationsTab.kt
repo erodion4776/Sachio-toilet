@@ -164,7 +164,13 @@ fun AdminOperationsTab(
 
                                     Button(
                                         onClick = {
-                                            viewModel.staffUpdateBookingStatus(b.id, "SERVICE DELIVERED") {
+                                            viewModel.staffUpdateBookingStatus(
+                                                b.id,
+                                                "COMPLETED",
+                                                onError = { error ->
+                                                    Toast.makeText(localContext, error, Toast.LENGTH_LONG).show()
+                                                }
+                                            ) {
                                                 Toast.makeText(localContext, "Completed dispatch #QR-${b.id.take(8)}.", Toast.LENGTH_SHORT).show()
                                             }
                                         },
