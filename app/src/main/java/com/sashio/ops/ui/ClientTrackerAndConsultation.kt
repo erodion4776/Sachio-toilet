@@ -625,8 +625,8 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                                             SashioInteractiveCanvasMap(
                                                 latitude = b.latitude,
                                                 longitude = b.longitude,
-                                                staffLat = if (liveLocation?.let { isFreshBookingGps(it.updated_at) } == true) liveLocation.latitude else 0.0,
-                                                staffLng = if (liveLocation?.let { isFreshBookingGps(it.updated_at) } == true) liveLocation.longitude else 0.0,
+                                                staffLat = liveLocation?.takeIf { isFreshBookingGps(it.updated_at) }?.latitude ?: 0.0,
+                                                staffLng = liveLocation?.takeIf { isFreshBookingGps(it.updated_at) }?.longitude ?: 0.0,
                                                 vehicleLat = 0.0,
                                                 vehicleLng = 0.0,
                                                 mapStyle = layer,
