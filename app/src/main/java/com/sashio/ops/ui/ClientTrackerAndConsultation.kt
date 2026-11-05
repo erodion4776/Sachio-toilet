@@ -694,7 +694,7 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                                     modifier = Modifier.padding(vertical = 12.dp)
                                 )
                                 val grandTotal =
-                                    b.quotedPrice + b.logisticsCost + b.vatAmount
+    displayQuotedPrice + displayLogisticsCost + displayVatAmount
 
                                 Text(
                                     "Commercial Breakdown",
