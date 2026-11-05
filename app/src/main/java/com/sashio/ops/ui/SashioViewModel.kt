@@ -1510,67 +1510,86 @@ fun staffUpdateBookingStatus(
     // --- Live Geocoding & Address Suggestions ---
     fun updateAddressSearch(query: String) {
         _addressSearchQuery.value = query
-        if (query.trim().length < 3) {
+        val trimmedQuery = query.trim()
+        if (trimmedQuery.length < 3) {
             _addressSuggestions.value = emptyList()
             return
         }
 
         viewModelScope.launch(Dispatchers.IO) {
+            // Debounce typing and ignore stale responses from earlier searches.
+            delay(450)
+            if (_addressSearchQuery.value.trim() != trimmedQuery) return@launch
+
             try {
-                val context = getApplication<Application>().applicationContext
-                val geocoder = Geocoder(context, Locale.getDefault())
+                // Photon is an OpenStreetMap-based address search service. Unlike the
+                // Android Geocoder callback, this returns results synchronously to this
+                // IO coroutine and does not require a Google Maps API key.
+                val encodedQuery = URLEncoder.encode(trimmedQuery, "UTF-8")
+                val request = Request.Builder()
+                    .url("https://photon.komoot.io/api/?q=$encodedQuery&limit=8&lang=en")
+                    .header("User-Agent", "SashioOps/2.5 (address search)")
+                    .get()
+                    .build()
 
-                val addresses = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                    try {
-                        var resultList: List<android.location.Address> = emptyList()
-                        geocoder.getFromLocationName(query, 5) { addresses ->
-                            resultList = addresses
+                val response = storageHttpClient.newCall(request).execute()
+                val responseBody = response.body?.string()
+                if (response.isSuccessful && !responseBody.isNullOrBlank()) {
+                    val features = org.json.JSONObject(responseBody)
+                        .optJSONArray("features")
+                    val places = mutableListOf<SimulatedPlace>()
+
+                    if (features != null) {
+                        for (index in 0 until features.length()) {
+                            val feature = features.optJSONObject(index) ?: continue
+                            val geometry = feature.optJSONObject("geometry") ?: continue
+                            val coordinates = geometry.optJSONArray("coordinates") ?: continue
+                            if (coordinates.length() < 2) continue
+
+                            val longitude = coordinates.optDouble(0, Double.NaN)
+                            val latitude = coordinates.optDouble(1, Double.NaN)
+                            if (!latitude.isFinite() || !longitude.isFinite() ||
+                                latitude !in -90.0..90.0 || longitude !in -180.0..180.0
+                            ) continue
+
+                            val properties = feature.optJSONObject("properties")
+                                ?: org.json.JSONObject()
+                            val addressParts = listOf(
+                                properties.optString("housenumber").takeIf { it.isNotBlank() },
+                                properties.optString("street").takeIf { it.isNotBlank() },
+                                properties.optString("name").takeIf { it.isNotBlank() },
+                                properties.optString("district").takeIf { it.isNotBlank() },
+                                properties.optString("city").takeIf { it.isNotBlank() },
+                                properties.optString("state").takeIf { it.isNotBlank() },
+                                properties.optString("country").takeIf { it.isNotBlank() }
+                            ).filterNotNull().distinct()
+
+                            val formattedAddress = addressParts.joinToString(", ")
+                            if (formattedAddress.isNotBlank()) {
+                                places.add(
+                                    SimulatedPlace(
+                                        address = formattedAddress,
+                                        lat = latitude,
+                                        lng = longitude
+                                    )
+                                )
+                            }
                         }
-                        resultList
-                    } catch (e: Exception) {
-                        geocoder.getFromLocationName(query, 5) ?: emptyList()
                     }
-                } else {
-                    @Suppress("DEPRECATION")
-                    geocoder.getFromLocationName(query, 5) ?: emptyList()
-                }
 
-                if (!addresses.isNullOrEmpty()) {
-                    val places = addresses.map { addr ->
-                        val formatted = (0..addr.maxAddressLineIndex).mapNotNull { addr.getAddressLine(it) }.joinToString(", ")
-                        SimulatedPlace(
-                            address = formatted.ifBlank { "${addr.featureName ?: query}, ${addr.locality ?: "Nigeria"}" },
-                            lat = addr.latitude,
-                            lng = addr.longitude
-                        )
+                    if (_addressSearchQuery.value.trim() == trimmedQuery) {
+                        _addressSuggestions.value = places.distinctBy {
+                            "${it.lat},${it.lng}"
+                        }
                     }
-                    _addressSuggestions.value = places
                     return@launch
                 }
-            } catch (e: Exception) {
-                // Fall through to pre-indexed landmarks
+            } catch (_: Exception) {
+                // Keep the suggestions empty; never show unrelated hard-coded locations.
             }
 
-            val lagosBase = "Lagos, Nigeria"
-            val defaultPlaces = listOf(
-                SimulatedPlace("Admiralty Way, Lekki Phase 1, $lagosBase", 6.4381, 3.4823),
-                SimulatedPlace("Eko Atlantic City, Victoria Island, $lagosBase", 6.4253, 3.4243),
-                SimulatedPlace("Allen Avenue, Ikeja, $lagosBase", 6.5982, 3.3541),
-                SimulatedPlace("Broad Street, Marina, Lagos Island, $lagosBase", 6.4531, 3.3958),
-                SimulatedPlace("Ozumba Mbadiwe Avenue, Victoria Island, $lagosBase", 6.4342, 3.4285),
-                SimulatedPlace("Bourdillon Road, Ikoyi, $lagosBase", 6.4510, 3.4412),
-                SimulatedPlace("Isaac John Street, GRA Ikeja, $lagosBase", 6.5891, 3.3592),
-                SimulatedPlace("Ajose Adeogun Street, Victoria Island, $lagosBase", 6.4298, 3.4265),
-                SimulatedPlace("Adetokunbo Ademola Crescent, Wuse II, Abuja, Nigeria", 9.0778, 7.4812),
-                SimulatedPlace("Garki Area 11 Shopping Complex, Abuja, Nigeria", 9.0321, 7.4891),
-                SimulatedPlace("Trans Amadi Industrial Estate, Port Harcourt, Rivers, Nigeria", 4.8152, 7.0392),
-                SimulatedPlace("GRA Phase 2 Recreation Hub, Port Harcourt, Rivers, Nigeria", 4.8211, 7.0084),
-                SimulatedPlace("Murtala Muhammed Way, Benin City, Edo, Nigeria", 6.3312, 5.6261),
-                SimulatedPlace("Bompai Industrial Area, Kano, Nigeria", 12.0123, 8.5432)
-            )
-
-            _addressSuggestions.value = defaultPlaces.filter {
-                it.address.contains(query, ignoreCase = true)
+            if (_addressSearchQuery.value.trim() == trimmedQuery) {
+                _addressSuggestions.value = emptyList()
             }
         }
     }
