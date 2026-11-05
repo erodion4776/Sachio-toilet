@@ -6,6 +6,7 @@ import org.osmdroid.tileprovider.tilesource.TileSourceFactory
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Polyline
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -537,17 +538,39 @@ fun SashioInteractiveCanvasMap(
         update = { map ->
             map.overlays.clear()
 
-            val venueMarker = Marker(map).apply {
-                position = GeoPoint(latitude, longitude)
-                title = if (label.isNotBlank()) label else "Booking venue"
-                snippet = "Booking location"
-                setAnchor(
-                    Marker.ANCHOR_CENTER,
-                    Marker.ANCHOR_BOTTOM
-                )
-            }
+            fun validPoint(lat: Double, lng: Double): Boolean =
+                lat.isFinite() && lng.isFinite() &&
+                    lat in -90.0..90.0 && lng in -180.0..180.0 &&
+                    (lat != 0.0 || lng != 0.0)
 
-            map.overlays.add(venueMarker)
+            if (validPoint(latitude, longitude)) {
+                val venuePoint = GeoPoint(latitude, longitude)
+                val venueMarker = Marker(map).apply {
+                    position = venuePoint
+                    title = if (label.isNotBlank()) label else "Booking venue"
+                    snippet = "Customer delivery location"
+                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                }
+                map.overlays.add(venueMarker)
+
+                if (validPoint(staffLat, staffLng)) {
+                    val staffPoint = GeoPoint(staffLat, staffLng)
+                    val routeLine = Polyline().apply {
+                        setPoints(listOf(staffPoint, venuePoint))
+                        title = "Live staff-to-venue route"
+                        width = 7f
+                    }
+                    map.overlays.add(routeLine)
+
+                    val staffMarker = Marker(map).apply {
+                        position = staffPoint
+                        title = "Staff live GPS location"
+                        snippet = "Last location received from staff device"
+                        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+                    }
+                    map.overlays.add(staffMarker)
+                }
+            }
             map.invalidate()
         }
     )
