@@ -542,10 +542,11 @@ val outstandingPayments = liveBookings
                     )
                 }
 
-                BookingStatusBadge(status = booking.status)
+             BookingStatusBadge(status = booking.status)
             }
         }
     }
+}
 }
 }
 
