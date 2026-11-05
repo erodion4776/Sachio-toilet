@@ -488,7 +488,7 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                                         color = SashioTextMuted
                                     )
                                 }
-                                BookingStatusBadge(status = b.status)
+                                BookingStatusBadge(status = displayStatus)
                             }
 
                             Spacer(modifier = Modifier.height(8.dp))
