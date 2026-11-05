@@ -316,6 +316,7 @@ fun StaffDashboardMapsTab(
     val localBookings by viewModel.staffBookings.collectAsStateWithLifecycle()
 
     val assignedSupabaseBookings by viewModel.myAssignedBookings.collectAsStateWithLifecycle()
+    val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLifecycle()
 
     val context = LocalContext.current
 
@@ -343,6 +344,14 @@ fun StaffDashboardMapsTab(
     }
 
     val activeJob = activeSupabaseJob ?: activeLocalJob
+
+    LaunchedEffect(activeSupabaseJob?.id) {
+        val bookingId = activeSupabaseJob?.id ?: return@LaunchedEffect
+        while (true) {
+            viewModel.loadBookingLiveLocation(bookingId)
+            kotlinx.coroutines.delay(10_000)
+        }
+    }
 
     if (activeJob == null) {
 
@@ -458,28 +467,16 @@ val locationPermissionLauncher =
             ).show()
         }
     }
-    // Illustrative map positions only.
-    // These are NOT actual staff GPS coordinates.
-
-    val vehicleLat = if (hasValidCoordinates) {
-        when (status) {
-            "Staff Assigned" -> destLat
-            "IN TRANSIT" -> destLat - 0.015
-            else -> destLat
-        }
-    } else {
-        0.0
+    val liveLocation = activeSupabaseJob?.let {
+        bookingLiveLocations[it.id]
     }
-
-    val vehicleLng = if (hasValidCoordinates) {
-        when (status) {
-            "Staff Assigned" -> destLng
-            "IN TRANSIT" -> destLng - 0.012
-            else -> destLng
-        }
-    } else {
-        0.0
-    }
+    val liveStaffLat = liveLocation?.latitude ?: 0.0
+    val liveStaffLng = liveLocation?.longitude ?: 0.0
+    val hasLiveStaffLocation =
+        liveStaffLat.isFinite() && liveStaffLng.isFinite() &&
+        liveStaffLat in -90.0..90.0 &&
+        liveStaffLng in -180.0..180.0 &&
+        (liveStaffLat != 0.0 || liveStaffLng != 0.0)
 
     Box(
         modifier = Modifier
@@ -490,15 +487,15 @@ val locationPermissionLauncher =
         if (hasValidCoordinates) {
 
             SashioInteractiveCanvasMap(
-    latitude = destLat,
-    longitude = destLng,
-    staffLat = destLat,
-    staffLng = destLng,
-    vehicleLat = destLat,
-    vehicleLng = destLng,
-    showRoute = false,
-    label = "Event Venue: $address"
-)
+                latitude = destLat,
+                longitude = destLng,
+                staffLat = if (hasLiveStaffLocation) liveStaffLat else 0.0,
+                staffLng = if (hasLiveStaffLocation) liveStaffLng else 0.0,
+                vehicleLat = 0.0,
+                vehicleLng = 0.0,
+                showRoute = hasLiveStaffLocation,
+                label = "Event Venue: $address"
+            )
 
             Box(
                 modifier = Modifier.fillMaxSize(),
@@ -586,7 +583,7 @@ val locationPermissionLauncher =
 
                 Text(
                     if (hasValidCoordinates) {
-                        "Map preview available. Vehicle position is illustrative."
+                        if (hasLiveStaffLocation) "Live staff GPS is shown on the map. Location refreshes every 10 seconds." else "Waiting for the staff device to share its GPS location."
                     } else {
                         "GPS navigation unavailable until coordinates are provided."
                     },
