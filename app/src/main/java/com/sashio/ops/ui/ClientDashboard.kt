@@ -45,6 +45,17 @@ fun ClientDashboard(viewModel: SashioViewModel, client: UserProfile?) {
     val catalogItems by viewModel.clientCatalogItems.collectAsStateWithLifecycle()
 val bookings by viewModel.clientBookings.collectAsStateWithLifecycle()
 val liveBookings by viewModel.clientSupabaseBookings.collectAsStateWithLifecycle()
+    val bookingSyncMessage by viewModel.bookingSyncMessage.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    LaunchedEffect(bookingSyncMessage) {
+        val message = bookingSyncMessage
+        if (message != null && message.startsWith("sync_failed:")) {
+            val detail = message.removePrefix("sync_failed:").trim()
+            Toast.makeText(context, "Quotation was NOT submitted: $detail", Toast.LENGTH_LONG).show()
+        }
+    }
+
     LaunchedEffect(Unit) {
         viewModel.loadSupabaseCatalogItems()
         viewModel.loadClientSupabaseBookings()
