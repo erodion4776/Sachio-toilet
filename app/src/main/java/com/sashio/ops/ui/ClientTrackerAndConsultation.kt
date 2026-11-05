@@ -1333,20 +1333,22 @@ private fun ClientSupabaseLiveTrackingScreen(
     onBack: () -> Unit
 ) {
     val liveLocations by viewModel.bookingLiveLocations.collectAsStateWithLifecycle()
+    val latestBookings by viewModel.clientSupabaseBookings.collectAsStateWithLifecycle()
+    val currentBooking = latestBookings.firstOrNull { it.id == booking.id } ?: booking
 
-    LaunchedEffect(booking.id) {
+    LaunchedEffect(currentBooking.id) {
         while (true) {
-            viewModel.loadBookingLiveLocation(booking.id)
+            viewModel.loadBookingLiveLocation(currentBooking.id)
             kotlinx.coroutines.delay(8_000)
         }
     }
 
-    val liveLocation = liveLocations[booking.id]
-    val hasDestination = booking.latitude.isFinite() &&
-        booking.longitude.isFinite() &&
-        booking.latitude in -90.0..90.0 &&
-        booking.longitude in -180.0..180.0 &&
-        (booking.latitude != 0.0 || booking.longitude != 0.0)
+    val liveLocation = liveLocations[currentBooking.id]
+    val hasDestination = currentBooking.latitude.isFinite() &&
+        currentBooking.longitude.isFinite() &&
+        currentBooking.latitude in -90.0..90.0 &&
+        currentBooking.longitude in -180.0..180.0 &&
+        (currentBooking.latitude != 0.0 || currentBooking.longitude != 0.0)
     val hasStaffGps = liveLocation != null &&
         isFreshBookingGps(liveLocation.updated_at) &&
         liveLocation.latitude.isFinite() &&
@@ -1371,12 +1373,12 @@ private fun ClientSupabaseLiveTrackingScreen(
             Column(modifier = Modifier.weight(1f)) {
                 Text("LIVE SERVICE TRACKING", fontWeight = FontWeight.Bold)
                 Text(
-                    "Booking #${booking.id.take(8)}",
+                    "Booking #${currentBooking.id.take(8)}",
                     color = SashioTextMuted,
                     fontSize = 11.sp
                 )
             }
-            BookingStatusBadge(status = booking.status)
+            BookingStatusBadge(status = currentBooking.status)
         }
 
         Card(
@@ -1385,18 +1387,18 @@ private fun ClientSupabaseLiveTrackingScreen(
         ) {
             Column(modifier = Modifier.padding(14.dp)) {
                 Text(
-                    booking.service_type,
+                    currentBooking.service_type,
                     color = Color.White,
                     fontWeight = FontWeight.Bold
                 )
                 Text(
-                    booking.address,
+                    currentBooking.address,
                     color = Color.White.copy(alpha = 0.8f),
                     fontSize = 12.sp
                 )
                 Spacer(modifier = Modifier.height(6.dp))
                 Text(
-                    "Assigned staff: ${booking.assigned_staff_name ?: "Not assigned"}",
+                    "Assigned staff: ${currentBooking.assigned_staff_name ?: "Not assigned"}",
                     color = SashioGold,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
@@ -1404,7 +1406,7 @@ private fun ClientSupabaseLiveTrackingScreen(
                 Text(
                     when {
                         hasStaffGps -> "Live GPS received from the assigned staff device."
-                        booking.assigned_staff_id == null -> "Your booking is awaiting staff assignment."
+                        currentBooking.assigned_staff_id == null -> "Your booking is awaiting staff assignment."
                         else -> "Staff is assigned. Waiting for the staff member to start GPS sharing."
                     },
                     color = if (hasStaffGps) SashioGreen else Color.White.copy(alpha = 0.8f),
@@ -1437,8 +1439,8 @@ private fun ClientSupabaseLiveTrackingScreen(
                         .height(390.dp)
                 ) {
                     SashioInteractiveCanvasMap(
-                        latitude = booking.latitude,
-                        longitude = booking.longitude,
+                        latitude = currentBooking.latitude,
+                        longitude = currentBooking.longitude,
                         staffLat = if (hasStaffGps) liveLocation!!.latitude else 0.0,
                         staffLng = if (hasStaffGps) liveLocation!!.longitude else 0.0,
                         vehicleLat = 0.0,
