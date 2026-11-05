@@ -145,7 +145,7 @@ fun AdminDashboardHomeView(
                 Triple("products", "🚽 Product Catalog", "Configure mobile units, specifications & images"),
                 Triple("payments", "💳 Paystack Payments", "Settlement journals, transaction verification"),
                 Triple("revenue", "📈 Business Analytics", "Revenue growth charts with expense reports"),
-                Triple("reports", "📊 Reports Export Hub", "PDF, CSV, Excel document dispatcher"),
+                Triple("reports", "📊 Reports Export Hub", "Sachio-branded PDF and CSV for all reports"),
                 Triple("manage_roles", "🔑 User Roles (Live)", "Promote or demote live Supabase accounts"),
                 Triple("settings", "⚙ Operational Settings", "System configurations, activity audits logs")
             )
