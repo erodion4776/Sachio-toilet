@@ -606,25 +606,11 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                                                 )
                                             }
 
-                                            AssistChip(
-                                                onClick = {
-                                                    layer = when (layer) {
-                                                        "Standard" -> "Satellite"
-                                                        "Satellite" -> "Traffic"
-                                                        "Traffic" -> "Operations"
-                                                        else -> "Standard"
-                                                    }
-                                                },
-                                                label = {
-                                                    Text(
-                                                        "Layer: $layer",
-                                                        fontSize = 9.sp,
-                                                        color = Color.White
-                                                    )
-                                                },
-                                                colors = AssistChipDefaults.assistChipColors(
-                                                    containerColor = Color.White.copy(alpha = 0.15f)
-                                                )
+                                            Text(
+                                                "OPENSTREETMAP • LIVE GPS",
+                                                fontSize = 9.sp,
+                                                color = Color.White.copy(alpha = 0.8f),
+                                                fontWeight = FontWeight.Bold
                                             )
                                         }
 

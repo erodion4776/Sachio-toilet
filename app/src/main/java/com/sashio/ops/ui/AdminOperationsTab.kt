@@ -244,7 +244,6 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
     val localContext = LocalContext.current
 
     var selectedTrackBookingId by remember { mutableStateOf<String?>(null) }
-    var currentMapLayer by remember { mutableStateOf("Standard") }
     var trackSelectedTab by remember { mutableStateOf("Live Map") }
 
     LaunchedEffect(Unit) {
@@ -262,7 +261,17 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
     }
     
     val focusBooking = remember(activeBookings, selectedTrackBookingId) {
-        activeBookings.find { it.id == selectedTrackBookingId } ?: activeBookings.firstOrNull()
+        activeBookings.find { it.id == selectedTrackBookingId }
+            ?: activeBookings.firstOrNull {
+                it.status in listOf(
+                    "Staff Assigned",
+                    "IN TRANSIT",
+                    "ARRIVED",
+                    "SETUP IN PROGRESS",
+                    "SERVICE ACTIVE"
+                )
+            }
+            ?: activeBookings.firstOrNull()
     }
 
     LaunchedEffect(focusBooking?.id) {
@@ -302,20 +311,13 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
         }
 
         if (trackSelectedTab == "Live Map") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text("Map Layer:", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                listOf("Standard", "Traffic", "Satellite", "Operations").forEach { lStyle ->
-                    FilterChip(
-                        selected = currentMapLayer == lStyle,
-                        onClick = { currentMapLayer = lStyle },
-                        label = { Text(lStyle, fontSize = 9.sp) }
-                    )
-                }
-            }
+            Text(
+                "OPENSTREETMAP • REAL STAFF GPS • AUTO-REFRESH",
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = SashioTeal,
+                modifier = Modifier.padding(vertical = 6.dp)
+            )
 
             Card(
                 colors = CardDefaults.cardColors(containerColor = Color.White),
@@ -334,7 +336,6 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
                             staffLng = if (hasLiveStaffGps) focusLiveLocation!!.longitude else 0.0,
                             vehicleLat = 0.0,
                             vehicleLng = 0.0,
-                            mapStyle = currentMapLayer,
                             showRoute = hasLiveStaffGps,
                             label = "${focusBooking.client_name} (${focusBooking.service_type})"
                         )
