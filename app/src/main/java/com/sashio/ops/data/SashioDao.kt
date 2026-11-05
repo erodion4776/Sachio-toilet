@@ -34,6 +34,9 @@ interface SashioDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertBooking(booking: Booking): Long
 
+    @Query("DELETE FROM bookings WHERE id = :id")
+    suspend fun deleteBooking(id: Long)
+
     @Update
     suspend fun updateBooking(booking: Booking)
 
