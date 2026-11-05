@@ -301,7 +301,11 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
         )
         Spacer(modifier = Modifier.height(12.dp))
                 val liveQuoted = liveBookings
-            .filter { it.quoted_price > 0.0 && it.payment_status != "success" }
+            .filter {
+    it.status == "Client Accepted" &&
+    (it.quoted_price + it.logistics_cost + it.vat_amount) > 0 &&
+    it.payment_status != "success"
+}
             .take(2)
 
         if (liveQuoted.isNotEmpty()) {
