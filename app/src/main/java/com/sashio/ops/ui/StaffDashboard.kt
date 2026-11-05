@@ -478,6 +478,7 @@ val locationPermissionLauncher =
     val liveStaffLat = liveLocation?.latitude ?: 0.0
     val liveStaffLng = liveLocation?.longitude ?: 0.0
     val hasLiveStaffLocation =
+        liveLocation?.let { isFreshStaffGps(it.updated_at) } == true &&
         liveStaffLat.isFinite() && liveStaffLng.isFinite() &&
         liveStaffLat in -90.0..90.0 &&
         liveStaffLng in -180.0..180.0 &&
@@ -1214,4 +1215,15 @@ fun StaffDashboardMessagesTab(
             }
         }
     }
+}
+
+
+private fun isFreshStaffGps(updatedAt: String): Boolean {
+    val ageSeconds = runCatching {
+        java.time.Duration.between(
+            java.time.Instant.parse(updatedAt),
+            java.time.Instant.now()
+        ).seconds
+    }.getOrNull() ?: return false
+    return ageSeconds in -30..90
 }

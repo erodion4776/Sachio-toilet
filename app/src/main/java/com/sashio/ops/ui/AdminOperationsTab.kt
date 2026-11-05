@@ -275,6 +275,7 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
 
     val focusLiveLocation = focusBooking?.let { bookingLiveLocations[it.id] }
     val hasLiveStaffGps = focusLiveLocation != null &&
+        isFreshAdminGps(focusLiveLocation.updated_at) &&
         focusLiveLocation.latitude.isFinite() &&
         focusLiveLocation.longitude.isFinite() &&
         focusLiveLocation.latitude in -90.0..90.0 &&
@@ -923,4 +924,15 @@ fun AdminLogExpenseDialog(
             TextButton(onClick = onDismiss) { Text("Cancel") }
         }
     )
+}
+
+
+private fun isFreshAdminGps(updatedAt: String): Boolean {
+    val ageSeconds = runCatching {
+        java.time.Duration.between(
+            java.time.Instant.parse(updatedAt),
+            java.time.Instant.now()
+        ).seconds
+    }.getOrNull() ?: return false
+    return ageSeconds in -30..90
 }

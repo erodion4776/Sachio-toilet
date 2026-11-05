@@ -44,6 +44,10 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
 
     LaunchedEffect(Unit) {
         viewModel.loadClientSupabaseBookings()
+        while (true) {
+            kotlinx.coroutines.delay(15_000)
+            viewModel.loadClientSupabaseBookings()
+        }
     }
 
     if (!bookingLoadError.isNullOrBlank()) {
@@ -635,12 +639,12 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                                             SashioInteractiveCanvasMap(
                                                 latitude = b.latitude,
                                                 longitude = b.longitude,
-                                                staffLat = liveLocation?.latitude ?: 0.0,
-                                                staffLng = liveLocation?.longitude ?: 0.0,
+                                                staffLat = if (liveLocation?.let { isFreshBookingGps(it.updated_at) } == true) liveLocation.latitude else 0.0,
+                                                staffLng = if (liveLocation?.let { isFreshBookingGps(it.updated_at) } == true) liveLocation.longitude else 0.0,
                                                 vehicleLat = 0.0,
                                                 vehicleLng = 0.0,
                                                 mapStyle = layer,
-                                                showRoute = liveLocation != null,
+                                                showRoute = liveLocation?.let { isFreshBookingGps(it.updated_at) } == true,
                                                 label = "My Event Location"
                                             )
                                         }
@@ -1358,6 +1362,7 @@ private fun ClientSupabaseLiveTrackingScreen(
         booking.longitude in -180.0..180.0 &&
         (booking.latitude != 0.0 || booking.longitude != 0.0)
     val hasStaffGps = liveLocation != null &&
+        isFreshBookingGps(liveLocation.updated_at) &&
         liveLocation.latitude.isFinite() &&
         liveLocation.longitude.isFinite() &&
         liveLocation.latitude in -90.0..90.0 &&
@@ -1474,4 +1479,15 @@ private fun ClientSupabaseLiveTrackingScreen(
             )
         }
     }
+}
+
+
+private fun isFreshBookingGps(updatedAt: String): Boolean {
+    val ageSeconds = runCatching {
+        java.time.Duration.between(
+            java.time.Instant.parse(updatedAt),
+            java.time.Instant.now()
+        ).seconds
+    }.getOrNull() ?: return false
+    return ageSeconds in -30..90
 }
