@@ -785,7 +785,7 @@ displayVatAmount
                                         }
 
                                         "Client Accepted" -> {
-                                            if (b.paymentStatus != "success") {
+                                            if (displayPaymentStatus != "success" && grandTotal > 0) {
                                                 Button(
                                                     onClick = {
                                                         viewModel.triggerPaystackPayment(
