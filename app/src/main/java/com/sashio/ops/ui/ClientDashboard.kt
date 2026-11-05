@@ -645,6 +645,9 @@ fun BookingFormSheet(
     var currentCoords by remember {
         mutableStateOf(Pair(6.4351, 3.4219))
     }
+    // Coordinates must be explicitly confirmed for each new address.
+    // Never submit the default Lagos map center as if it were the client's venue.
+    var locationPinConfirmed by remember { mutableStateOf(false) }
 
     var eventType by remember { mutableStateOf("Wedding") }
     var guestCount by remember { mutableStateOf("100") }
@@ -850,6 +853,7 @@ fun BookingFormSheet(
             onValueChange = {
                 selectedAddressText = ""
                 addressQuery = it
+                locationPinConfirmed = false
                 viewModel.updateAddressSearch(it)
             },
             label = { Text("Search Street / Site Location...") },
@@ -866,6 +870,7 @@ fun BookingFormSheet(
                         onClick = {
                             selectedAddressText = ""
                             addressQuery = ""
+                            locationPinConfirmed = false
                         }
                     ) {
                         Icon(
@@ -904,6 +909,7 @@ fun BookingFormSheet(
                                     selectedAddressText = place.address
                                     addressQuery = place.address
                                     currentCoords = Pair(place.lat, place.lng)
+                                    locationPinConfirmed = true
                                     focusManager.clearFocus()
 
                                     Toast.makeText(
@@ -966,6 +972,7 @@ fun BookingFormSheet(
                                 fav.latitude,
                                 fav.longitude
                             )
+                            locationPinConfirmed = true
 
                             Toast.makeText(
                                 context,
@@ -1011,6 +1018,7 @@ fun BookingFormSheet(
                 longitude = currentCoords.second,
                 onMarkerChanged = { newLat, newLng ->
                     currentCoords = Pair(newLat, newLng)
+                    locationPinConfirmed = true
 
                     viewModel.reverseGeocodeLocation(
                         newLat,
@@ -1046,6 +1054,19 @@ fun BookingFormSheet(
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        Text(
+            if (locationPinConfirmed) {
+                "PIN CONFIRMED • The staff navigation will use this exact map point."
+            } else {
+                "PIN NOT CONFIRMED • Select a search result, choose a saved location, or tap the map at the exact venue before submitting."
+            },
+            color = if (locationPinConfirmed) SashioGreen else Color(0xFFB45309),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+
+        Spacer(modifier = Modifier.height(8.dp))
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1060,6 +1081,7 @@ fun BookingFormSheet(
                     selectedAddressText = locText
                     addressQuery = locText
                     currentCoords = Pair(sampleLat, sampleLng)
+                    locationPinConfirmed = true
 
                     Toast.makeText(
                         context,
@@ -1353,7 +1375,13 @@ fun BookingFormSheet(
 
                 val user = currentUser
 
-                if (finalAddress.isNotEmpty() && user != null) {
+                if (!locationPinConfirmed) {
+                    Toast.makeText(
+                        context,
+                        "Please confirm the exact venue pin on the map before submitting.",
+                        Toast.LENGTH_LONG
+                    ).show()
+                } else if (finalAddress.isNotEmpty() && user != null) {
                     val booking = Booking(
                         clientId = user.id,
                         clientName = user.name,
@@ -1402,7 +1430,7 @@ fun BookingFormSheet(
             enabled = (
                 addressQuery.isNotEmpty() ||
                     selectedAddressText.isNotEmpty()
-                ) && currentUser != null
+                ) && currentUser != null && locationPinConfirmed
         ) {
             Text(
                 "TRANSMIT QUOTE REQUEST",
