@@ -35,6 +35,8 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
     val bookings by viewModel.clientBookings.collectAsStateWithLifecycle()
     val activeTrackers by viewModel.activeLiveTrackers.collectAsStateWithLifecycle()
     val liveBookings by viewModel.clientSupabaseBookings.collectAsStateWithLifecycle()
+val bookingLoadError by viewModel.clientBookingsLoadError.collectAsStateWithLifecycle()
+val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLifecycle()
     val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLifecycle()
     var bookingToConvert by remember { mutableStateOf<Booking?>(null) }
     val context = LocalContext.current
@@ -44,6 +46,27 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
         viewModel.loadClientSupabaseBookings()
     }
 
+    if (!bookingLoadError.isNullOrBlank()) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Text(
+            text = bookingLoadError ?: "",
+            color = MaterialTheme.colorScheme.error,
+            fontSize = 12.sp
+        )
+
+        TextButton(
+            onClick = {
+                viewModel.loadClientSupabaseBookings()
+            }
+        ) {
+            Text("Retry loading quotations")
+        }
+    }
+}
     LaunchedEffect(liveBookings) {
         while (true) {
             liveBookings
