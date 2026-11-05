@@ -707,9 +707,9 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
 
                                 Text(
                                     "Subtotal ₦%,.0f | Logistics ₦%,.0f | VAT ₦%,.0f".format(
-                                        b.quotedPrice,
-                                        b.logisticsCost,
-                                        b.vatAmount
+                                        displayQuotedPrice,
+displayLogisticsCost,
+displayVatAmount
                                     ),
                                     fontSize = 10.sp,
                                     color = SashioTextMuted
