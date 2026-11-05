@@ -21,6 +21,8 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.input.nestedscroll.rememberNestedScrollInteropConnection
 import coil.compose.AsyncImage
 import com.sashio.ops.R
 import com.sashio.ops.data.CreatePaymentResponse
@@ -246,8 +248,9 @@ fun SashioCanvasMap(
     label: String = ""
 ) {
     val context = LocalContext.current
-    val destLat = if (latitude != 0.0) latitude else 6.4531
-    val destLng = if (longitude != 0.0) longitude else 3.3958
+    val destLat = if (latitude != 0.0) latitude else 9.0820
+    val destLng = if (longitude != 0.0) longitude else 8.6753
+    var lastCenter by remember { mutableStateOf<Pair<Double, Double>?>(null) }
 
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
@@ -255,10 +258,11 @@ fun SashioCanvasMap(
                 MapView(ctx).apply {
                     setTileSource(TileSourceFactory.MAPNIK)
                     setMultiTouchControls(true)
+                    setBuiltInZoomControls(true)
                     isTilesScaledToDpi = true
 
                     val mapController = controller
-                    mapController.setZoom(15.0)
+                    mapController.setZoom(6.0)
                     mapController.setCenter(GeoPoint(destLat, destLng))
 
                     // Tap-to-pick pin drop gesture
@@ -314,11 +318,18 @@ fun SashioCanvasMap(
                     }
                 }
 
-                // Smoothly animate and re-center map to the current pin
-                mapView.controller.animateTo(destPoint)
+                // Recenter only when the selected coordinates actually change.
+                // Do not fight the user's pan/zoom gestures on ordinary recompositions.
+                val requestedCenter = Pair(destLat, destLng)
+                if (lastCenter != requestedCenter) {
+                    mapView.controller.animateTo(destPoint)
+                    lastCenter = requestedCenter
+                }
                 mapView.invalidate()
             },
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier
+                .fillMaxSize()
+                .nestedScroll(rememberNestedScrollInteropConnection())
         )
 
         if (label.isNotBlank()) {
