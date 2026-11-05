@@ -681,7 +681,7 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                                 }
                             }
 
-                            if (b.status in listOf(
+                            if (displayStatus in listOf(
                                     "Quotation Sent",
                                     "Client Accepted",
                                     "Booking Confirmed",
