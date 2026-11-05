@@ -322,6 +322,10 @@ fun StaffDashboardMapsTab(
 
     LaunchedEffect(Unit) {
         viewModel.loadMyAssignedBookings()
+        while (true) {
+            kotlinx.coroutines.delay(15_000)
+            viewModel.loadMyAssignedBookings()
+        }
     }
 
     // Prefer the assigned Supabase job.
@@ -330,7 +334,8 @@ fun StaffDashboardMapsTab(
             "IN TRANSIT",
             "Staff Assigned",
             "ARRIVED",
-            "SETUP IN PROGRESS"
+            "SETUP IN PROGRESS",
+            "SERVICE ACTIVE"
         )
     }
 

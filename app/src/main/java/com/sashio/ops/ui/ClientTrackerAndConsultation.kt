@@ -27,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.sashio.ops.data.Booking
+import com.sashio.ops.data.SupabaseBooking
 import com.sashio.ops.data.SashioViewModel
 import com.sashio.ops.ui.theme.*
 
@@ -39,7 +40,7 @@ val bookingLoadError by viewModel.clientBookingsLoadError.collectAsStateWithLife
 val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLifecycle()
     var bookingToConvert by remember { mutableStateOf<Booking?>(null) }
     val context = LocalContext.current
-    var activeTrackingBookingId by remember { mutableStateOf<Long?>(null) }
+    var activeTrackingRemoteBooking by remember { mutableStateOf<SupabaseBooking?>(null) }
 
     LaunchedEffect(Unit) {
         viewModel.loadClientSupabaseBookings()
@@ -78,11 +79,11 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
         }
     }
 
-    if (activeTrackingBookingId != null) {
-        SashioLiveTrackingScreen(
+    if (activeTrackingRemoteBooking != null) {
+        ClientSupabaseLiveTrackingScreen(
             viewModel = viewModel,
-            bookingId = activeTrackingBookingId!!,
-            onBack = { activeTrackingBookingId = null }
+            booking = activeTrackingRemoteBooking!!,
+            onBack = { activeTrackingRemoteBooking = null }
         )
         return
     }
@@ -467,6 +468,15 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                                 color = SashioGreen
                             )
                         }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = { activeTrackingRemoteBooking = pb },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Icon(Icons.Default.Explore, contentDescription = null)
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text("Track live delivery")
+                        }
                     }
                 }
             }
@@ -551,11 +561,12 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                                 )
                             }
 
-                            if (b.status in listOf(
+                            if (displayStatus in listOf(
                                     "IN TRANSIT",
                                     "ARRIVED",
                                     "SERVICE DELIVERED",
-                                    "SETUP IN PROGRESS"
+                                    "SETUP IN PROGRESS",
+                                    "SERVICE ACTIVE"
                                 )
                             ) {
                                 var layer by remember { mutableStateOf("Standard") }
@@ -621,13 +632,15 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                                                 .height(180.dp)
                                                 .clip(RoundedCornerShape(8.dp))
                                         ) {
-                                            SashioCanvasMap(
+                                            SashioInteractiveCanvasMap(
                                                 latitude = b.latitude,
                                                 longitude = b.longitude,
-                                                vehicleLat = liveLocation?.latitude,
-                                                vehicleLng = liveLocation?.longitude,
+                                                staffLat = liveLocation?.latitude ?: 0.0,
+                                                staffLng = liveLocation?.longitude ?: 0.0,
+                                                vehicleLat = 0.0,
+                                                vehicleLng = 0.0,
                                                 mapStyle = layer,
-                                                showRoute = true,
+                                                showRoute = liveLocation != null,
                                                 label = "My Event Location"
                                             )
                                         }
@@ -695,7 +708,18 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                             ) {
                                 Spacer(modifier = Modifier.height(8.dp))
                                 Button(
-                                    onClick = { activeTrackingBookingId = b.id },
+                                    onClick = {
+                                        if (remoteBooking != null) {
+                                            activeTrackingRemoteBooking = remoteBooking
+                                        } else {
+                                            Toast.makeText(
+                                                context,
+                                                "This booking is not linked to a live server record yet. Refresh your bookings and try again.",
+                                                Toast.LENGTH_LONG
+                                            ).show()
+                                            viewModel.loadClientSupabaseBookings()
+                                        }
+                                    },
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = SashioSlate,
                                         contentColor = SashioGold
@@ -1310,3 +1334,144 @@ fun ConsultationAndReviewsTab(viewModel: SashioViewModel) {
     }
 }                
 
+
+
+@Composable
+private fun ClientSupabaseLiveTrackingScreen(
+    viewModel: SashioViewModel,
+    booking: SupabaseBooking,
+    onBack: () -> Unit
+) {
+    val liveLocations by viewModel.bookingLiveLocations.collectAsStateWithLifecycle()
+
+    LaunchedEffect(booking.id) {
+        while (true) {
+            viewModel.loadBookingLiveLocation(booking.id)
+            kotlinx.coroutines.delay(8_000)
+        }
+    }
+
+    val liveLocation = liveLocations[booking.id]
+    val hasDestination = booking.latitude.isFinite() &&
+        booking.longitude.isFinite() &&
+        booking.latitude in -90.0..90.0 &&
+        booking.longitude in -180.0..180.0 &&
+        (booking.latitude != 0.0 || booking.longitude != 0.0)
+    val hasStaffGps = liveLocation != null &&
+        liveLocation.latitude.isFinite() &&
+        liveLocation.longitude.isFinite() &&
+        liveLocation.latitude in -90.0..90.0 &&
+        liveLocation.longitude in -180.0..180.0 &&
+        (liveLocation.latitude != 0.0 || liveLocation.longitude != 0.0)
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text("LIVE SERVICE TRACKING", fontWeight = FontWeight.Bold)
+                Text(
+                    "Booking #${booking.id.take(8)}",
+                    color = SashioTextMuted,
+                    fontSize = 11.sp
+                )
+            }
+            BookingStatusBadge(status = booking.status)
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = SashioSlate)
+        ) {
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    booking.service_type,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    booking.address,
+                    color = Color.White.copy(alpha = 0.8f),
+                    fontSize = 12.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    "Assigned staff: ${booking.assigned_staff_name ?: "Not assigned"}",
+                    color = SashioGold,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    when {
+                        hasStaffGps -> "Live GPS received from the assigned staff device."
+                        booking.assigned_staff_id == null -> "Your booking is awaiting staff assignment."
+                        else -> "Staff is assigned. Waiting for the staff member to start GPS sharing."
+                    },
+                    color = if (hasStaffGps) SashioGreen else Color.White.copy(alpha = 0.8f),
+                    fontSize = 11.sp
+                )
+                if (hasStaffGps) {
+                    Text(
+                        "Last GPS update: ${liveLocation?.updated_at}",
+                        color = Color.White.copy(alpha = 0.75f),
+                        fontSize = 10.sp
+                    )
+                    liveLocation?.accuracy_m?.let {
+                        Text(
+                            "GPS accuracy: ${it.toInt()} m",
+                            color = Color.White.copy(alpha = 0.75f),
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (hasDestination) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(390.dp)
+                ) {
+                    SashioInteractiveCanvasMap(
+                        latitude = booking.latitude,
+                        longitude = booking.longitude,
+                        staffLat = if (hasStaffGps) liveLocation!!.latitude else 0.0,
+                        staffLng = if (hasStaffGps) liveLocation!!.longitude else 0.0,
+                        vehicleLat = 0.0,
+                        vehicleLng = 0.0,
+                        showRoute = hasStaffGps,
+                        label = "Customer delivery location"
+                    )
+                }
+            }
+            Text(
+                if (hasStaffGps) {
+                    "The line shows the latest staff GPS position to your delivery location. The map refreshes automatically."
+                } else {
+                    "The destination is pinned. The staff marker and route will appear automatically when GPS sharing starts."
+                },
+                modifier = Modifier.padding(top = 8.dp),
+                color = SashioTextMuted,
+                fontSize = 11.sp
+            )
+        } else {
+            Text(
+                "This booking does not have valid map coordinates. Please contact support to correct the delivery pin.",
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}

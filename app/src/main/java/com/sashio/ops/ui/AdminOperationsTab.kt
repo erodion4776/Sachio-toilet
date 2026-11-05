@@ -239,7 +239,7 @@ fun AdminOperationsTab(
 @Composable
 fun AdminTrackingTab(viewModel: SashioViewModel) {
     val supabaseBookings by viewModel.supabaseBookings.collectAsStateWithLifecycle()
-    val activeTrackers by viewModel.activeLiveTrackers.collectAsStateWithLifecycle()
+    val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLifecycle()
     val supabaseAttendance by viewModel.supabaseAttendance.collectAsStateWithLifecycle()
     val localContext = LocalContext.current
 
@@ -251,6 +251,10 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
         viewModel.loadSupabaseBookings()
         viewModel.loadSupabaseAttendance()
         viewModel.loadSupabaseProfiles()
+        while (true) {
+            kotlinx.coroutines.delay(15_000)
+            viewModel.loadSupabaseBookings()
+        }
     }
 
     val activeBookings = remember(supabaseBookings) {
@@ -260,6 +264,22 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
     val focusBooking = remember(activeBookings, selectedTrackBookingId) {
         activeBookings.find { it.id == selectedTrackBookingId } ?: activeBookings.firstOrNull()
     }
+
+    LaunchedEffect(focusBooking?.id) {
+        val bookingId = focusBooking?.id ?: return@LaunchedEffect
+        while (true) {
+            viewModel.loadBookingLiveLocation(bookingId)
+            kotlinx.coroutines.delay(8_000)
+        }
+    }
+
+    val focusLiveLocation = focusBooking?.let { bookingLiveLocations[it.id] }
+    val hasLiveStaffGps = focusLiveLocation != null &&
+        focusLiveLocation.latitude.isFinite() &&
+        focusLiveLocation.longitude.isFinite() &&
+        focusLiveLocation.latitude in -90.0..90.0 &&
+        focusLiveLocation.longitude in -180.0..180.0 &&
+        (focusLiveLocation.latitude != 0.0 || focusLiveLocation.longitude != 0.0)
 
     Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
         Text("LIVE ROUTE CONTROL & ATTENDANCE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -303,25 +323,18 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
             ) {
                 Box(modifier = Modifier.fillMaxSize()) {
                     if (focusBooking != null) {
-                        val numericId = focusBooking.id.hashCode().toLong()
-                        val tracker = activeTrackers[numericId]
-
                         val targetLat = focusBooking.latitude
                         val targetLng = focusBooking.longitude
-                        val staffLat = tracker?.staffLat ?: (targetLat - 0.025)
-                        val staffLng = tracker?.staffLng ?: (targetLng - 0.02)
-                        val vehicleLat = tracker?.vehicleLat ?: (targetLat - 0.028)
-                        val vehicleLng = tracker?.vehicleLng ?: (targetLng - 0.022)
 
-                        SashioCanvasMap(
+                        SashioInteractiveCanvasMap(
                             latitude = targetLat,
                             longitude = targetLng,
-                            staffLat = staffLat,
-                            staffLng = staffLng,
-                            vehicleLat = vehicleLat,
-                            vehicleLng = vehicleLng,
+                            staffLat = if (hasLiveStaffGps) focusLiveLocation!!.latitude else 0.0,
+                            staffLng = if (hasLiveStaffGps) focusLiveLocation!!.longitude else 0.0,
+                            vehicleLat = 0.0,
+                            vehicleLng = 0.0,
                             mapStyle = currentMapLayer,
-                            showRoute = true,
+                            showRoute = hasLiveStaffGps,
                             label = "${focusBooking.client_name} (${focusBooking.service_type})"
                         )
 
@@ -341,6 +354,16 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text("Status: ${focusBooking.status}", color = SashioGreen, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                                Text(
+                                    when {
+                                        hasLiveStaffGps -> "LIVE GPS • ${focusLiveLocation?.updated_at}"
+                                        focusBooking.assigned_staff_id == null -> "GPS unavailable • Awaiting staff assignment"
+                                        else -> "GPS unavailable • Waiting for staff to start sharing"
+                                    },
+                                    color = if (hasLiveStaffGps) SashioTeal else SashioGold,
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
 
                                 Spacer(modifier = Modifier.height(6.dp))
 
