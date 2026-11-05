@@ -339,7 +339,11 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     val activePaystackTransaction: StateFlow<CreatePaymentResponse?> = _activePaystackTransaction.asStateFlow()
 
     private val _clientSupabaseBookings = MutableStateFlow<List<SupabaseBooking>>(emptyList())
-    val clientSupabaseBookings: StateFlow<List<SupabaseBooking>> = _clientSupabaseBookings.asStateFlow()
+val clientSupabaseBookings: StateFlow<List<SupabaseBooking>> = _clientSupabaseBookings.asStateFlow()
+
+private val _clientBookingsLoadError = MutableStateFlow<String?>(null)
+val clientBookingsLoadError: StateFlow<String?> = _clientBookingsLoadError.asStateFlow()
+
 
     private val _bookingLiveLocations =
     MutableStateFlow<Map<String, BookingLiveLocation>>(emptyMap())
@@ -1364,20 +1368,40 @@ fun staffUpdateBookingStatus(
     }
 
     fun loadClientSupabaseBookings() {
-        viewModelScope.launch {
-            try {
-                val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id ?: return@launch
-                val rows = SupabaseProvider.client.postgrest.from("bookings")
-                    .select {
-                        filter { eq("client_id", uid) }
-                    }
-                    .decodeList<SupabaseBooking>()
-                _clientSupabaseBookings.value = rows
-            } catch (e: Exception) {
-                _roleManagementError.value = "Could not load your bookings: ${e.message}"
+    viewModelScope.launch {
+        _clientBookingsLoadError.value = null
+
+        try {
+            var uid = SupabaseProvider.client.auth.currentUserOrNull()?.id
+            var attempts = 0
+
+            while (uid.isNullOrBlank() && attempts < 10) {
+                delay(500)
+                uid = SupabaseProvider.client.auth.currentUserOrNull()?.id
+                attempts++
             }
+
+            if (uid.isNullOrBlank()) {
+                _clientBookingsLoadError.value =
+                    "Your secure session is not ready. Please tap Retry."
+                return@launch
+            }
+
+            val rows = SupabaseProvider.client.postgrest.from("bookings")
+                .select {
+                    filter { eq("client_id", uid!!) }
+                }
+                .decodeList<SupabaseBooking>()
+
+            _clientSupabaseBookings.value = rows
+            _clientBookingsLoadError.value = null
+
+        } catch (e: Exception) {
+            _clientBookingsLoadError.value =
+                "Could not load your latest quotations: ${e.message ?: "Please check your connection."}"
         }
     }
+}
 
     fun loadBookingLiveLocation(bookingId: String) {
     viewModelScope.launch {
