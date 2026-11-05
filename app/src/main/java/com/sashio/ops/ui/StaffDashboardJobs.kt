@@ -939,11 +939,14 @@ fun StaffDashboardJobsTab(
                                             onClick = {
                                                 viewModel.staffUpdateBookingStatus(
                                                     booking.id,
-                                                    "SERVICE DELIVERED"
+                                                    "COMPLETED",
+                                                    onError = { error ->
+                                                        Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                                                    }
                                                 ) {
                                                     Toast.makeText(
                                                         context,
-                                                        "Service marked as delivered.",
+                                                        "Service marked as completed.",
                                                         Toast.LENGTH_SHORT
                                                     ).show()
                                                 }
