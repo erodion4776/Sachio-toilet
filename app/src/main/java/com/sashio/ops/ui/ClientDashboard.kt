@@ -1,6 +1,7 @@
 
 package com.sashio.ops.ui
 
+import com.sashio.ops.data.SupabaseBooking
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -42,8 +43,8 @@ fun ClientDashboard(viewModel: SashioViewModel, client: UserProfile?) {
     var isSettingsOpen by remember { mutableStateOf(false) }
 
     val catalogItems by viewModel.clientCatalogItems.collectAsStateWithLifecycle()
-    val bookings by viewModel.clientBookings.collectAsStateWithLifecycle()
-
+val bookings by viewModel.clientBookings.collectAsStateWithLifecycle()
+val liveBookings by viewModel.clientSupabaseBookings.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) {
         viewModel.loadSupabaseCatalogItems()
         viewModel.loadClientSupabaseBookings()
@@ -124,8 +125,9 @@ fun ClientDashboard(viewModel: SashioViewModel, client: UserProfile?) {
             } else {
                 when (activeTab) {
                     "home" -> ClientOverviewTab(
-                        client = client,
-                        bookings = bookings,
+    client = client,
+    bookings = bookings,
+    liveBookings = liveBookings,
                         onRequestQuote = {
                             selectedCategoryForQuote =
                                 "Standard Portable Toilets"
@@ -165,41 +167,47 @@ fun ClientDashboard(viewModel: SashioViewModel, client: UserProfile?) {
 fun ClientOverviewTab(
     client: UserProfile?,
     bookings: List<Booking>,
+    liveBookings: List<SupabaseBooking>,
     onRequestQuote: () -> Unit,
     onNavigate: (String) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
 
-    val pendingQuotes = bookings.count {
-        it.status == "Quotation Requested" ||
-            it.status == "Under Review" ||
-            it.status == "Quotation Generated"
-    }
+    val pendingQuotes = liveBookings.count {
+    it.status in listOf(
+        "Quotation Requested",
+        "Under Review",
+        "Quotation Generated"
+    )
+}
 
-    val activeQuotes = bookings.count {
-        it.status == "Quotation Sent"
-    }
+val activeQuotes = liveBookings.count {
+    it.status == "Quotation Sent"
+}
 
-    val activeBookings = bookings.count {
-        it.status == "Payment Confirmed" ||
-            it.status == "Booking Confirmed" ||
-            it.status == "SERVICE DELIVERED" ||
-            it.status == "IN TRANSIT" ||
-            it.status == "ARRIVED" ||
-            it.status == "SETUP IN PROGRESS"
-    }
+val activeBookings = liveBookings.count {
+    it.status in listOf(
+        "Payment Confirmed",
+        "Booking Confirmed",
+        "SERVICE DELIVERED",
+        "IN TRANSIT",
+        "ARRIVED",
+        "SETUP IN PROGRESS"
+    )
+}
 
-    val completedServices = bookings.count {
-        it.status == "completed" || it.status == "Completed"
-    }
+val completedServices = liveBookings.count {
+    it.status.equals("completed", ignoreCase = true)
+}
 
-    val outstandingPayments = bookings
-        .filter {
-            it.paymentStatus == "pending" && it.quotedPrice > 0.0
-        }
-        .sumOf {
-            it.quotedPrice + it.logisticsCost + it.vatAmount
-        }
+val outstandingPayments = liveBookings
+    .filter {
+        it.payment_status == "pending" &&
+        (it.quoted_price + it.logistics_cost + it.vat_amount) > 0.0
+    }
+    .sumOf {
+        it.quoted_price + it.logistics_cost + it.vat_amount
+    }
 
     LazyColumn(
         modifier = Modifier
