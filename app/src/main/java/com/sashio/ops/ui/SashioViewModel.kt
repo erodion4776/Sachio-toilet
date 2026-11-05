@@ -1,4 +1,4 @@
-Lpackage com.sashio.ops.data
+package com.sashio.ops.data
 
 import android.app.Application
 import android.location.Geocoder
