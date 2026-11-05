@@ -38,6 +38,7 @@ class SashioRepository(
     fun getBookingsForStaff(staffId: Long): Flow<List<Booking>> = dao.getBookingsForStaffFlow(staffId)
 
     suspend fun insertBooking(booking: Booking): Long = dao.insertBooking(booking)
+    suspend fun deleteBooking(id: Long) = dao.deleteBooking(id)
     suspend fun updateBooking(booking: Booking) = dao.updateBooking(booking)
     suspend fun updateBookingStatus(bookingId: Long, status: String) {
         dao.updateBookingStatus(bookingId, status)
