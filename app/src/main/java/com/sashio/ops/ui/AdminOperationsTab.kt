@@ -20,7 +20,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -600,7 +599,6 @@ fun AdminMessagesTab(viewModel: SashioViewModel) {
                             modifier = Modifier.weight(1f),
                             singleLine = true,
                             textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
-                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                             colors = OutlinedTextFieldDefaults.colors(
                                 focusedTextColor = MaterialTheme.colorScheme.onSurface,
                                 unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
@@ -648,7 +646,6 @@ fun AdminMessagesTab(viewModel: SashioViewModel) {
                         maxLines = 4,
                         modifier = Modifier.fillMaxWidth(),
                         textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
-                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedTextColor = MaterialTheme.colorScheme.onSurface,
                             unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
