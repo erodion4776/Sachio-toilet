@@ -20,6 +20,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -536,7 +538,7 @@ fun AdminMessagesTab(viewModel: SashioViewModel) {
             }
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.weight(1f).fillMaxWidth()
             ) {
@@ -565,11 +567,11 @@ fun AdminMessagesTab(viewModel: SashioViewModel) {
                                         "${m.sender_name} (${m.sender_role.uppercase()})",
                                         fontSize = 9.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = if (isMe) SashioGold else SashioSlate
+                                        color = if (isMe) SashioGold else MaterialTheme.colorScheme.onSurface
                                     )
                                     Card(
                                         colors = CardDefaults.cardColors(
-                                            containerColor = if (isMe) SashioSlate else SashioGold.copy(alpha = 0.15f)
+                                            containerColor = if (isMe) SashioSlate else MaterialTheme.colorScheme.surfaceVariant
                                         ),
                                         shape = RoundedCornerShape(8.dp),
                                         modifier = Modifier.padding(vertical = 2.dp).widthIn(max = 280.dp)
@@ -577,7 +579,7 @@ fun AdminMessagesTab(viewModel: SashioViewModel) {
                                         Text(
                                             m.content,
                                             fontSize = 11.sp,
-                                            color = if (isMe) Color.White else SashioSlate,
+                                            color = if (isMe) Color.White else MaterialTheme.colorScheme.onSurface,
                                             modifier = Modifier.padding(8.dp)
                                         )
                                     }
@@ -596,7 +598,16 @@ fun AdminMessagesTab(viewModel: SashioViewModel) {
                             onValueChange = { msgFormText = it },
                             placeholder = { Text("Reply to $msgChannel...", fontSize = 11.sp) },
                             modifier = Modifier.weight(1f),
-                            singleLine = true
+                            singleLine = true,
+                            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                                cursorColor = MaterialTheme.colorScheme.primary
+                            )
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         IconButton(
@@ -614,7 +625,7 @@ fun AdminMessagesTab(viewModel: SashioViewModel) {
                 }
             }
         } else {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(12.dp)) {
                 Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text("BROADCAST PUSH NOTIFICATION ENGINE", fontWeight = FontWeight.Bold, fontSize = 12.sp)
 
@@ -635,7 +646,16 @@ fun AdminMessagesTab(viewModel: SashioViewModel) {
                         onValueChange = { broadcastMessageText = it },
                         label = { Text("Broadcast message text") },
                         maxLines = 4,
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
+                        cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
+                            cursorColor = MaterialTheme.colorScheme.primary
+                        )
                     )
 
                     Button(
