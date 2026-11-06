@@ -1056,7 +1056,7 @@ fun staffUpdateBookingStatus(
     duration: String,
     deliveryAddress: String,
     specialInstructions: String,
-    onComplete: () -> Unit
+    onComplete: (String) -> Unit
 ) {
     viewModelScope.launch {
         try {
@@ -1103,7 +1103,7 @@ fun staffUpdateBookingStatus(
 
             loadClientSupabaseBookings()
             _roleManagementError.value = null
-            onComplete()
+            onComplete(remoteBooking.id)
 
         } catch (e: Exception) {
             _roleManagementError.value =
