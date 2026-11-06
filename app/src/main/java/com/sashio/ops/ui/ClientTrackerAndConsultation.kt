@@ -112,7 +112,7 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "Confirm Service Booking",
+                        "Review Details & Continue",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = SashioSlate
@@ -285,13 +285,14 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                             duration = serviceDuration,
                             deliveryAddress = deliveryAddress,
                             specialInstructions = specialInstructions,
-                            onComplete = {
+                            onComplete = { remoteBookingId ->
                                 bookingToConvert = null
-                                Toast.makeText(
-                                    context,
-                                    "Quotation successfully converted to Booking!",
-                                    Toast.LENGTH_SHORT
-                                ).show()
+                                if (grandTotal > 0) {
+                                    viewModel.triggerPaystackPaymentForRealBooking(remoteBookingId, grandTotal)
+                                    Toast.makeText(context, "Quotation accepted. Opening secure payment...", Toast.LENGTH_LONG).show()
+                                } else {
+                                    Toast.makeText(context, "Free quotation accepted. No payment is required.", Toast.LENGTH_LONG).show()
+                                }
                             }
                         )
                     },
@@ -300,7 +301,7 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                         contentColor = Color.White
                     )
                 ) {
-                    Text("Confirm Booking")
+                    Text(if (grandTotal > 0) "CONFIRM & PAY NOW" else "ACCEPT FREE QUOTATION")
                 }
             },
             dismissButton = {
@@ -778,65 +779,33 @@ displayVatAmount
                                 ) {
                                     when (displayStatus) {
                                         "Quotation Sent", "Quotation Generated" -> {
-                                            Row(
+                                            Column(
                                                 modifier = Modifier.fillMaxWidth(),
-                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
                                                 Button(
-                                                    onClick = {
-                                                        viewModel.clientRejectQuotation(b.id) {}
-                                                    },
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = SashioRed,
-                                                        contentColor = Color.White
-                                                    ),
-                                                    modifier = Modifier
-                                                        .height(34.dp)
-                                                        .weight(1f)
-                                                ) {
-                                                    Text(
-                                                        "Reject",
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-
-                                                Button(
-                                                    onClick = {
-                                                        viewModel.clientRequestRevision(b.id) {}
-                                                    },
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = SashioSlate,
-                                                        contentColor = Color.White
-                                                    ),
-                                                    modifier = Modifier
-                                                        .height(34.dp)
-                                                        .weight(1.2f)
-                                                ) {
-                                                    Text(
-                                                        "Request Revision",
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
-                                                }
-
-                                                Button(
                                                     onClick = { bookingToConvert = b },
-                                                    colors = ButtonDefaults.buttonColors(
-                                                        containerColor = SashioGreen,
-                                                        contentColor = Color.White
-                                                    ),
-                                                    modifier = Modifier
-                                                        .height(34.dp)
-                                                        .weight(1.2f)
+                                                    colors = ButtonDefaults.buttonColors(containerColor = SashioGreen, contentColor = Color.White),
+                                                    modifier = Modifier.fillMaxWidth().height(46.dp).testTag("accept_and_pay_${b.id}")
                                                 ) {
-                                                    Text(
-                                                        "Accept & Book",
-                                                        fontSize = 10.sp,
-                                                        fontWeight = FontWeight.Bold
-                                                    )
+                                                    Icon(Icons.Default.Payment, contentDescription = null, modifier = Modifier.size(17.dp))
+                                                    Spacer(modifier = Modifier.width(7.dp))
+                                                    Text(if (grandTotal > 0) "ACCEPT & PAY NOW" else "ACCEPT FREE QUOTATION", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                                 }
-                                            }
+                                                Row(
+                                                    modifier = Modifier.fillMaxWidth(),
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    OutlinedButton(
+                                                        onClick = { viewModel.clientRejectQuotation(b.id) {} },
+                                                        modifier = Modifier.weight(1f).height(38.dp)
+                                                    ) { Text("Reject", fontSize = 10.sp) }
+                                                    OutlinedButton(
+                                                        onClick = { viewModel.clientRequestRevision(b.id) {} },
+                                                        modifier = Modifier.weight(1.4f).height(38.dp)
+                                                    ) { Text("Request Revision", fontSize = 10.sp) }
+                                                }
+                                            }                                            }
                                         }
 
                                         "Client Accepted" -> {
