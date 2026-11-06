@@ -7,6 +7,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,6 +21,17 @@ import com.sashio.ops.ui.theme.*
 
 @Composable
 fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
+    var adminDarkMode by rememberSaveable { mutableStateOf(false) }
+    val adminColors = if (adminDarkMode) darkColorScheme(
+        primary = SashioGold, onPrimary = SashioSlate, background = Color(0xFF101820),
+        surface = Color(0xFF1B2732), onBackground = Color(0xFFF3F5F7),
+        onSurface = Color(0xFFF3F5F7), surfaceVariant = Color(0xFF293744),
+        onSurfaceVariant = Color(0xFFD0D8E0), outline = Color(0xFF647482)
+    ) else lightColorScheme(
+        primary = SashioGoldDark, onPrimary = Color.White, background = Color(0xFFF6F7F9),
+        surface = Color.White, onBackground = SashioSlate, onSurface = SashioSlate,
+        surfaceVariant = Color(0xFFECEFF2), onSurfaceVariant = SashioTextMuted
+    )
     var activeBottomTab by remember { mutableStateOf("home") }
     var homeSubScreen by remember { mutableStateOf("dashboard") }
 
@@ -38,7 +50,9 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
         viewModel.loadGeneralChats()
     }
 
+    MaterialTheme(colorScheme = adminColors) {
     Scaffold(
+        containerColor = adminColors.background,
         topBar = {
             Column {
                 DashboardHeader(
@@ -53,6 +67,20 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                     },
                     onLogout = { viewModel.logout() }
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth().background(adminColors.background).padding(horizontal = 12.dp, vertical = 2.dp),
+                    horizontalArrangement = Arrangement.End,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(if (adminDarkMode) "Dark mode" else "Light mode", color = adminColors.onBackground, fontSize = 10.sp)
+                    IconButton(onClick = { adminDarkMode = !adminDarkMode }, modifier = Modifier.testTag("admin_theme_toggle")) {
+                        Icon(
+                            if (adminDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = if (adminDarkMode) "Switch to light mode" else "Switch to dark mode",
+                            tint = SashioGold
+                        )
+                    }
+                }
                 if (activeBottomTab == "home" && homeSubScreen != "dashboard") {
                     Row(
                         modifier = Modifier
@@ -175,5 +203,6 @@ fun AdminDashboard(viewModel: SashioViewModel, admin: UserProfile?) {
                 onDismiss = { quotationDialogId = null }
             )
         }
+    }
     }
 }
