@@ -805,7 +805,7 @@ displayVatAmount
                                                         modifier = Modifier.weight(1.4f).height(38.dp)
                                                     ) { Text("Request Revision", fontSize = 10.sp) }
                                                 }
-                                            }                                            }
+                                            }
                                         }
 
                                         "Client Accepted" -> {
@@ -864,7 +864,6 @@ displayVatAmount
             }
         }
     }
-}
 }
 @Composable
 fun ConsultationAndReviewsTab(viewModel: SashioViewModel) {
