@@ -100,7 +100,7 @@ fun AdminOperationsTab(
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.weight(1f)) {
                     items(supabaseBookings) { b ->
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                             shape = RoundedCornerShape(12.dp),
                             modifier = Modifier.fillMaxWidth()
                         ) {
@@ -200,7 +200,7 @@ fun AdminOperationsTab(
                     items(incidents) { inc ->
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = if (inc.priority == "Critical") Color(0xFFFEE2E2) else Color.White
+                                containerColor = if (inc.priority == "Critical") Color(0xFFFEE2E2) else MaterialTheme.colorScheme.surface
                             ),
                             shape = RoundedCornerShape(10.dp),
                             modifier = Modifier.fillMaxWidth()
@@ -227,7 +227,7 @@ fun AdminOperationsTab(
                                     }
                                 }
                                 Spacer(modifier = Modifier.height(4.dp))
-                                Text(inc.details, fontSize = 10.sp, color = SashioSlate)
+                                Text(inc.details, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface)
                                 Spacer(modifier = Modifier.height(2.dp))
                                 Text(
                                     "STATUS: ${inc.status.uppercase()}",
@@ -329,7 +329,7 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
             )
 
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(12.dp),
                 modifier = Modifier.weight(1.5f).fillMaxWidth().padding(vertical = 8.dp)
             ) {
@@ -417,7 +417,7 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
                     items(activeBookings) { b ->
                         val isFocused = focusBooking?.id == b.id
                         Card(
-                            colors = CardDefaults.cardColors(containerColor = if (isFocused) SashioSlate else Color.White),
+                            colors = CardDefaults.cardColors(containerColor = if (isFocused) SashioSlate else MaterialTheme.colorScheme.surface),
                             border = BorderStroke(1.dp, if (isFocused) SashioGold else Color.LightGray.copy(alpha = 0.4f)),
                             shape = RoundedCornerShape(8.dp),
                             modifier = Modifier.width(160.dp).clickable { selectedTrackBookingId = b.id }
@@ -449,7 +449,7 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
             Spacer(modifier = Modifier.height(10.dp))
 
             if (supabaseAttendance.isEmpty()) {
-                Card(colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth()) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), modifier = Modifier.fillMaxWidth()) {
                     Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Icon(Icons.Default.AccessTime, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(36.dp))
@@ -461,14 +461,14 @@ fun AdminTrackingTab(viewModel: SashioViewModel) {
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.weight(1f)) {
                     items(supabaseAttendance) { att ->
-                        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(10.dp)) {
+                        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(10.dp)) {
                             Row(
                                 modifier = Modifier.padding(12.dp).fillMaxWidth(),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(att.staff_name, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioSlate)
+                                    Text(att.staff_name, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                                     val clockInFormatted = formatMessageTimestamp(att.clock_in_time)
                                     val clockOutFormatted = if (!att.clock_out_time.isNullOrBlank()) formatMessageTimestamp(att.clock_out_time) else "On Duty (Active)"
                                     Text("In: $clockInFormatted | Out: $clockOutFormatted", fontSize = 10.sp, color = SashioTextMuted)
@@ -733,7 +733,7 @@ fun AdminProfileTab(viewModel: SashioViewModel, admin: UserProfile?) {
                     text = admin?.name?.take(2)?.uppercase() ?: "SA",
                     fontSize = 24.sp,
                     fontWeight = FontWeight.Bold,
-                    color = SashioSlate
+                    color = MaterialTheme.colorScheme.onSurface
                 )
             }
         }
@@ -742,7 +742,7 @@ fun AdminProfileTab(viewModel: SashioViewModel, admin: UserProfile?) {
         Text("ROLE: ENTERPRISE SYSTEM COMMANDER", fontSize = 10.sp, color = SashioTeal, fontWeight = FontWeight.Bold)
         Text("Email: ${admin?.email ?: "admin@sashio.com"}", fontSize = 10.sp, color = SashioTextMuted)
 
-        Card(colors = CardDefaults.cardColors(containerColor = Color.White), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
+        Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), shape = RoundedCornerShape(12.dp), modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 Text("REGISTRATION & NODE ACCESS TOKENS", fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 Text("Master Cryptographic Keys: SHA-256 Validated", fontSize = 10.sp, color = SashioTextMuted)
