@@ -3,6 +3,7 @@ package com.sashio.ops.ui
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -20,6 +21,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
@@ -592,21 +594,36 @@ fun AdminMessagesTab(viewModel: SashioViewModel) {
                         modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        OutlinedTextField(
-                            value = msgFormText,
-                            onValueChange = { msgFormText = it },
-                            placeholder = { Text("Reply to $msgChannel...", fontSize = 11.sp) },
+                        Surface(
                             modifier = Modifier.weight(1f),
-                            singleLine = true,
-                            textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                                focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                                cursorColor = MaterialTheme.colorScheme.primary
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant,
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        ) {
+                            BasicTextField(
+                                value = msgFormText,
+                                onValueChange = { msgFormText = it },
+                                singleLine = true,
+                                textStyle = TextStyle(
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    fontSize = 15.sp
+                                ),
+                                cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 14.dp),
+                                decorationBox = { innerTextField ->
+                                    Box {
+                                        if (msgFormText.isEmpty()) {
+                                            Text(
+                                                "Reply to $msgChannel...",
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                fontSize = 14.sp
+                                            )
+                                        }
+                                        innerTextField()
+                                    }
+                                }
                             )
-                        )
+                        }
                         Spacer(modifier = Modifier.width(6.dp))
                         IconButton(
                             onClick = {
@@ -639,21 +656,35 @@ fun AdminMessagesTab(viewModel: SashioViewModel) {
                         }
                     }
 
-                    OutlinedTextField(
-                        value = broadcastMessageText,
-                        onValueChange = { broadcastMessageText = it },
-                        label = { Text("Broadcast message text") },
-                        maxLines = 4,
+                    Surface(
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(color = MaterialTheme.colorScheme.onSurface, fontSize = 14.sp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
-                            focusedBorderColor = MaterialTheme.colorScheme.primary,
-                            unfocusedBorderColor = MaterialTheme.colorScheme.outline,
-                            cursorColor = MaterialTheme.colorScheme.primary
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    ) {
+                        BasicTextField(
+                            value = broadcastMessageText,
+                            onValueChange = { broadcastMessageText = it },
+                            textStyle = TextStyle(
+                                color = MaterialTheme.colorScheme.onSurface,
+                                fontSize = 15.sp
+                            ),
+                            cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            decorationBox = { innerTextField ->
+                                Box {
+                                    if (broadcastMessageText.isEmpty()) {
+                                        Text(
+                                            "Type your broadcast message...",
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            fontSize = 14.sp
+                                        )
+                                    }
+                                    innerTextField()
+                                }
+                            }
                         )
-                    )
+                    }
 
                     Button(
                         onClick = {
