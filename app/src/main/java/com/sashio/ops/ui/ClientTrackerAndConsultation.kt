@@ -336,11 +336,8 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                 val hasLocalMatch = quote.local_booking_id != null &&
                     bookings.any { it.id == quote.local_booking_id }
                 !hasLocalMatch &&
-                    quote.status in listOf(
-                        "Quotation Sent",
-                        "Quotation Generated",
-                        "Client Accepted"
-                    ) &&
+                    (quote.status.trim().uppercase().replace('_', ' ').replace('-', ' ').contains("QUOTE") ||
+                        quote.status.trim().uppercase().replace('_', ' ').replace('-', ' ') == "CLIENT ACCEPTED") &&
                     (quote.quoted_price + quote.logistics_cost + quote.vat_amount) > 0 &&
                     quote.payment_status != "success"
             }
@@ -514,6 +511,14 @@ val displayQuotedPrice = remoteBooking?.quoted_price ?: b.quotedPrice
 val displayLogisticsCost = remoteBooking?.logistics_cost ?: b.logisticsCost
 val displayVatAmount = remoteBooking?.vat_amount ?: b.vatAmount
 val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
+                    val normalizedDisplayStatus = displayStatus.trim().uppercase()
+                        .replace('_', ' ')
+                        .replace('-', ' ')
+                    val isQuotationAwaitingPayment =
+                        (normalizedDisplayStatus.contains("QUOTE") ||
+                            normalizedDisplayStatus == "CLIENT ACCEPTED") &&
+                            displayPaymentStatus.trim().lowercase() != "success" &&
+                            (displayQuotedPrice + displayLogisticsCost + displayVatAmount) > 0
 
                     val liveLocation = remoteBooking?.let {
                         bookingLiveLocations[it.id]
@@ -737,13 +742,10 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                                 }
                             }
 
-                            if (displayStatus in listOf(
-                                    "Quotation Sent",
-                                "Quotation Generated",
-                                    "Client Accepted",
-                                    "Booking Confirmed",
+                            if (isQuotationAwaitingPayment || normalizedDisplayStatus in listOf(
+                                    "BOOKING CONFIRMED",
                                     "SERVICE DELIVERED",
-                                    "Completed"
+                                    "COMPLETED"
                                 )
                             ) {
                                 HorizontalDivider(
@@ -777,8 +779,9 @@ displayVatAmount
                                     modifier = Modifier.fillMaxWidth(),
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
-                                    when (displayStatus) {
-                                        "Quotation Sent", "Quotation Generated" -> {
+                                    when {
+                                        isQuotationAwaitingPayment &&
+                                            normalizedDisplayStatus != "CLIENT ACCEPTED" -> {
                                             Column(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -808,7 +811,7 @@ displayVatAmount
                                             }
                                         }
 
-                                        "Client Accepted" -> {
+                                        normalizedDisplayStatus == "CLIENT ACCEPTED" -> {
                                             if (grandTotal <= 0) {
     Text(
         "FREE — No payment required. Your quotation has been accepted.",
