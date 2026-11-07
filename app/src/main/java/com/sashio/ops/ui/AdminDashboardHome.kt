@@ -71,7 +71,7 @@ fun AdminDashboardHomeView(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         item {
-            Text("SACHIO CORPORATE COMMAND CENTER", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SashioSlate)
+            Text("SACHIO CORPORATE COMMAND CENTER", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
             Text("Real-time metadata, logistics control matrices, and commercial quotation compliance.", style = MaterialTheme.typography.bodySmall, color = SashioTextMuted)
         }
 
@@ -125,7 +125,7 @@ fun AdminDashboardHomeView(
                         ) {
                             Column(modifier = Modifier.padding(8.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(title, fontSize = 9.sp, fontWeight = FontWeight.Bold, color = color)
-                                Text(count, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = SashioSlate)
+                                Text(count, fontSize = 11.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.onSurface)
                             }
                         }
                     }
@@ -157,7 +157,7 @@ fun AdminDashboardHomeView(
                             if (i + j < menuItems.size) {
                                 val item = menuItems[i + j]
                                 Card(
-                                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                                     shape = RoundedCornerShape(12.dp),
                                     border = BorderStroke(1.dp, Color.LightGray.copy(alpha = 0.5f)),
                                     modifier = Modifier
@@ -166,7 +166,7 @@ fun AdminDashboardHomeView(
                                         .testTag("admin_grid_${item.first}")
                                 ) {
                                     Column(modifier = Modifier.padding(12.dp)) {
-                                        Text(item.second, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioSlate)
+                                        Text(item.second, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                                         Spacer(modifier = Modifier.height(4.dp))
                                         Text(item.third, fontSize = 9.sp, color = SashioTextMuted, lineHeight = 12.sp)
                                     }
@@ -194,7 +194,7 @@ fun AdminClientsCrmView(viewModel: SashioViewModel) {
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
-        Text("CUSTOMER RELATIONSHIP MANAGEMENT (CRM) - LIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = SashioSlate)
+        Text("CUSTOMER RELATIONSHIP MANAGEMENT (CRM) - LIVE", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
         Spacer(modifier = Modifier.height(8.dp))
 
         OutlinedTextField(
@@ -228,7 +228,7 @@ fun AdminClientsCrmView(viewModel: SashioViewModel) {
         }
 
         if (filteredClients.isEmpty()) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), modifier = Modifier.fillMaxWidth().padding(top = 20.dp)) {
                 Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.People, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -240,7 +240,7 @@ fun AdminClientsCrmView(viewModel: SashioViewModel) {
                 items(filteredClients) { c ->
                     val isSuspended = c.suspended
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = if (isSuspended) Color(0xFFFEE2E2) else Color.White),
+                        colors = CardDefaults.cardColors(containerColor = if (isSuspended) Color(0xFFFEE2E2) else MaterialTheme.colorScheme.surface),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -328,7 +328,7 @@ fun AdminStaffView(
         }
 
         if (filteredStaff.isEmpty()) {
-            Card(colors = CardDefaults.cardColors(containerColor = Color.White), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface), modifier = Modifier.fillMaxWidth().padding(top = 16.dp)) {
                 Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.Default.Badge, contentDescription = null, modifier = Modifier.size(48.dp), tint = Color.Gray)
                     Spacer(modifier = Modifier.height(8.dp))
@@ -340,7 +340,7 @@ fun AdminStaffView(
                 items(filteredStaff) { s ->
                     val isSuspended = s.suspended
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = if (isSuspended) Color(0xFFFEE2E2) else Color.White),
+                        colors = CardDefaults.cardColors(containerColor = if (isSuspended) Color(0xFFFEE2E2) else MaterialTheme.colorScheme.surface),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -355,7 +355,7 @@ fun AdminStaffView(
                             Text("Phone: ${s.phone_number ?: "N/A"} | Email: ${s.email}", fontSize = 10.sp, color = SashioTextMuted)
 
                             val countJob = supabaseBookings.count { it.assigned_staff_id == s.id }
-                            Text("Active Dispatches: $countJob", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = SashioSlate)
+                            Text("Active Dispatches: $countJob", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onSurface)
 
                             Spacer(modifier = Modifier.height(6.dp))
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -430,7 +430,7 @@ fun ManageUserRolesPanel(viewModel: SashioViewModel) {
             items(filtered) { p ->
                 var roleMenuOpen by remember(p.id) { mutableStateOf(false) }
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     shape = RoundedCornerShape(10.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
