@@ -336,10 +336,8 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                 val hasLocalMatch = quote.local_booking_id != null &&
                     bookings.any { it.id == quote.local_booking_id }
                 !hasLocalMatch &&
-                    (quote.status.trim().uppercase().replace('_', ' ').replace('-', ' ').contains("QUOTE") ||
-                        quote.status.trim().uppercase().replace('_', ' ').replace('-', ' ') == "CLIENT ACCEPTED") &&
                     (quote.quoted_price + quote.logistics_cost + quote.vat_amount) > 0 &&
-                    quote.payment_status != "success"
+                    quote.payment_status.trim().lowercase() != "success"
             }
             .take(5)
 
@@ -515,9 +513,7 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                         .replace('_', ' ')
                         .replace('-', ' ')
                     val isQuotationAwaitingPayment =
-                        (normalizedDisplayStatus.contains("QUOTE") ||
-                            normalizedDisplayStatus == "CLIENT ACCEPTED") &&
-                            displayPaymentStatus.trim().lowercase() != "success" &&
+                        displayPaymentStatus.trim().lowercase() != "success" &&
                             (displayQuotedPrice + displayLogisticsCost + displayVatAmount) > 0
 
                     val liveLocation = remoteBooking?.let {
@@ -793,7 +789,7 @@ displayVatAmount
                                                 ) {
                                                     Icon(Icons.Default.Payment, contentDescription = null, modifier = Modifier.size(17.dp))
                                                     Spacer(modifier = Modifier.width(7.dp))
-                                                    Text(if (grandTotal > 0) "ACCEPT & PAY NOW" else "ACCEPT FREE QUOTATION", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                                    Text(if (grandTotal > 0) "PAY NOW" else "ACCEPT FREE QUOTATION", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                                                 }
                                                 Row(
                                                     modifier = Modifier.fillMaxWidth(),
