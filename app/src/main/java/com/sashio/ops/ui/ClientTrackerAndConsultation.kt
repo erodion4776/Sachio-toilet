@@ -777,7 +777,12 @@ displayVatAmount
                                 ) {
                                     when {
                                         isQuotationAwaitingPayment &&
-                                            normalizedDisplayStatus != "CLIENT ACCEPTED" -> {
+                                            normalizedDisplayStatus !in listOf(
+                                                "CLIENT ACCEPTED",
+                                                "BOOKING CONFIRMED",
+                                                "SERVICE DELIVERED",
+                                                "COMPLETED"
+                                            ) -> {
                                             Column(
                                                 modifier = Modifier.fillMaxWidth(),
                                                 verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -807,7 +812,7 @@ displayVatAmount
                                             }
                                         }
 
-                                        normalizedDisplayStatus == "CLIENT ACCEPTED" -> {
+                                        isQuotationAwaitingPayment -> {
                                             if (grandTotal <= 0) {
     Text(
         "FREE — No payment required. Your quotation has been accepted.",
