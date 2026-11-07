@@ -130,7 +130,7 @@ fun AdminRevenueView(
 
         if (supabaseExpenses.isEmpty()) {
             Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -142,13 +142,13 @@ fun AdminRevenueView(
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 supabaseExpenses.forEach { exp ->
                     Card(
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Column(modifier = Modifier.padding(12.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text(exp.category, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioSlate)
+                                Text(exp.category, fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                                 Text("₦%,.2f".format(exp.amount), fontWeight = FontWeight.ExtraBold, color = SashioRed, fontSize = 12.sp)
                             }
                             Text("Staff: ${exp.staff_name} | Notes: ${exp.details.ifBlank { "N/A" }}", fontSize = 10.sp, color = SashioTextMuted)
@@ -484,12 +484,12 @@ fun AdminSettingsView(viewModel: SashioViewModel) {
         Text("SYSTEM SECURITY & CONTROLS AUDIT", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Operational Variables", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioSlate)
+                Text("Operational Variables", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
 
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(modifier = Modifier.weight(1f)) {
@@ -517,12 +517,12 @@ fun AdminSettingsView(viewModel: SashioViewModel) {
         }
 
         Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
             shape = RoundedCornerShape(14.dp),
             modifier = Modifier.fillMaxWidth()
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
-                Text("ACTIVE SECURITY AUDIT SIGNALS", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = SashioSlate)
+                Text("ACTIVE SECURITY AUDIT SIGNALS", fontWeight = FontWeight.Bold, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurface)
                 Spacer(modifier = Modifier.height(8.dp))
 
                 val logs = listOf(
