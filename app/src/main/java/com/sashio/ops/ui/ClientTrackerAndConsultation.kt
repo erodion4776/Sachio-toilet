@@ -531,6 +531,61 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
             Spacer(modifier = Modifier.height(16.dp))
         }
 
+        // Keep every remote quotation accessible, including requests still
+        // under review and older completed/rejected records. Only the live
+        // payment-ready and paid sections above are excluded from this history.
+        val paymentReadyIds = liveQuoted.map { it.id }.toSet()
+        val paidIds = paidBookings.map { it.id }.toSet()
+        val cancelledRemote = liveBookings.filter {
+            it.status.equals("Cancelled", true) || it.status.equals("CANCELLED", true)
+        }
+        val historyBookings = liveBookings.filterNot {
+            it.id in paymentReadyIds || it.id in paidIds ||
+                it.status.equals("Cancelled", true) || it.status.equals("CANCELLED", true)
+        }
+
+        if (historyBookings.isNotEmpty()) {
+            Text(
+                "PAST QUOTATIONS & ORDER HISTORY",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = SashioGold
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            historyBookings.forEach { old ->
+                val amount = old.quoted_price + old.logistics_cost + old.vat_amount
+                Card(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(old.service_type.ifBlank { "Service quotation" }, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            BookingStatusBadge(status = old.status)
+                        }
+                        Text(
+                            "Ref: ${old.id.take(8)} • Qty ${old.quantity} • ${old.duration}",
+                            fontSize = 10.sp,
+                            color = SashioTextMuted
+                        )
+                        if (amount > 0.0) {
+                            Text("Quotation total: ₦%,.0f".format(amount), fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        if (old.status.equals("Rejected", true) || old.status.equals("Cancelled", true)) {
+                            Text("This quotation is no longer active.", fontSize = 10.sp, color = SashioTextMuted)
+                        }
+                    }
+                }
+            }
+            Spacer(modifier = Modifier.height(12.dp))
+        }
+
         if (bookings.isEmpty() && liveBookings.isEmpty()) {
             Box(
                 modifier = Modifier
@@ -926,9 +981,10 @@ displayVatAmount
                         }
                     }
                 }
-                bookings.filter {
-                    it.status.trim().equals("Cancelled", true) ||
-                        it.status.trim().equals("CANCELLED", true)
+                bookings.filter { local ->
+                    (local.status.trim().equals("Cancelled", true) ||
+                        local.status.trim().equals("CANCELLED", true)) &&
+                        liveBookings.none { it.local_booking_id == local.id }
                 }.forEach { cancelled ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
@@ -951,10 +1007,7 @@ displayVatAmount
                         }
                     }
                 }
-                liveBookings.filter {
-                    (it.status.equals("Cancelled", true) || it.status.equals("CANCELLED", true)) &&
-                        it.local_booking_id == null
-                }.forEach { cancelled ->
+                cancelledRemote.forEach { cancelled ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
