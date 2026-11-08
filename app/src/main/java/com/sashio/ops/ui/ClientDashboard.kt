@@ -53,8 +53,9 @@ fun ClientDashboard(viewModel: SashioViewModel, client: UserProfile?) {
     var isSettingsOpen by remember { mutableStateOf(false) }
 
     val catalogItems by viewModel.clientCatalogItems.collectAsStateWithLifecycle()
-val bookings by viewModel.clientBookings.collectAsStateWithLifecycle()
-val liveBookings by viewModel.clientSupabaseBookings.collectAsStateWithLifecycle()
+    val bookings by viewModel.clientBookings.collectAsStateWithLifecycle()
+    val liveBookings by viewModel.clientSupabaseBookings.collectAsStateWithLifecycle()
+    val bookingLoadError by viewModel.clientBookingsLoadError.collectAsStateWithLifecycle()
     val bookingSyncMessage by viewModel.bookingSyncMessage.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
@@ -66,7 +67,7 @@ val liveBookings by viewModel.clientSupabaseBookings.collectAsStateWithLifecycle
         }
     }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(client?.id) {
         viewModel.loadSupabaseCatalogItems()
         viewModel.loadClientSupabaseBookings()
     }
@@ -149,6 +150,8 @@ val liveBookings by viewModel.clientSupabaseBookings.collectAsStateWithLifecycle
     client = client,
     bookings = bookings,
     liveBookings = liveBookings,
+    bookingLoadError = bookingLoadError,
+    onRetryBookings = { viewModel.loadClientSupabaseBookings() },
                         onRequestQuote = {
                             selectedCategoryForQuote =
                                 "Standard Portable Toilets"
@@ -189,46 +192,84 @@ fun ClientOverviewTab(
     client: UserProfile?,
     bookings: List<Booking>,
     liveBookings: List<SupabaseBooking>,
+    bookingLoadError: String?,
+    onRetryBookings: () -> Unit,
     onRequestQuote: () -> Unit,
     onNavigate: (String) -> Unit
 ) {
     val colors = MaterialTheme.colorScheme
 
+    fun normalizeStatus(value: String) =
+        value.trim().uppercase().replace('_', ' ').replace('-', ' ')
+
+    // Use Supabase as the source of truth, while retaining local-only requests
+    // that have not synced yet. This prevents an empty remote response from
+    // making a returning client's dashboard appear to have no activity.
+    val localOnlyBookings = bookings.filter { local ->
+        liveBookings.none { it.local_booking_id == local.id }
+    }
+    val allRequestCount = liveBookings.size + localOnlyBookings.size
     val pendingQuotes = liveBookings.count {
-    it.status in listOf(
-        "Quotation Requested",
-        "Under Review",
-        "Quotation Generated"
-    )
-}
-
-val activeQuotes = liveBookings.count {
-    it.status == "Quotation Sent"
-}
-
-val activeBookings = liveBookings.count {
-    it.status in listOf(
-        "Payment Confirmed",
-        "Booking Confirmed",
-        "SERVICE DELIVERED",
-        "IN TRANSIT",
-        "ARRIVED",
-        "SETUP IN PROGRESS"
-    )
-}
-
-val completedServices = liveBookings.count {
-    it.status.equals("completed", ignoreCase = true)
-}
-
-val outstandingPayments = liveBookings
-    .filter {
-        it.payment_status == "pending" &&
-        (it.quoted_price + it.logistics_cost + it.vat_amount) > 0.0
+        normalizeStatus(it.status) in setOf(
+            "QUOTATION REQUESTED", "UNDER REVIEW", "QUOTATION GENERATED",
+            "QUOTE REQUESTED", "QUOTE GENERATED", "PENDING REVIEW"
+        )
+    } + localOnlyBookings.count {
+        normalizeStatus(it.status) in setOf(
+            "QUOTATION REQUESTED", "UNDER REVIEW", "QUOTATION GENERATED",
+            "QUOTE REQUESTED", "QUOTE GENERATED", "PENDING REVIEW"
+        )
     }
-    .sumOf {
-        it.quoted_price + it.logistics_cost + it.vat_amount
+
+    val activeQuotes = liveBookings.count {
+        normalizeStatus(it.status) in setOf(
+            "QUOTATION SENT", "CLIENT ACCEPTED", "AWAITING PAYMENT",
+            "QUOTATION APPROVED", "QUOTE SENT", "PAYMENT PENDING"
+        )
+    } + localOnlyBookings.count {
+        normalizeStatus(it.status) in setOf(
+            "QUOTATION SENT", "CLIENT ACCEPTED", "AWAITING PAYMENT",
+            "QUOTATION APPROVED", "QUOTE SENT", "PAYMENT PENDING"
+        )
     }
+
+    val activeBookings = liveBookings.count {
+        normalizeStatus(it.status) in setOf(
+            "PAYMENT CONFIRMED", "BOOKING CONFIRMED", "IN TRANSIT",
+            "ARRIVED", "SETUP IN PROGRESS", "SERVICE DELIVERED",
+            "DISPATCHED", "IN PROGRESS"
+        )
+    } + localOnlyBookings.count {
+        normalizeStatus(it.status) in setOf(
+            "PAYMENT CONFIRMED", "BOOKING CONFIRMED", "IN TRANSIT",
+            "ARRIVED", "SETUP IN PROGRESS", "SERVICE DELIVERED",
+            "DISPATCHED", "IN PROGRESS"
+        )
+    }
+
+    val completedServices = liveBookings.count {
+        normalizeStatus(it.status) in setOf("COMPLETED", "CLOSED", "FULFILLED")
+    } + localOnlyBookings.count {
+        normalizeStatus(it.status) in setOf("COMPLETED", "CLOSED", "FULFILLED")
+    }
+
+    val outstandingPayments = liveBookings
+        .filter {
+            !it.payment_status.equals("success", ignoreCase = true) &&
+                (it.quoted_price + it.logistics_cost + it.vat_amount) > 0.0
+        }
+        .sumOf { it.quoted_price + it.logistics_cost + it.vat_amount } +
+        localOnlyBookings.filter {
+            !it.paymentStatus.equals("success", ignoreCase = true) &&
+                (it.quotedPrice + it.logisticsCost + it.vatAmount) > 0.0
+        }.sumOf { it.quotedPrice + it.logisticsCost + it.vatAmount }
+
+    val totalPaid = liveBookings.filter {
+        it.payment_status.equals("success", ignoreCase = true)
+    }.sumOf { it.quoted_price + it.logistics_cost + it.vat_amount } +
+        localOnlyBookings.filter {
+            it.paymentStatus.equals("success", ignoreCase = true)
+        }.sumOf { it.quotedPrice + it.logisticsCost + it.vatAmount }
 
     LazyColumn(
         modifier = Modifier
@@ -372,6 +413,26 @@ val outstandingPayments = liveBookings
             }
         }
 
+        if (!bookingLoadError.isNullOrBlank()) {
+            item {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = colors.errorContainer),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(12.dp)) {
+                        Text(
+                            "We couldn't refresh your quotations: $bookingLoadError",
+                            color = colors.onErrorContainer,
+                            fontSize = 12.sp
+                        )
+                        TextButton(onClick = onRetryBookings) {
+                            Text("Retry")
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             Text(
                 "Service Summary",
@@ -388,6 +449,13 @@ val outstandingPayments = liveBookings
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
+                StatCard(
+                    "Total Requests",
+                    allRequestCount.toString(),
+                    Icons.Default.ReceiptLong,
+                    Modifier.weight(1f),
+                    SashioBlue
+                )
                 StatCard(
                     "Pending Quotes",
                     pendingQuotes.toString(),
@@ -429,6 +497,26 @@ val outstandingPayments = liveBookings
             }
 
             Spacer(modifier = Modifier.height(12.dp))
+
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = SashioGreen.copy(alpha = 0.08f)
+                ),
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text("Total Payments", style = MaterialTheme.typography.labelSmall, color = SashioGreen)
+                        Text("₦%,.2f".format(totalPaid), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold, color = colors.onSurface)
+                    }
+                    Icon(Icons.Default.Payments, contentDescription = null, tint = SashioGreen, modifier = Modifier.size(30.dp))
+                }
+            }
 
             Card(
                 colors = CardDefaults.cardColors(
