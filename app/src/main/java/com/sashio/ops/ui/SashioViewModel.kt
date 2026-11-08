@@ -242,7 +242,7 @@ class SashioViewModel(application: Application) : AndroidViewModel(application) 
     val clientBookings: StateFlow<List<Booking>> = _currentUser
         .flatMapLatest { user ->
             if (user != null && user.role == "client") {
-                repository.getBookingsForClient(user.id)
+                repository.getBookingsForClient(user.id, user.email)
             } else {
                 flowOf(emptyList())
             }
@@ -439,10 +439,22 @@ val bookingLiveLocations: StateFlow<Map<String, BookingLiveLocation>> =
                     return@launch
                 }
 
+                val normalizedEmail = dbProfile.email.trim().lowercase()
+                val existingLocalProfile = repository.getProfileByEmail(normalizedEmail)
+                val localProfileId = repository.insertProfile(
+                    UserProfile(
+                        id = existingLocalProfile?.id ?: 0L,
+                        name = dbProfile.full_name ?: email,
+                        email = normalizedEmail,
+                        role = mappedRole,
+                        phoneNumber = dbProfile.phone_number ?: "",
+                        companyName = dbProfile.company_name ?: ""
+                    )
+                )
                 val user = UserProfile(
-                    id = 1,
+                    id = localProfileId,
                     name = dbProfile.full_name ?: email,
-                    email = dbProfile.email,
+                    email = normalizedEmail,
                     role = mappedRole,
                     phoneNumber = dbProfile.phone_number ?: "",
                     companyName = dbProfile.company_name ?: ""
@@ -519,10 +531,22 @@ fun completeGoogleSignIn() {
                 }
                 .decodeSingle<SupabaseProfile>()
 
+            val normalizedEmail = dbProfile.email.trim().lowercase()
+            val existingLocalProfile = repository.getProfileByEmail(normalizedEmail)
+            val localProfileId = repository.insertProfile(
+                UserProfile(
+                    id = existingLocalProfile?.id ?: 0L,
+                    name = dbProfile.full_name ?: dbProfile.email,
+                    email = normalizedEmail,
+                    role = dbProfile.role,
+                    phoneNumber = dbProfile.phone_number ?: "",
+                    companyName = dbProfile.company_name ?: ""
+                )
+            )
             val user = UserProfile(
-                id = 1,
+                id = localProfileId,
                 name = dbProfile.full_name ?: dbProfile.email,
-                email = dbProfile.email,
+                email = normalizedEmail,
                 role = dbProfile.role,
                 phoneNumber = dbProfile.phone_number ?: "",
                 companyName = dbProfile.company_name ?: ""
@@ -1562,6 +1586,7 @@ fun staffUpdateBookingStatus(
 
     fun loadClientSupabaseBookings() {
     viewModelScope.launch {
+        _clientSupabaseBookings.value = emptyList()
         _clientBookingsLoadError.value = null
 
         try {
