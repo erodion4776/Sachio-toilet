@@ -378,16 +378,8 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                 fontWeight = FontWeight.Bold,
                 color = SashioGold
             )
-            val paymentError by viewModel.roleManagementError.collectAsStateWithLifecycle()
-            paymentError?.let { err ->
-                Text(
-                    err,
-                    color = SashioRed,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-            }
+            // Do not render raw backend exceptions here. They can contain
+            // authorization headers and push the Pay Now action off-screen.
             Spacer(modifier = Modifier.height(6.dp))
 
             liveQuoted.forEach { lb ->
