@@ -133,7 +133,8 @@ data class SupabaseBooking(
     val status: String = "Quotation Requested",
     val assigned_staff_id: String? = null,
     val assigned_staff_name: String? = null,
-    val payment_status: String = "pending"
+    val payment_status: String = "pending",
+    val created_at: String = ""
 )
 
 @Serializable
