@@ -1158,7 +1158,7 @@ fun staffUpdateBookingStatus(
                 _roleManagementError.value = null
                 onComplete(true)
             } catch (e: Exception) {
-                _roleManagementError.value = "Could not accept quotation: ${e.message}"
+                _roleManagementError.value = "Could not accept quotation. Please retry. If the problem continues, contact support."
                 onComplete(false)
             }
         }
@@ -1655,7 +1655,7 @@ fun staffUpdateBookingStatus(
                 _activePaystackTransaction.value = response
                 _roleManagementError.value = null
             } catch (e: Exception) {
-                _roleManagementError.value = "Payment could not start: ${e.message}"
+                _roleManagementError.value = "Payment could not start. Please retry or contact support."
             }
         }
     }
