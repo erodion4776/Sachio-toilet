@@ -1111,17 +1111,105 @@ fun staffUpdateBookingStatus(
         }
     }
 }
-    fun clientRejectQuotation(bookingId: Long, onComplete: () -> Unit) {
+    fun clientCancelQuotation(bookingId: Long, onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
-            repository.updateBookingStatus(bookingId, "Cancelled")
-            onComplete()
+            try {
+                val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id
+                    ?: throw Exception("Please sign in again.")
+                val remote = SupabaseProvider.client.postgrest.from("bookings")
+                    .select {
+                        filter {
+                            eq("client_id", uid)
+                            eq("local_booking_id", bookingId)
+                        }
+                    }
+                    .decodeList<SupabaseBooking>()
+                    .firstOrNull()
+
+                if (remote != null) {
+                    SupabaseProvider.client.postgrest.rpc(
+                        function = "client_cancel_booking_quotation",
+                        parameters = buildJsonObject { put("p_booking_id", remote.id) }
+                    )
+                }
+                repository.updateBookingStatus(bookingId, "Cancelled")
+                _roleManagementError.value = null
+                loadClientSupabaseBookings()
+                onComplete(true)
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not cancel this order: ${e.message}"
+                onComplete(false)
+            }
         }
+    }
+
+    fun clientDeleteCancelledQuotation(bookingId: Long, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id
+                    ?: throw Exception("Please sign in again.")
+                val remote = SupabaseProvider.client.postgrest.from("bookings")
+                    .select {
+                        filter {
+                            eq("client_id", uid)
+                            eq("local_booking_id", bookingId)
+                        }
+                    }
+                    .decodeList<SupabaseBooking>()
+                    .firstOrNull()
+                if (remote != null) {
+                    SupabaseProvider.client.postgrest.rpc(
+                        function = "client_delete_cancelled_booking",
+                        parameters = buildJsonObject { put("p_booking_id", remote.id) }
+                    )
+                }
+                repository.deleteBooking(bookingId)
+                _roleManagementError.value = null
+                loadClientSupabaseBookings()
+                onComplete(true)
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not delete this cancelled order: ${e.message}"
+                onComplete(false)
+            }
+        }
+    }
+
+    fun clientRejectQuotation(bookingId: Long, onComplete: () -> Unit) {
+        clientCancelQuotation(bookingId) { onComplete() }
     }
 
     fun clientRequestRevision(bookingId: Long, onComplete: () -> Unit) {
         viewModelScope.launch {
-            repository.updateBookingStatus(bookingId, "Under Review")
-            onComplete()
+            try {
+                val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id
+                    ?: throw Exception("Please sign in again.")
+                val remote = SupabaseProvider.client.postgrest.from("bookings")
+                    .select {
+                        filter {
+                            eq("client_id", uid)
+                            eq("local_booking_id", bookingId)
+                        }
+                    }
+                    .decodeList<SupabaseBooking>()
+                    .firstOrNull()
+                if (remote != null) {
+                    SupabaseProvider.client.postgrest.from("bookings").update(
+                        mapOf("status" to "Under Review")
+                    ) {
+                        filter {
+                            eq("id", remote.id)
+                            eq("client_id", uid)
+                            eq("payment_status", "pending")
+                        }
+                    }
+                }
+                repository.updateBookingStatus(bookingId, "Under Review")
+                loadClientSupabaseBookings()
+                _roleManagementError.value = null
+                onComplete()
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not request a quote revision: ${e.message}"
+            }
         }
     }
 
