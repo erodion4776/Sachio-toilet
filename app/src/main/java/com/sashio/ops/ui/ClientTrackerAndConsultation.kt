@@ -336,7 +336,9 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
     Column(
         modifier = Modifier
             .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
+            .padding(bottom = 100.dp)
     ) {
         Text(
             "QUOTATION & ACTIVE DISPATCH TRACKER",
@@ -591,15 +593,15 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                 )
             }
         } else {
-            LazyColumn(
+            Column(
                 verticalArrangement = Arrangement.spacedBy(16.dp),
-                modifier = Modifier.weight(1f)
+                modifier = Modifier.fillMaxWidth()
             ) {
-                items(bookings.filterNot { local ->
+                bookings.filterNot { local ->
                     local.status.trim().equals("Cancelled", true) ||
                         local.status.trim().equals("CANCELLED", true) ||
                         liveQuoted.any { it.local_booking_id == local.id }
-                }) { b ->
+                }.forEach { b ->
                     val remoteBooking = liveBookings.firstOrNull {
                         it.local_booking_id == b.id
                     }
