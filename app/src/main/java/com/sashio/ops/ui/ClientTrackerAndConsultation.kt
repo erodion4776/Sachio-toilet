@@ -919,10 +919,10 @@ displayVatAmount
                         }
                     }
                 }
-                items(bookings.filter {
+                bookings.filter {
                     it.status.trim().equals("Cancelled", true) ||
                         it.status.trim().equals("CANCELLED", true)
-                }) { cancelled ->
+                }.forEach { cancelled ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -944,10 +944,10 @@ displayVatAmount
                         }
                     }
                 }
-                items(liveBookings.filter {
+                liveBookings.filter {
                     (it.status.equals("Cancelled", true) || it.status.equals("CANCELLED", true)) &&
                         it.local_booking_id == null
-                }) { cancelled ->
+                }.forEach { cancelled ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
