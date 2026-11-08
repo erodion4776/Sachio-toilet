@@ -25,8 +25,8 @@ interface SashioDao {
     @Query("SELECT * FROM bookings ORDER BY createdAt DESC")
     fun getAllBookingsFlow(): Flow<List<Booking>>
 
-    @Query("SELECT * FROM bookings WHERE clientId = :clientId ORDER BY createdAt DESC")
-    fun getBookingsForClientFlow(clientId: Long): Flow<List<Booking>>
+    @Query("SELECT * FROM bookings WHERE clientId = :clientId AND lower(clientEmail) = lower(:clientEmail) ORDER BY createdAt DESC")
+    fun getBookingsForClientFlow(clientId: Long, clientEmail: String): Flow<List<Booking>>
 
     @Query("SELECT * FROM bookings WHERE assignedStaffId = :staffId ORDER BY createdAt DESC")
     fun getBookingsForStaffFlow(staffId: Long): Flow<List<Booking>>
