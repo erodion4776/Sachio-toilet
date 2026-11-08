@@ -39,6 +39,7 @@ fun ClientQuotationTrackerTab(viewModel: SashioViewModel) {
 val bookingLoadError by viewModel.clientBookingsLoadError.collectAsStateWithLifecycle()
 val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLifecycle()
     var bookingToConvert by remember { mutableStateOf<Booking?>(null) }
+    var bookingToCancel by remember { mutableStateOf<Booking?>(null) }
     val context = LocalContext.current
     var activeTrackingRemoteBooking by remember { mutableStateOf<SupabaseBooking?>(null) }
 
@@ -90,6 +91,26 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
             onBack = { activeTrackingRemoteBooking = null }
         )
         return
+    }
+
+    if (bookingToCancel != null) {
+        val target = bookingToCancel!!
+        AlertDialog(
+            onDismissRequest = { bookingToCancel = null },
+            title = { Text("Cancel this order?") },
+            text = { Text("This will cancel the unpaid quotation. It will no longer appear in your active orders. You can delete the cancelled record later.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    viewModel.clientCancelQuotation(target.id) { ok ->
+                        if (ok) Toast.makeText(context, "Order cancelled.", Toast.LENGTH_SHORT).show()
+                        bookingToCancel = null
+                    }
+                }) { Text("Yes, cancel order", color = SashioRed) }
+            },
+            dismissButton = {
+                TextButton(onClick = { bookingToCancel = null }) { Text("Keep order") }
+            }
+        )
     }
 
     if (bookingToConvert != null) {
@@ -331,15 +352,20 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                 // Show online quotations that do not have a matching local Room row.
         // This includes quotations whose device-local ID was intentionally
         // omitted to avoid a duplicate-key collision in Supabase.
+        val payableQuoteStatuses = setOf(
+            "QUOTATION GENERATED", "QUOTATION SENT", "CLIENT ACCEPTED", "AWAITING PAYMENT"
+        )
         val liveQuoted = liveBookings
             .filter { quote ->
                 val hasLocalMatch = quote.local_booking_id != null &&
                     bookings.any { it.id == quote.local_booking_id }
+                val status = quote.status.trim().uppercase().replace('_', ' ').replace('-', ' ')
                 !hasLocalMatch &&
+                    status in payableQuoteStatuses &&
                     (quote.quoted_price + quote.logistics_cost + quote.vat_amount) > 0 &&
-                    quote.payment_status.trim().lowercase() != "success"
+                    !quote.payment_status.equals("success", ignoreCase = true)
             }
-            .take(5)
+            .sortedByDescending { it.created_at }
 
         if (liveQuoted.isNotEmpty()) {
             Text(
@@ -379,7 +405,7 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                             color = SashioTextMuted
                         )
                         Text(
-                            "Quotation ready. Pay securely to confirm this booking.",
+                            "Review the quotation below. Choose to proceed to secure payment or cancel this order.",
                             fontSize = 10.sp,
                             color = SashioTextMuted
                         )
@@ -394,12 +420,30 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                             color = SashioGreen
                         )
                         Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedButton(
+                            onClick = {
+                                viewModel.clientCancelRemoteQuotation(lb) { ok ->
+                                    if (ok) Toast.makeText(context, "Order cancelled.", Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Cancel Order")
+                        }
                         Button(
                             onClick = {
-                                viewModel.triggerPaystackPaymentForRealBooking(
-                                    lb.id,
-                                    grandTotal
-                                )
+                                if (lb.status.equals("Client Accepted", true) ||
+                                    lb.status.equals("Awaiting Payment", true) ||
+                                    lb.status.equals("Booking Confirmed", true)) {
+                                    viewModel.triggerPaystackPaymentForRealBooking(lb.id, grandTotal)
+                                } else {
+                                    viewModel.clientAcceptRemoteQuotation(lb) { accepted ->
+                                        if (accepted) {
+                                            viewModel.triggerPaystackPaymentForRealBooking(lb.id, grandTotal)
+                                            Toast.makeText(context, "Quotation accepted. Opening secure payment...", Toast.LENGTH_LONG).show()
+                                        }
+                                    }
+                                }
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = SashioGold),
                             modifier = Modifier.fillMaxWidth()
@@ -483,7 +527,8 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        if (bookings.isEmpty() && liveBookings.isEmpty()) {
+        if (bookings.none { !it.status.equals("Cancelled", true) && !it.status.equals("CANCELLED", true) } &&
+            liveBookings.none { !it.status.equals("Cancelled", true) && !it.status.equals("CANCELLED", true) }) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -500,7 +545,10 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                items(bookings) { b ->
+                items(bookings.filterNot {
+                    it.status.trim().equals("Cancelled", true) ||
+                        it.status.trim().equals("CANCELLED", true)
+                }) { b ->
                     val remoteBooking = liveBookings.firstOrNull {
                         it.local_booking_id == b.id
                     }
@@ -513,7 +561,8 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                         .replace('_', ' ')
                         .replace('-', ' ')
                     val isQuotationAwaitingPayment =
-                        displayPaymentStatus.trim().lowercase() != "success" &&
+                        !displayPaymentStatus.equals("success", ignoreCase = true) &&
+                            normalizedDisplayStatus in payableQuoteStatuses &&
                             (displayQuotedPrice + displayLogisticsCost + displayVatAmount) > 0
 
                     val liveLocation = remoteBooking?.let {
@@ -801,9 +850,9 @@ displayVatAmount
                                                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                                                 ) {
                                                     OutlinedButton(
-                                                        onClick = { viewModel.clientRejectQuotation(b.id) {} },
+                                                        onClick = { bookingToCancel = b },
                                                         modifier = Modifier.weight(1f).height(38.dp)
-                                                    ) { Text("Reject", fontSize = 10.sp) }
+                                                    ) { Text("Cancel Order", fontSize = 10.sp) }
                                                     OutlinedButton(
                                                         onClick = { viewModel.clientRequestRevision(b.id) {} },
                                                         modifier = Modifier.weight(1.4f).height(38.dp)
