@@ -1586,7 +1586,9 @@ fun staffUpdateBookingStatus(
 
     fun loadClientSupabaseBookings() {
     viewModelScope.launch {
-        _clientSupabaseBookings.value = emptyList()
+        // Keep the last successful booking snapshot visible while refreshing.
+        // Clearing this StateFlow here briefly removes Pay Now and dispatch cards,
+        // then makes them reappear when Supabase responds.
         _clientBookingsLoadError.value = null
 
         try {
