@@ -34,7 +34,8 @@ class SashioRepository(
 
     // --- Bookings & Quotation Requests ---
     val allBookings: Flow<List<Booking>> = dao.getAllBookingsFlow()
-    fun getBookingsForClient(clientId: Long): Flow<List<Booking>> = dao.getBookingsForClientFlow(clientId)
+    fun getBookingsForClient(clientId: Long, clientEmail: String): Flow<List<Booking>> =
+        dao.getBookingsForClientFlow(clientId, clientEmail.trim().lowercase())
     fun getBookingsForStaff(staffId: Long): Flow<List<Booking>> = dao.getBookingsForStaffFlow(staffId)
 
     suspend fun insertBooking(booking: Booking): Long = dao.insertBooking(booking)
