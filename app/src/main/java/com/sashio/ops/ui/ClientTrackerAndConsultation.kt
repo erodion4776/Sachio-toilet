@@ -914,6 +914,56 @@ displayVatAmount
                         }
                     }
                 }
+                items(bookings.filter {
+                    it.status.trim().equals("Cancelled", true) ||
+                        it.status.trim().equals("CANCELLED", true)
+                }) { cancelled ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(cancelled.serviceType, fontWeight = FontWeight.Bold)
+                                Text("Cancelled order • Ref #QR-${cancelled.id}", fontSize = 11.sp, color = SashioTextMuted)
+                            }
+                            TextButton(onClick = {
+                                viewModel.clientDeleteCancelledQuotation(cancelled.id) { ok ->
+                                    if (ok) Toast.makeText(context, "Cancelled order deleted.", Toast.LENGTH_SHORT).show()
+                                }
+                            }) { Text("Delete", color = SashioRed) }
+                        }
+                    }
+                }
+                items(liveBookings.filter {
+                    (it.status.equals("Cancelled", true) || it.status.equals("CANCELLED", true)) &&
+                        it.local_booking_id == null
+                }) { cancelled ->
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(12.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(cancelled.service_type, fontWeight = FontWeight.Bold)
+                                Text("Cancelled order • ${cancelled.id.take(8)}", fontSize = 11.sp, color = SashioTextMuted)
+                            }
+                            TextButton(onClick = {
+                                viewModel.clientDeleteCancelledRemoteQuotation(cancelled) { ok ->
+                                    if (ok) Toast.makeText(context, "Cancelled order deleted.", Toast.LENGTH_SHORT).show()
+                                }
+                            }) { Text("Delete", color = SashioRed) }
+                        }
+                    }
+                }
             }
         }
     }
