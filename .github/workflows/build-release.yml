@@ -2,6 +2,9 @@ name: Build Sachio Release AAB
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 permissions:
   contents: read
