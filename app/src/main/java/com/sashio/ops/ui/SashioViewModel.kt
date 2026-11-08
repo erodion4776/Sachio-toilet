@@ -1227,6 +1227,26 @@ fun staffUpdateBookingStatus(
         clientCancelQuotation(bookingId) { onComplete() }
     }
 
+    fun clientDeleteCancelledRemoteQuotation(booking: SupabaseBooking, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id
+                    ?: throw Exception("Please sign in again.")
+                if (booking.client_id != uid) throw Exception("This order does not belong to your account.")
+                SupabaseProvider.client.postgrest.rpc(
+                    function = "client_delete_cancelled_booking",
+                    parameters = buildJsonObject { put("p_booking_id", booking.id) }
+                )
+                loadClientSupabaseBookings()
+                _roleManagementError.value = null
+                onComplete(true)
+            } catch (e: Exception) {
+                _roleManagementError.value = "This order cannot be deleted: ${e.message}"
+                onComplete(false)
+            }
+        }
+    }
+
     fun clientRequestRevision(bookingId: Long, onComplete: () -> Unit) {
         viewModelScope.launch {
             try {
