@@ -527,8 +527,7 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
             Spacer(modifier = Modifier.height(16.dp))
         }
 
-        if (bookings.none { !it.status.equals("Cancelled", true) && !it.status.equals("CANCELLED", true) } &&
-            liveBookings.none { !it.status.equals("Cancelled", true) && !it.status.equals("CANCELLED", true) }) {
+        if (bookings.isEmpty() && liveBookings.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -905,6 +904,12 @@ displayVatAmount
                                                         fontSize = 11.sp,
                                                         fontWeight = FontWeight.Bold
                                                     )
+                                                }
+                                                if (normalizedDisplayStatus in listOf("CLIENT ACCEPTED", "AWAITING PAYMENT")) {
+                                                    OutlinedButton(
+                                                        onClick = { bookingToCancel = b },
+                                                        modifier = Modifier.fillMaxWidth()
+                                                    ) { Text("Cancel Order") }
                                                 }
                                             }
                                         }
