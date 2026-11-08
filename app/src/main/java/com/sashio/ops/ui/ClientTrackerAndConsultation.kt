@@ -353,15 +353,19 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
         // This includes quotations whose device-local ID was intentionally
         // omitted to avoid a duplicate-key collision in Supabase.
         val payableQuoteStatuses = setOf(
-            "QUOTATION GENERATED", "QUOTATION SENT", "CLIENT ACCEPTED", "AWAITING PAYMENT"
+            "QUOTATION GENERATED", "QUOTATION SENT", "CLIENT ACCEPTED",
+            "AWAITING PAYMENT", "QUOTATION APPROVED", "QUOTE GENERATED",
+            "QUOTE SENT", "PAYMENT PENDING", "ACCEPTED"
         )
+        // Supabase is the source of truth for quotations. Do not hide a live
+        // quotation just because an old Room row happens to share its local ID.
+        // This keeps the Pay Now action available after reinstall/account changes.
         val liveQuoted = liveBookings
             .filter { quote ->
-                val hasLocalMatch = quote.local_booking_id != null &&
-                    bookings.any { it.id == quote.local_booking_id }
                 val status = quote.status.trim().uppercase().replace('_', ' ').replace('-', ' ')
-                !hasLocalMatch &&
-                    status in payableQuoteStatuses &&
+                val isQuoteStatus = status in payableQuoteStatuses ||
+                    status.contains("QUOTATION") || status.contains("AWAITING PAYMENT")
+                isQuoteStatus &&
                     (quote.quoted_price + quote.logistics_cost + quote.vat_amount) > 0 &&
                     !quote.payment_status.equals("success", ignoreCase = true)
             }
@@ -544,9 +548,10 @@ val bookingLiveLocations by viewModel.bookingLiveLocations.collectAsStateWithLif
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.weight(1f)
             ) {
-                items(bookings.filterNot {
-                    it.status.trim().equals("Cancelled", true) ||
-                        it.status.trim().equals("CANCELLED", true)
+                items(bookings.filterNot { local ->
+                    local.status.trim().equals("Cancelled", true) ||
+                        local.status.trim().equals("CANCELLED", true) ||
+                        liveQuoted.any { it.local_booking_id == local.id }
                 }) { b ->
                     val remoteBooking = liveBookings.firstOrNull {
                         it.local_booking_id == b.id
@@ -561,7 +566,9 @@ val displayPaymentStatus = remoteBooking?.payment_status ?: b.paymentStatus
                         .replace('-', ' ')
                     val isQuotationAwaitingPayment =
                         !displayPaymentStatus.equals("success", ignoreCase = true) &&
-                            normalizedDisplayStatus in payableQuoteStatuses &&
+                            (normalizedDisplayStatus in payableQuoteStatuses ||
+                                normalizedDisplayStatus.contains("QUOTATION") ||
+                                normalizedDisplayStatus.contains("AWAITING PAYMENT")) &&
                             (displayQuotedPrice + displayLogisticsCost + displayVatAmount) > 0
 
                     val liveLocation = remoteBooking?.let {
