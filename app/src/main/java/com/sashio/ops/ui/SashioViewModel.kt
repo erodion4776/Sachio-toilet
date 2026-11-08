@@ -1111,6 +1111,35 @@ fun staffUpdateBookingStatus(
         }
     }
 }
+    fun clientAcceptRemoteQuotation(booking: SupabaseBooking, onComplete: (Boolean) -> Unit = {}) {
+        viewModelScope.launch {
+            try {
+                val uid = SupabaseProvider.client.auth.currentUserOrNull()?.id
+                    ?: throw Exception("Please sign in again.")
+                if (booking.client_id != uid) throw Exception("This quotation does not belong to your account.")
+                if (booking.payment_status.equals("success", ignoreCase = true)) {
+                    throw Exception("This quotation has already been paid.")
+                }
+                SupabaseProvider.client.postgrest.rpc(
+                    function = "client_accept_booking_quotation",
+                    parameters = buildJsonObject {
+                        put("p_booking_id", booking.id)
+                        put("p_service_date", booking.event_date ?: "")
+                        put("p_duration", booking.duration)
+                        put("p_delivery_address", booking.address)
+                        put("p_special_instructions", booking.special_instructions)
+                    }
+                )
+                loadClientSupabaseBookings()
+                _roleManagementError.value = null
+                onComplete(true)
+            } catch (e: Exception) {
+                _roleManagementError.value = "Could not accept quotation: ${e.message}"
+                onComplete(false)
+            }
+        }
+    }
+
     fun clientCancelQuotation(bookingId: Long, onComplete: (Boolean) -> Unit = {}) {
         viewModelScope.launch {
             try {
